@@ -1,0 +1,19 @@
+fn main() {
+    // let x = 3;
+    let y = 4 + 4 + 5;
+    let z = 1 * 2 - 3 / test * 4;
+    let r = 1 - 2 + 3;
+    let w = 1 * (2 - 3) / "test" - 7;
+    asntei
+    let a = test(3);
+    test(5);
+    return 5 +
+
+    a;
+    let b = (test2.func)(3 + 4)(8)("a");
+    let x = {
+        return 5;
+        let a = 3;
+        b
+    };
+}
