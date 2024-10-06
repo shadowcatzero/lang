@@ -16,4 +16,12 @@ impl Keyword {
             _ => return None,
         })
     }
+    pub const fn str(&self) -> &str {
+        match self {
+            Keyword::Fn => "fn",
+            Keyword::Let => "let",
+            Keyword::If => "if",
+            Keyword::Return => "return",
+        }
+    }
 }

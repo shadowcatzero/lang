@@ -1,14 +1,19 @@
-use crate::token::{Keyword, Symbol};
 use std::fmt::Debug;
 
 mod body;
 mod cursor;
 mod error;
 mod expr;
+mod token;
+mod val;
+
 pub use body::*;
 pub use cursor::*;
-pub use expr::*;
 pub use error::*;
+pub use expr::*;
+pub use val::*;
+
+use token::*;
 
 #[derive(Debug)]
 pub struct Module {
@@ -30,7 +35,7 @@ impl Module {
             if next.is_keyword(Keyword::Fn) {
                 functions.push(Function::parse(cursor)?);
             } else {
-                return unexpected_token(cursor.next().unwrap(), "fn");
+                return Err(ParserError::unexpected_token(next, "fn"));
             }
         }
     }

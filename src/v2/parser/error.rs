@@ -1,4 +1,4 @@
-use crate::token::{FileRegion, TokenInstance};
+use super::{FilePos, FileRegion};
 
 #[derive(Debug)]
 pub struct ParserError {
@@ -7,37 +7,32 @@ pub struct ParserError {
 }
 
 impl ParserError {
-    pub fn from_instances(instances: &[&TokenInstance], msg: String) -> Self {
-        ParserError {
-            msg,
-            regions: instances.iter().map(|i| i.loc).collect(),
-        }
-    }
     pub fn from_msg(msg: String) -> Self {
         Self {
             msg,
             regions: Vec::new(),
         }
     }
-}
-
-pub fn unexpected_token<T>(inst: &TokenInstance, expected: &str) -> Result<T, ParserError> {
-    let t = &inst.token;
-    Err(ParserError::from_instances(
-        &[inst],
-        format!("Unexpected token {t:?}; expected {expected}"),
-    ))
-}
-
-pub fn unexpected_end() -> ParserError {
-    ParserError::from_msg("Unexpected end of input".to_string())
+    pub fn at(pos: FilePos, msg: String) -> Self {
+        Self {
+            msg,
+            regions: vec![FileRegion {
+                start: pos,
+                end: pos,
+            }],
+        }
+    }
+    pub fn unexpected_end() -> Self {
+        Self::from_msg("Unexpected end of input".to_string())
+    }
 }
 
 const BEFORE: usize = 1;
 const AFTER: usize = 1;
 
 pub fn print_error(err: ParserError, file: &str) {
-    println!("error: {}:", err.msg);
+    let after = if err.regions.is_empty() {""} else {":"};
+    println!("error: {}{}", err.msg, after);
     for reg in err.regions {
         print_region(file, reg);
     }

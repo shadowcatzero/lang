@@ -1,11 +1,9 @@
 use std::fmt::{Debug, Write};
 
-use crate::token::{Keyword, Symbol, Token};
+use super::token::{Keyword, Symbol, Token};
 use crate::util::Padder;
 
-use super::cursor::TokenCursor;
-use super::error::{unexpected_token, ParserError};
-use super::Expr;
+use super::{Expr, ParserError, TokenCursor};
 
 pub struct Body {
     statements: Vec<Statement>,
@@ -59,7 +57,7 @@ impl Statement {
                 } else if next.is_symbol(Symbol::CloseCurly) {
                     Self::Return(expr)
                 } else {
-                    return unexpected_token(next, "a ';' or '}'");
+                    return Err(ParserError::unexpected_token(next, "a ';' or '}'"));
                 }
             }
         })
