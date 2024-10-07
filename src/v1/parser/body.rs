@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    token::{Keyword, Symbol, Token}, Node, NodeContainer, Parsable
+    token::{Keyword, Symbol, Token},
+    Node, Parsable, ParserErrors,
 };
 use crate::util::Padder;
 
@@ -19,8 +20,19 @@ pub enum Statement {
     Expr(Node<Expr>),
 }
 
+impl Statement {
+    pub fn ended_with_error(&self) -> bool {
+        let expr = match self {
+            Statement::Let(_, e) => e,
+            Statement::Return(e) => e,
+            Statement::Expr(e) => e,
+        };
+        expr.is_err() || expr.as_ref().is_ok_and(|e| e.ended_with_error())
+    }
+}
+
 impl Parsable for Body {
-    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let mut statements = Vec::new();
         let statement_end = &[Symbol::Semicolon, Symbol::CloseCurly];
         cursor.expect_sym(Symbol::OpenCurly)?;
@@ -28,54 +40,51 @@ impl Parsable for Body {
             cursor.next();
             return Ok(Self { statements });
         }
+        let mut expect_semi = false;
         loop {
             let next = cursor.expect_peek()?;
             if next.is_symbol(Symbol::CloseCurly) {
                 cursor.next();
                 return Ok(Self { statements });
             }
-            statements.push(Node::parse(cursor));
-            let next = cursor.expect_next()?;
-            match next.token {
-                Token::Symbol(Symbol::Semicolon) => continue,
-                Token::Symbol(Symbol::CloseCurly) => return Ok(Self { statements }),
-                _ => {
-                    let start = next.span.start;
-                    cursor
-                        .seek(|t| t.is_symbol_and(|s| statement_end.contains(&s)))
-                        .ok_or(ParserError::unexpected_end())?;
-                    let end = cursor.prev_end();
-                    let next = cursor.expect_next()?;
-                    let span = start.to(end);
-                    statements.push(Node::err(ParserError {
-                        msg: "Unexpected tokens".to_string(),
-                        spans: vec![span],
-                    }, span));
-                    if next.is_symbol(Symbol::CloseCurly) {
-                        return Ok(Self { statements });
-                    }
-                }
+            if next.is_symbol(Symbol::Semicolon) {
+                cursor.next();
+                expect_semi = false;
+                continue;
+            } else if expect_semi {
+                errors.add(ParserError {
+                    msg: "expected ';'".to_string(),
+                    spans: vec![cursor.next_pos().char_span()],
+                });
             }
+            let statement: Node<Statement> = Node::parse(cursor, errors);
+            expect_semi = true;
+            if statement.is_err() || statement.as_ref().is_ok_and(|s| s.ended_with_error()) {
+                let res = cursor
+                    .seek(|t| t.is_symbol_and(|s| statement_end.contains(&s)))
+                    .ok_or(ParserError::unexpected_end())?;
+            }
+            statements.push(statement);
         }
     }
 }
 
 impl Parsable for Statement {
-    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let next = cursor.expect_peek()?;
         Ok(match next.token {
             Token::Keyword(Keyword::Let) => {
                 cursor.next();
                 let name = cursor.expect_ident()?;
                 cursor.expect_sym(Symbol::Equals)?;
-                let expr = Node::parse(cursor);
+                let expr = Node::parse(cursor, errors);
                 Self::Let(name, expr)
             }
             Token::Keyword(Keyword::Return) => {
                 cursor.next();
-                Self::Return(Node::parse(cursor))
+                Self::Return(Node::parse(cursor, errors))
             }
-            _ => Self::Expr(Node::parse(cursor)),
+            _ => Self::Expr(Node::parse(cursor, errors)),
         })
     }
 }
@@ -118,21 +127,5 @@ impl Debug for Body {
             f.write_str("{}")?;
         }
         Ok(())
-    }
-}
-
-impl NodeContainer for Body {
-    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
-        self.statements.iter().map(|f| f.containerr()).collect()
-    }
-}
-
-impl NodeContainer for Statement {
-    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
-        match self {
-            Statement::Let(_, e) => vec![e.containerr()],
-            Statement::Return(e) => vec![e.containerr()],
-            Statement::Expr(e) => vec![e.containerr()],
-        }
     }
 }

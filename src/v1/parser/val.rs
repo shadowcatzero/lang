@@ -1,4 +1,4 @@
-use super::{CharCursor, MaybeParsable, NodeContainer, ParserError, Symbol, Token, TokenCursor};
+use super::{CharCursor, MaybeParsable, ParserError, ParserErrors, Symbol, Token, TokenCursor};
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub struct Number {
 }
 
 impl MaybeParsable for Val {
-    fn maybe_parse(cursor: &mut TokenCursor) -> Result<Option<Self>, ParserError> {
+    fn maybe_parse(cursor: &mut TokenCursor, _: &mut ParserErrors) -> Result<Option<Self>, ParserError> {
         let inst = cursor.expect_peek()?;
         let mut res = match &inst.token {
             Token::Symbol(Symbol::SingleQuote) => {

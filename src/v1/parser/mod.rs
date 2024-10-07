@@ -29,14 +29,14 @@ pub struct Function {
 }
 
 impl Parsable for Module {
-    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let mut functions = Vec::new();
         loop {
             let Some(next) = cursor.peek() else {
                 return Ok(Self { functions });
             };
             if next.is_keyword(Keyword::Fn) {
-                functions.push(Node::parse(cursor));
+                functions.push(Node::parse(cursor, errors));
             } else {
                 return Err(ParserError::unexpected_token(next, "fn"));
             }
@@ -45,12 +45,12 @@ impl Parsable for Module {
 }
 
 impl Parsable for Function {
-    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         cursor.expect_kw(Keyword::Fn)?;
         let name = cursor.expect_ident()?;
         cursor.expect_sym(Symbol::OpenParen)?;
         cursor.expect_sym(Symbol::CloseParen)?;
-        let body = Node::parse(cursor);
+        let body = Node::parse(cursor, errors);
         Ok(Self { name, body })
     }
 }
@@ -65,14 +65,3 @@ impl Debug for Function {
     }
 }
 
-impl NodeContainer for Module {
-    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
-        self.functions.iter().map(|f| f.containerr()).collect()
-    }
-}
-
-impl NodeContainer for Function {
-    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
-        vec![self.body.containerr()]
-    }
-}

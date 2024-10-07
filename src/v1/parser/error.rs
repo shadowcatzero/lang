@@ -39,7 +39,7 @@ impl ParserError {
         let t = &inst.token;
         ParserError::from_instances(
             &[inst],
-            format!("Unexpected token {t:?}; expected {expected}"),
+            format!("unexpected token {t:?}; expected {expected}"),
         )
     }
     pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
@@ -53,6 +53,9 @@ impl ParserError {
 }
 
 impl ParserErrors {
+    pub fn new() -> Self {
+        Self { errs: Vec::new() }
+    }
     pub fn add(&mut self, err: ParserError) {
         self.errs.push(err);
     }

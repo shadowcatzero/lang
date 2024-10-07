@@ -1,15 +1,18 @@
 use std::fmt::{Debug, Write};
 
 use super::token::{Symbol, Token};
-use super::{Body, Node, NodeContainer, Parsable, ParserError, TokenCursor, Val};
+use super::{Body, Node, Parsable, ParserError, ParserErrors, TokenCursor, Val};
+
+pub type ExprNode = Node<Box<Expr>>;
 
 #[derive(Clone)]
 pub enum Expr {
     Val(Node<Val>),
     Ident(String),
-    BinaryOp(Operator, Node<Box<Expr>>, Node<Box<Expr>>),
+    BinaryOp(Operator, ExprNode, ExprNode),
     Block(Node<Body>),
-    Call(Node<Box<Expr>>, Vec<Node<Expr>>),
+    Call(ExprNode, Vec<Node<Expr>>),
+    Group(ExprNode),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -21,29 +24,44 @@ pub enum Operator {
     LessThan,
     GreaterThan,
     Access,
+    Assign,
+}
+
+impl Expr {
+    pub fn ended_with_error(&self) -> bool {
+        match self {
+            Expr::Val(_) => false,
+            Expr::Ident(_) => false,
+            Expr::BinaryOp(_, _, e) => e.is_err() || e.as_ref().is_ok_and(|e| e.ended_with_error()),
+            Expr::Block(b) => b.is_err(),
+            Expr::Call(_, _) => false,
+            Expr::Group(_) => false,
+        }
+    }
 }
 
 impl Parsable for Expr {
-    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let start = cursor.next_pos();
-        let Some(next) = cursor.peek() else {
-            return Ok(Expr::Val(Node::new(
-                Val::Unit,
-                cursor.next_pos().char_span(),
-            )));
-        };
+        let next = cursor.expect_peek()?;
         let mut e1 = if next.is_symbol(Symbol::OpenParen) {
             cursor.next();
-            let expr = Node::parse(cursor);
-            if expr.is_ok() {
-                cursor.expect_sym(Symbol::CloseParen)?;
-            } else {
+            if cursor.expect_peek()?.is_symbol(Symbol::CloseParen) {
+                cursor.next();
+                return Ok(Expr::Val(Node::new(
+                    Val::Unit,
+                    cursor.next_pos().char_span(),
+                )));
+            }
+            let expr = Node::parse(cursor, errors).bx();
+            if expr.is_err() {
                 cursor.seek_sym(Symbol::CloseParen);
             }
-            expr.take()?
+            cursor.expect_sym(Symbol::CloseParen)?;
+            Self::Group(expr)
         } else if next.is_symbol(Symbol::OpenCurly) {
-            Self::Block(Node::parse(cursor))
-        } else if let Some(val) = Node::maybe_parse(cursor) {
+            Self::Block(Node::parse(cursor, errors))
+        } else if let Some(val) = Node::maybe_parse(cursor, errors) {
             Self::Val(val)
         } else {
             let next = cursor.peek().unwrap();
@@ -54,10 +72,7 @@ impl Parsable for Expr {
                     Self::Ident(name)
                 }
                 _ => {
-                    return Ok(Expr::Val(Node::new(
-                        Val::Unit,
-                        cursor.next_pos().char_span(),
-                    )))
+                    return Err(ParserError::unexpected_token(next, "an expression"));
                 }
             }
         };
@@ -66,7 +81,7 @@ impl Parsable for Expr {
         };
         while next.is_symbol(Symbol::OpenParen) {
             cursor.next();
-            let inner = Node::parse(cursor);
+            let inner = Node::parse(cursor, errors);
             cursor.expect_sym(Symbol::CloseParen)?;
             let end = cursor.prev_end();
             e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), vec![inner]);
@@ -79,18 +94,18 @@ impl Parsable for Expr {
         Ok(if let Some(mut op) = Operator::from_token(&next.token) {
             cursor.next();
             let mut n1 = Node::new(Box::new(e1), start.to(end));
-            let mut n2 = Node::<Self>::parse(cursor);
-            if let Ok(Self::BinaryOp(op2, n21, n22)) = &*n2 {
+            let mut n2 = Node::parse(cursor, errors).bx();
+            if let Ok(box Self::BinaryOp(op2, n21, n22)) = n2.as_ref() {
                 if op.presedence() > op2.presedence() {
                     n1 = Node::new(
                         Box::new(Self::BinaryOp(op, n1, n21.clone())),
                         start.to(n21.span.end),
                     );
                     op = *op2;
-                    n2 = n22.clone().unbx();
+                    n2 = n22.clone();
                 }
             }
-            Self::BinaryOp(op, n1, n2.bx())
+            Self::BinaryOp(op, n1, n2)
         } else {
             e1
         })
@@ -100,13 +115,14 @@ impl Parsable for Expr {
 impl Operator {
     pub fn presedence(&self) -> u32 {
         match self {
-            Operator::LessThan => 0,
-            Operator::GreaterThan => 0,
-            Operator::Add => 1,
-            Operator::Sub => 2,
-            Operator::Mul => 3,
-            Operator::Div => 4,
-            Operator::Access => 5,
+            Operator::Assign => 0,
+            Operator::LessThan => 1,
+            Operator::GreaterThan => 1,
+            Operator::Add => 2,
+            Operator::Sub => 3,
+            Operator::Mul => 4,
+            Operator::Div => 5,
+            Operator::Access => 6,
         }
     }
     pub fn str(&self) -> &str {
@@ -118,6 +134,7 @@ impl Operator {
             Self::LessThan => "<",
             Self::GreaterThan => ">",
             Self::Access => ".",
+            Self::Assign => "=",
         }
     }
     pub fn from_token(token: &Token) -> Option<Self> {
@@ -132,6 +149,7 @@ impl Operator {
             Symbol::Asterisk => Operator::Mul,
             Symbol::Slash => Operator::Div,
             Symbol::Dot => Operator::Access,
+            Symbol::Equals => Operator::Assign,
             _ => {
                 return None;
             }
@@ -139,13 +157,14 @@ impl Operator {
     }
     pub fn pad(&self) -> bool {
         match self {
-            Operator::Add => true,
-            Operator::Sub => true,
-            Operator::Mul => true,
-            Operator::Div => true,
-            Operator::LessThan => true,
-            Operator::GreaterThan => true,
-            Operator::Access => false,
+            Self::Add => true,
+            Self::Sub => true,
+            Self::Mul => true,
+            Self::Div => true,
+            Self::LessThan => true,
+            Self::GreaterThan => true,
+            Self::Access => false,
+            Self::Assign => true,
         }
     }
 }
@@ -177,22 +196,8 @@ impl Debug for Expr {
                 }
                 f.write_char(')')?;
             }
+            Expr::Group(inner) => inner.fmt(f)?,
         }
         Ok(())
-    }
-}
-
-impl NodeContainer for Expr {
-    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
-        match self {
-            Expr::Val(_) => Vec::new(),
-            Expr::Ident(_) => Vec::new(),
-            Expr::BinaryOp(_, e1, e2) => vec![e1.container(), e2.container()],
-            Expr::Block(b) => vec![b.containerr()],
-            Expr::Call(e1, rest) => [e1.container()]
-                .into_iter()
-                .chain(rest.iter().map(|e| e.containerr()))
-                .collect(),
-        }
     }
 }

@@ -10,6 +10,9 @@ fn main() {
     return 5 +
 
     a;
+    r = )!!;
+    r = !3;
+    r = 3 + !;
     let b = (test2.func)(3 + 4)(8)("a");
     let x = {
         return 5;

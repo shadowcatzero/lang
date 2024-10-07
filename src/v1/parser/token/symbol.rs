@@ -27,6 +27,7 @@ pub enum Symbol {
     CloseAngle,
     SingleQuote,
     DoubleQuote,
+    Bang,
 }
 
 impl Symbol {
@@ -57,6 +58,7 @@ impl Symbol {
             '.' => Self::Dot,
             '\'' => Self::SingleQuote,
             '"' => Self::DoubleQuote,
+            '!' => Self::Bang,
             _ => return None,
         })
     }
@@ -88,30 +90,30 @@ impl Symbol {
     }
     pub fn str(&self) -> &str {
         match self {
-            Symbol::Semicolon => ";",
-            Symbol::Colon => ":",
-            Symbol::DoubleColon => "::",
-            Symbol::Equals => "=",
-            Symbol::DoubleEquals => "==",
-            Symbol::Arrow => "->",
-            Symbol::DoubleArrow => "=>",
-            Symbol::Plus => "+",
-            Symbol::Minus => "-",
-            Symbol::Asterisk => "*",
-            Symbol::Slash => "/",
-            Symbol::DoubleSlash => "//",
-            Symbol::Dot => ".",
-            Symbol::OpenParen => "(",
-            Symbol::CloseParen => ")",
-            Symbol::OpenCurly => "{",
-            Symbol::CloseCurly => "}",
-            Symbol::OpenSquare => "[",
-            Symbol::CloseSquare => "]",
-            Symbol::OpenAngle => "<",
-            Symbol::CloseAngle => ">",
-            Symbol::SingleQuote => "'",
-            Symbol::DoubleQuote => "\"",
-
+            Self::Semicolon => ";",
+            Self::Colon => ":",
+            Self::DoubleColon => "::",
+            Self::Equals => "=",
+            Self::DoubleEquals => "==",
+            Self::Arrow => "->",
+            Self::DoubleArrow => "=>",
+            Self::Plus => "+",
+            Self::Minus => "-",
+            Self::Asterisk => "*",
+            Self::Slash => "/",
+            Self::DoubleSlash => "//",
+            Self::Dot => ".",
+            Self::OpenParen => "(",
+            Self::CloseParen => ")",
+            Self::OpenCurly => "{",
+            Self::CloseCurly => "}",
+            Self::OpenSquare => "[",
+            Self::CloseSquare => "]",
+            Self::OpenAngle => "<",
+            Self::CloseAngle => ">",
+            Self::SingleQuote => "'",
+            Self::DoubleQuote => "\"",
+            Self::Bang => "!",
         }
     }
 }

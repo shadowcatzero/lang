@@ -26,7 +26,7 @@ impl FilePos {
 }
 
 const BEFORE: usize = 1;
-const AFTER: usize = 1;
+const AFTER: usize = 0;
 
 impl FileSpan {
     pub fn at(pos: FilePos) -> Self {
@@ -70,11 +70,11 @@ impl FileSpan {
                 "^".repeat(self.end.col + 1)
             )?;
         }
-        for i in 0..AFTER {
-            if let Some(next) = lines.next() {
-                writeln!(writer, "{:>width$} | {}", self.end.line + i + 1, next)?;
-            }
-        }
+        // for i in 0..AFTER {
+        //     if let Some(next) = lines.next() {
+        //         writeln!(writer, "{:>width$} | {}", self.end.line + i + 1, next)?;
+        //     }
+        // }
         Ok(())
     }
 }

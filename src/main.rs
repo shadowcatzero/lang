@@ -1,3 +1,5 @@
+#![feature(box_patterns)]
+
 mod util;
 mod v1;
 mod v2;

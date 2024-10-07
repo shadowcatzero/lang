@@ -17,7 +17,7 @@ pub enum Token {
     Keyword(Keyword),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TokenInstance {
     pub token: Token,
     pub span: FileSpan,
