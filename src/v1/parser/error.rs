@@ -1,31 +1,35 @@
-use super::{token::{FileRegion, TokenInstance}, FilePos};
+use super::{
+    token::{FileSpan, TokenInstance},
+    FilePos,
+};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParserError {
     pub msg: String,
-    pub regions: Vec<FileRegion>,
+    pub spans: Vec<FileSpan>,
+}
+
+pub struct ParserErrors {
+    pub errs: Vec<ParserError>,
 }
 
 impl ParserError {
     pub fn from_instances(instances: &[&TokenInstance], msg: String) -> Self {
         ParserError {
             msg,
-            regions: instances.iter().map(|i| i.region).collect(),
+            spans: instances.iter().map(|i| i.span).collect(),
         }
     }
     pub fn from_msg(msg: String) -> Self {
         Self {
             msg,
-            regions: Vec::new(),
+            spans: Vec::new(),
         }
     }
     pub fn at(pos: FilePos, msg: String) -> Self {
         Self {
             msg,
-            regions: vec![FileRegion {
-                start: pos,
-                end: pos,
-            }],
+            spans: vec![FileSpan::at(pos)],
         }
     }
     pub fn unexpected_end() -> Self {
@@ -39,12 +43,17 @@ impl ParserError {
         )
     }
     pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
-        let after = if self.regions.is_empty() { "" } else { ":" };
+        let after = if self.spans.is_empty() { "" } else { ":" };
         writeln!(writer, "error: {}{}", self.msg, after)?;
-        for reg in &self.regions {
-            reg.write_for(writer, file)?;
+        for span in &self.spans {
+            span.write_for(writer, file)?;
         }
         Ok(())
     }
 }
 
+impl ParserErrors {
+    pub fn add(&mut self, err: ParserError) {
+        self.errs.push(err);
+    }
+}

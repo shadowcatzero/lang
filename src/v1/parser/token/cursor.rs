@@ -1,12 +1,11 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::v1::parser::ParserError;
-
+use super::super::ParserError;
 use super::FilePos;
 
 pub struct CharCursor<'a> {
     chars: Peekable<Chars<'a>>,
-    pos: FilePos,
+    next_pos: FilePos,
     prev_pos: FilePos,
 }
 
@@ -39,12 +38,12 @@ impl CharCursor<'_> {
         let Some(next) = self.chars.next() else {
             return;
         };
-        self.prev_pos = self.pos;
+        self.prev_pos = self.next_pos;
         if next == '\n' {
-            self.pos.col = 0;
-            self.pos.line += 1;
+            self.next_pos.col = 0;
+            self.next_pos.line += 1;
         } else {
-            self.pos.col += 1;
+            self.next_pos.col += 1;
         }
     }
     pub fn advance_if(&mut self, c: char) -> bool {
@@ -57,11 +56,10 @@ impl CharCursor<'_> {
         false
     }
     pub fn expect_next(&mut self) -> Result<char, ParserError> {
-        self.next()
-            .ok_or(ParserError::from_msg("Unexpected end of input".to_string()))
+        self.next().ok_or(ParserError::unexpected_end())
     }
-    pub fn pos(&self) -> FilePos {
-        self.pos
+    pub fn next_pos(&self) -> FilePos {
+        self.next_pos
     }
     pub fn prev_pos(&self) -> FilePos {
         self.prev_pos
@@ -72,7 +70,7 @@ impl<'a> From<&'a str> for CharCursor<'a> {
     fn from(value: &'a str) -> Self {
         Self {
             chars: value.chars().peekable(),
-            pos: FilePos::start(),
+            next_pos: FilePos::start(),
             prev_pos: FilePos::start(),
         }
     }

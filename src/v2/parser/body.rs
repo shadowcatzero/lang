@@ -109,7 +109,7 @@ impl Debug for Body {
             let mut padder = Padder::new(f);
             for s in &self.statements {
                 // they don't expose wrap_buf :grief:
-                write!(padder, "{s:?}\n")?;
+                writeln!(padder, "{s:?}")?;
             }
             write!(f, "}}")?;
         } else {

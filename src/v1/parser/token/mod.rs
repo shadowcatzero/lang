@@ -3,6 +3,8 @@ mod file;
 mod keyword;
 mod symbol;
 
+use std::ops::Deref;
+
 pub use cursor::*;
 pub use file::*;
 pub use keyword::*;
@@ -15,17 +17,17 @@ pub enum Token {
     Keyword(Keyword),
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct TokenInstance {
     pub token: Token,
-    pub region: FileRegion,
+    pub span: FileSpan,
 }
 
 impl TokenInstance {
     pub fn parse(cursor: &mut CharCursor) -> Option<TokenInstance> {
         cursor.skip_whitespace();
         cursor.peek()?;
-        let start = cursor.pos();
+        let start = cursor.next_pos();
         if let Some(s) = Symbol::parse(cursor) {
             if s == Symbol::DoubleSlash {
                 while cursor.next() != Some('\n') {}
@@ -34,7 +36,7 @@ impl TokenInstance {
             let end = cursor.prev_pos();
             return Some(Self {
                 token: Token::Symbol(s),
-                region: FileRegion { start, end },
+                span: FileSpan { start, end },
             });
         }
         let mut word = String::new();
@@ -53,7 +55,7 @@ impl TokenInstance {
         };
         Some(Self {
             token,
-            region: FileRegion { start, end },
+            span: FileSpan { start, end },
         })
     }
 }
@@ -65,6 +67,12 @@ impl Token {
             _ => false,
         }
     }
+    pub fn is_symbol_and(&self, f: impl Fn(Symbol) -> bool) -> bool {
+        match self {
+            Token::Symbol(s) => f(*s),
+            _ => false,
+        }
+    }
     pub fn is_keyword(&self, kw: Keyword) -> bool {
         match self {
             Token::Keyword(k) => *k == kw,
@@ -73,11 +81,10 @@ impl Token {
     }
 }
 
-impl TokenInstance {
-    pub fn is_keyword(&self, kw: Keyword) -> bool {
-        self.token.is_keyword(kw)
-    }
-    pub fn is_symbol(&self, symbol: Symbol) -> bool {
-        self.token.is_symbol(symbol)
+impl Deref for TokenInstance {
+    type Target = Token;
+
+    fn deref(&self) -> &Self::Target {
+        &self.token
     }
 }

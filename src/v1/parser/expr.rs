@@ -1,14 +1,15 @@
 use std::fmt::{Debug, Write};
 
 use super::token::{Symbol, Token};
-use super::{Body, Number, ParserError, TokenCursor, Val};
+use super::{Body, Node, NodeContainer, Parsable, ParserError, TokenCursor, Val};
 
+#[derive(Clone)]
 pub enum Expr {
-    Val(Val),
+    Val(Node<Val>),
     Ident(String),
-    BinaryOp(Operator, Box<Expr>, Box<Expr>),
-    Block(Body),
-    Call(Box<Expr>, Vec<Expr>),
+    BinaryOp(Operator, Node<Box<Expr>>, Node<Box<Expr>>),
+    Block(Node<Body>),
+    Call(Node<Box<Expr>>, Vec<Node<Expr>>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -22,63 +23,77 @@ pub enum Operator {
     Access,
 }
 
-impl Expr {
-    pub fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+impl Parsable for Expr {
+    fn parse(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
+        let start = cursor.next_pos();
         let Some(next) = cursor.peek() else {
-            return Ok(Expr::Val(Val::Unit));
+            return Ok(Expr::Val(Node::new(
+                Val::Unit,
+                cursor.next_pos().char_span(),
+            )));
         };
         let mut e1 = if next.is_symbol(Symbol::OpenParen) {
             cursor.next();
-            let expr = Self::parse(cursor)?;
-            cursor.expect_sym(Symbol::CloseParen)?;
-            expr
+            let expr = Node::parse(cursor);
+            if expr.is_ok() {
+                cursor.expect_sym(Symbol::CloseParen)?;
+            } else {
+                cursor.seek_sym(Symbol::CloseParen);
+            }
+            expr.take()?
         } else if next.is_symbol(Symbol::OpenCurly) {
-            let expr = Body::parse(cursor)?;
-            Expr::Block(expr)
+            Self::Block(Node::parse(cursor))
+        } else if let Some(val) = Node::maybe_parse(cursor) {
+            Self::Val(val)
         } else {
-            Self::parse_unit(cursor)?
+            let next = cursor.peek().unwrap();
+            match &next.token {
+                Token::Ident(name) => {
+                    let name = name.to_string();
+                    cursor.next();
+                    Self::Ident(name)
+                }
+                _ => {
+                    return Ok(Expr::Val(Node::new(
+                        Val::Unit,
+                        cursor.next_pos().char_span(),
+                    )))
+                }
+            }
         };
         let Some(mut next) = cursor.peek() else {
             return Ok(e1);
         };
         while next.is_symbol(Symbol::OpenParen) {
             cursor.next();
-            let inner = Self::parse(cursor)?;
+            let inner = Node::parse(cursor);
             cursor.expect_sym(Symbol::CloseParen)?;
-            e1 = Self::Call(Box::new(e1), vec![inner]);
+            let end = cursor.prev_end();
+            e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), vec![inner]);
             let Some(next2) = cursor.peek() else {
                 return Ok(e1);
             };
             next = next2
         }
-        Ok(if let Some(op) = Operator::from_token(&next.token) {
+        let end = cursor.prev_end();
+        Ok(if let Some(mut op) = Operator::from_token(&next.token) {
             cursor.next();
-            let e2 = Self::parse(cursor)?;
-            if let Self::BinaryOp(op_next, e3, e4) = e2 {
-                if op.presedence() > op_next.presedence() {
-                    Self::BinaryOp(op_next, Box::new(Self::BinaryOp(op, Box::new(e1), e3)), e4)
-                } else {
-                    Self::BinaryOp(op, Box::new(e1), Box::new(Self::BinaryOp(op_next, e3, e4)))
+            let mut n1 = Node::new(Box::new(e1), start.to(end));
+            let mut n2 = Node::<Self>::parse(cursor);
+            if let Ok(Self::BinaryOp(op2, n21, n22)) = &*n2 {
+                if op.presedence() > op2.presedence() {
+                    n1 = Node::new(
+                        Box::new(Self::BinaryOp(op, n1, n21.clone())),
+                        start.to(n21.span.end),
+                    );
+                    op = *op2;
+                    n2 = n22.clone().unbx();
                 }
-            } else {
-                Self::BinaryOp(op, Box::new(e1), Box::new(e2))
             }
+            Self::BinaryOp(op, n1, n2.bx())
         } else {
             e1
         })
-    }
-    fn parse_unit(cursor: &mut TokenCursor) -> Result<Self, ParserError> {
-        if let Some(val) = Val::parse(cursor)? {
-            return Ok(Self::Val(val));
-        }
-        let inst = cursor.expect_next()?;
-        match &inst.token {
-            Token::Ident(name) => Ok(Self::Ident(name.to_string())),
-            _ => Err(ParserError::unexpected_token(
-                &inst,
-                "an identifier or value",
-            )),
-        }
     }
 }
 
@@ -164,5 +179,20 @@ impl Debug for Expr {
             }
         }
         Ok(())
+    }
+}
+
+impl NodeContainer for Expr {
+    fn children(&self) -> Vec<Node<Box<dyn NodeContainer>>> {
+        match self {
+            Expr::Val(_) => Vec::new(),
+            Expr::Ident(_) => Vec::new(),
+            Expr::BinaryOp(_, e1, e2) => vec![e1.container(), e2.container()],
+            Expr::Block(b) => vec![b.containerr()],
+            Expr::Call(e1, rest) => [e1.container()]
+                .into_iter()
+                .chain(rest.iter().map(|e| e.containerr()))
+                .collect(),
+        }
     }
 }

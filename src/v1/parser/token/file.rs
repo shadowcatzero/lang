@@ -5,7 +5,7 @@ pub struct FilePos {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FileRegion {
+pub struct FileSpan {
     pub start: FilePos,
     pub end: FilePos,
 }
@@ -16,10 +16,25 @@ impl FilePos {
     }
 }
 
+impl FilePos {
+    pub fn to(self, end: FilePos) -> FileSpan {
+        FileSpan { start: self, end }
+    }
+    pub fn char_span(self) -> FileSpan {
+        FileSpan::at(self)
+    }
+}
+
 const BEFORE: usize = 1;
 const AFTER: usize = 1;
 
-impl FileRegion {
+impl FileSpan {
+    pub fn at(pos: FilePos) -> Self {
+        Self {
+            start: pos,
+            end: pos,
+        }
+    }
     pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
         let start = self.start.line.saturating_sub(BEFORE);
         let num_before = self.start.line - start;

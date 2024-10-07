@@ -1,7 +1,7 @@
-use super::{CharCursor, ParserError, Symbol, Token, TokenCursor};
+use super::{CharCursor, MaybeParsable, NodeContainer, ParserError, Symbol, Token, TokenCursor};
 use std::fmt::Debug;
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Val {
     String(String),
     Char(char),
@@ -9,15 +9,15 @@ pub enum Val {
     Unit,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Number {
     pub whole: String,
     pub decimal: Option<String>,
     pub ty: Option<String>,
 }
 
-impl Val {
-    pub fn parse(cursor: &mut TokenCursor) -> Result<Option<Self>, ParserError> {
+impl MaybeParsable for Val {
+    fn maybe_parse(cursor: &mut TokenCursor) -> Result<Option<Self>, ParserError> {
         let inst = cursor.expect_peek()?;
         let mut res = match &inst.token {
             Token::Symbol(Symbol::SingleQuote) => {
@@ -108,3 +108,4 @@ impl Debug for Number {
         Ok(())
     }
 }
+
