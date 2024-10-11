@@ -1,13 +1,13 @@
 use std::fmt::{Debug, Write};
 
 use super::token::{Symbol, Token};
-use super::{Body, Node, Parsable, ParserError, ParserErrors, TokenCursor, Val};
+use super::{Body, Node, Parsable, ParserError, ParserErrors, TokenCursor, Literal};
 
 pub type ExprNode = Node<Box<Expr>>;
 
 #[derive(Clone)]
 pub enum Expr {
-    Val(Node<Val>),
+    Lit(Node<Literal>),
     Ident(String),
     BinaryOp(Operator, ExprNode, ExprNode),
     Block(Node<Body>),
@@ -30,7 +30,7 @@ pub enum Operator {
 impl Expr {
     pub fn ended_with_error(&self) -> bool {
         match self {
-            Expr::Val(_) => false,
+            Expr::Lit(_) => false,
             Expr::Ident(_) => false,
             Expr::BinaryOp(_, _, e) => e.is_err() || e.as_ref().is_ok_and(|e| e.ended_with_error()),
             Expr::Block(b) => b.is_err(),
@@ -48,8 +48,8 @@ impl Parsable for Expr {
             cursor.next();
             if cursor.expect_peek()?.is_symbol(Symbol::CloseParen) {
                 cursor.next();
-                return Ok(Expr::Val(Node::new(
-                    Val::Unit,
+                return Ok(Expr::Lit(Node::new(
+                    Literal::Unit,
                     cursor.next_pos().char_span(),
                 )));
             }
@@ -62,7 +62,7 @@ impl Parsable for Expr {
         } else if next.is_symbol(Symbol::OpenCurly) {
             Self::Block(Node::parse(cursor, errors))
         } else if let Some(val) = Node::maybe_parse(cursor, errors) {
-            Self::Val(val)
+            Self::Lit(val)
         } else {
             let next = cursor.peek().unwrap();
             match &next.token {
@@ -172,7 +172,7 @@ impl Operator {
 impl Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Val(c) => c.fmt(f)?,
+            Expr::Lit(c) => c.fmt(f)?,
             Expr::Ident(n) => f.write_str(n)?,
             Expr::Block(b) => b.fmt(f)?,
             Expr::BinaryOp(op, e1, e2) => {

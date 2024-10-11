@@ -1,8 +1,22 @@
 use std::io::{stdout, BufRead, BufReader};
 
-mod parser;
+mod body;
+mod cursor;
+mod error;
+mod expr;
+mod module;
+mod node;
+mod token;
+mod val;
 
-use parser::{Module, Node, ParserErrors, Statement, TokenCursor};
+pub use body::*;
+pub use cursor::*;
+pub use error::*;
+pub use expr::*;
+pub use module::*;
+pub use node::*;
+pub use val::*;
+use token::*;
 
 pub fn parse_file(file: &str) {
     let mut errors = ParserErrors::new();
@@ -10,8 +24,9 @@ pub fn parse_file(file: &str) {
     if let Ok(module) = node.as_ref() {
         println!("{module:#?}");
     };
+    let out = &mut stdout();
     for err in errors.errs {
-        err.write_for(&mut stdout(), file).unwrap();
+        err.write_for(out, file).unwrap();
     }
 }
 
@@ -20,12 +35,12 @@ pub fn run_stdin() {
         let mut errors = ParserErrors::new();
         let str = &line.expect("failed to read line");
         let mut cursor = TokenCursor::from(&str[..]);
-        let out = &mut stdout();
         if let Ok(expr) = Node::<Statement>::parse(&mut cursor, &mut errors).as_ref() {
             println!("{:?}", expr);
         }
+        let out = &mut stdout();
         for err in errors.errs {
-            err.write_for(&mut stdout(), str).unwrap();
+            err.write_for(out, str).unwrap();
         }
     }
 }

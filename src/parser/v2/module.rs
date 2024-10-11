@@ -1,16 +1,5 @@
 use std::{collections::HashSet, fmt::Debug, sync::LazyLock};
-
-mod body;
-mod cursor;
-mod error;
-mod expr;
-mod util;
-
-pub use body::*;
-pub use cursor::*;
-pub use error::*;
-pub use expr::*;
-use util::WHITESPACE_SET;
+use super::{util::WHITESPACE_SET, Body, CharCursor, ParserError};
 
 #[derive(Debug)]
 pub struct Module {

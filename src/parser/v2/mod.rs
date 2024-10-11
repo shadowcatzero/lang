@@ -1,8 +1,17 @@
-use std::{ffi::OsStr, io::{BufRead, BufReader}};
+use std::io::{BufRead, BufReader};
 
-use parser::{print_error, CharCursor, Module, Statement};
+mod body;
+mod cursor;
+mod error;
+mod expr;
+mod module;
+mod util;
 
-mod parser;
+pub use body::*;
+pub use cursor::*;
+pub use error::*;
+pub use expr::*;
+pub use module::*;
 
 pub fn parse_file(file: &str) {
     match Module::parse(&mut CharCursor::from(file)) {

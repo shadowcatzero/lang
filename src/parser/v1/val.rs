@@ -2,7 +2,7 @@ use super::{CharCursor, MaybeParsable, ParserError, ParserErrors, Symbol, Token,
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum Val {
+pub enum Literal {
     String(String),
     Char(char),
     Number(Number),
@@ -16,7 +16,7 @@ pub struct Number {
     pub ty: Option<String>,
 }
 
-impl MaybeParsable for Val {
+impl MaybeParsable for Literal {
     fn maybe_parse(cursor: &mut TokenCursor, _: &mut ParserErrors) -> Result<Option<Self>, ParserError> {
         let inst = cursor.expect_peek()?;
         let mut res = match &inst.token {
@@ -85,7 +85,7 @@ pub fn string_from(cursor: &mut CharCursor) -> Result<String, ParserError> {
     }
 }
 
-impl Debug for Val {
+impl Debug for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(str) => str.fmt(f),

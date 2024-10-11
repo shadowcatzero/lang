@@ -20,3 +20,12 @@ fn main() {
         b
     };
 }
+
+fn test() {
+    let r = 3;
+    let a = }
+}
+
+fn test2() {
+
+}
