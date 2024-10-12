@@ -10,6 +10,8 @@ mod program;
 mod riscv64;
 mod target;
 
+use program::*;
+
 pub fn main() {
     use std::io::prelude::*;
     let dir = Path::new("./build");
@@ -62,7 +64,3 @@ pub fn main() {
     }
 }
 
-//     qemu-riscv64 -g 1234 test &
-//     riscv64-linux-gnu-gdb -q \
-//         -ex "target remote :1234" \
-//         test

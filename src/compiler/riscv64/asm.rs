@@ -1,57 +1,56 @@
-use crate::compiler::program::Instr;
+use crate::compiler::program::{Addr, Instr, SymTable, Symbol};
 
 use super::*;
 
 pub enum AsmInstruction {
     Addi(Reg, Reg, i32),
-    La(Reg, String),
+    La(Reg, Symbol),
     Jal(Reg, i32),
-    Jala(String),
-    Ja(String),
+    Call(Symbol),
+    J(Symbol),
     Ret,
     Ecall,
+    Li(Reg, i32),
 }
 
 impl Instr for AsmInstruction {
-    fn push(
-        &self,
-        data: &mut Vec<u8>,
-        sym_map: &std::collections::HashMap<String, u64>,
-        pos: u64,
-    ) -> Option<String> {
-        match self {
-            Self::Addi(dest, src, imm) => {
-                data.extend(addi(*dest, *src, BitsI32::new(*imm)).to_le_bytes());
-            }
+    fn push(&self, data: &mut Vec<u8>, sym_map: &SymTable, pos: Addr, missing: bool) -> Option<Symbol> {
+        let last = match self {
+            Self::Addi(dest, src, imm) => addi(*dest, *src, BitsI32::new(*imm)),
             Self::La(dest, sym) => {
-                if let Some(addr) = sym_map.get(sym) {
-                    let offset = *addr as i32 - pos as i32;
+                if let Some(addr) = sym_map.get(*sym) {
+                    let offset = addr.val() as i32 - pos.val() as i32;
                     data.extend(auipc(*dest, BitsI32::new(0)).to_le_bytes());
-                    data.extend(addi(*dest, *dest, BitsI32::new(offset)).to_le_bytes());
+                    addi(*dest, *dest, BitsI32::new(offset))
                 } else {
-                    return Some(sym.to_string());
+                    data.extend_from_slice(&[0; 2 * 4]);
+                    return Some(*sym);
                 }
             }
-            Self::Jal(dest, offset) => data.extend(jal(*dest, BitsI32::new(*offset)).to_le_bytes()),
-            Self::Ja(sym) => {
-                if let Some(addr) = sym_map.get(sym) {
-                    let offset = *addr as i32 - pos as i32;
-                    data.extend(j(BitsI32::new(offset)).to_le_bytes());
+            Self::Jal(dest, offset) => jal(*dest, BitsI32::new(*offset)),
+            Self::J(sym) => {
+                if let Some(addr) = sym_map.get(*sym) {
+                    let offset = addr.val() as i32 - pos.val() as i32;
+                    j(BitsI32::new(offset))
                 } else {
-                    return Some(sym.to_string());
+                    data.extend_from_slice(&[0; 4]);
+                    return Some(*sym);
                 }
             }
-            Self::Jala(sym) => {
-                if let Some(addr) = sym_map.get(sym) {
-                    let offset = *addr as i32 - pos as i32;
-                    data.extend(jal(ra, BitsI32::new(offset)).to_le_bytes());
+            Self::Call(sym) => {
+                if let Some(addr) = sym_map.get(*sym) {
+                    let offset = addr.val() as i32 - pos.val() as i32;
+                    jal(ra, BitsI32::new(offset))
                 } else {
-                    return Some(sym.to_string());
+                    data.extend_from_slice(&[0; 4]);
+                    return Some(*sym);
                 }
             }
-            Self::Ret => data.extend(ret().to_le_bytes()),
-            Self::Ecall => data.extend(ecall().to_le_bytes()),
-        }
+            Self::Ret => ret(),
+            Self::Ecall => ecall(),
+            Self::Li(reg, val) => addi(*reg, zero, BitsI32::new(*val)),
+        };
+        data.extend(last.to_le_bytes());
         None
     }
 }

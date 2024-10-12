@@ -1,3 +1,5 @@
+use super::program::Addr;
+
 #[repr(C)]
 pub struct ELF64Header {
     magic: u32,
@@ -49,7 +51,7 @@ pub struct SectionHeader {
 }
 
 // this is currently specialized for riscv64; obviously add params later
-pub fn create(program: Vec<u8>, start_offset: u64) -> Vec<u8> {
+pub fn create(program: Vec<u8>, start_offset: Addr) -> Vec<u8> {
     let addr_start = 0x1000;
     let page_size = 0x1000;
     let progam_size = std::mem::size_of_val(&program[..]) as u64;
@@ -76,7 +78,7 @@ pub fn create(program: Vec<u8>, start_offset: u64) -> Vec<u8> {
         ty: 0x2,       // executable
         machine: 0xf3, // risc-v
         e_version: 0x1,
-        entry: addr_start + program_pos + start_offset,
+        entry: addr_start + program_pos + start_offset.val(),
         program_header_offset: size_of::<ELF64Header>() as u64,
         section_header_offset: 0x0,
         // C ABI (16 bit instruction align) + double precision floats
