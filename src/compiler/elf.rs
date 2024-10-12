@@ -48,6 +48,7 @@ pub struct SectionHeader {
     entry_size: u64,
 }
 
+// this is currently specialized for riscv64; obviously add params later
 pub fn create(program: Vec<u8>, start_offset: u64) -> Vec<u8> {
     let addr_start = 0x1000;
     let page_size = 0x1000;

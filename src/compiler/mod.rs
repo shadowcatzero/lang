@@ -5,13 +5,14 @@ use std::{
     process::Command,
 };
 
-mod riscv64;
+mod elf;
 mod program;
+mod riscv64;
 mod target;
 
 pub fn main() {
     use std::io::prelude::*;
-    let dir = Path::new("build");
+    let dir = Path::new("./build");
     create_dir_all(dir).expect("Failed to create or confirm build directory");
     let name = Path::new("test");
     let path = dir.join(name);
@@ -26,9 +27,35 @@ pub fn main() {
     file.write_all(&riscv64::gen())
         .expect("Failed to write to file");
     file.sync_all().expect("Failed to sync file");
-    if let Ok(mut process) = Command::new("qemu-riscv64").arg(path).spawn() {
+    let mut p = Command::new("qemu-riscv64");
+    let run_gdb = std::env::args().nth(1).is_some_and(|a| a == "d");
+    let proc = if run_gdb {
+        p.arg("-g").arg("1234").arg(path).spawn()
+    } else {
+        p.arg(path).spawn()
+    };
+    if let Ok(mut process) = proc {
+        let mut print_exit = true;
+        if run_gdb {
+            match Command::new("gdb")
+                .arg("-q")
+                .arg("-ex")
+                .arg("target remote :1234")
+                .arg(path)
+                .spawn()
+            {
+                Ok(mut gdb) => {
+                    gdb.wait().expect("xd");
+                }
+                Err(e) => {
+                    print_exit = false;
+                    println!("gdb error: {e:?}");
+                    process.kill().expect("uh oh");
+                }
+            }
+        }
         if let Ok(status) = process.wait() {
-            if status.code().is_none_or(|c| c != 0) {
+            if print_exit && status.code().is_none_or(|c| c != 0) {
                 println!("{}", status);
             }
         }
@@ -39,4 +66,3 @@ pub fn main() {
 //     riscv64-linux-gnu-gdb -q \
 //         -ex "target remote :1234" \
 //         test
-

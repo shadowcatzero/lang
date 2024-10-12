@@ -1,5 +1,6 @@
 #![allow(non_upper_case_globals)]
 
+#[derive(Debug, Clone, Copy)]
 pub struct Reg(u8);
 
 /// hard wired 0

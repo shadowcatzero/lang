@@ -7,3 +7,4 @@ pub const AUIPC : u32 = 0b0010111;
 pub const IMM_OP: u32 = 0b0010011;
 pub const OP    : u32 = 0b0110011;
 pub const JAL   : u32 = 0b1101111;
+pub const JALR  : u32 = 0b1100111;
