@@ -1,19 +1,14 @@
+use super::{
+    func::Function, Keyword, MaybeResolved, Node, Parsable, ParserError, ParserErrors, Resolvable,
+    Resolved, TokenCursor, Unresolved,
+};
 use std::fmt::Debug;
 
-use super::{token::*, Body, Node, Parsable, ParserError, ParserErrors, TokenCursor};
-
-#[derive(Debug)]
-pub struct Module {
-    functions: Vec<Node<Function>>,
+pub struct Module<R: MaybeResolved> {
+    pub functions: Vec<Node<Function<R>, R>>,
 }
 
-#[derive(Clone)]
-pub struct Function {
-    pub name: String,
-    pub body: Node<Body>,
-}
-
-impl Parsable for Module {
+impl Parsable for Module<Unresolved> {
     fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let mut functions = Vec::new();
         loop {
@@ -23,30 +18,27 @@ impl Parsable for Module {
             if next.is_keyword(Keyword::Fn) {
                 functions.push(Node::parse(cursor, errors));
             } else {
-                return Err(ParserError::unexpected_token(next, "fn"));
+                errors.add(ParserError::unexpected_token(next, "fn"));
+                cursor.next();
             }
         }
     }
 }
 
-impl Parsable for Function {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
-        cursor.expect_kw(Keyword::Fn)?;
-        let name = cursor.expect_ident()?;
-        cursor.expect_sym(Symbol::OpenParen)?;
-        cursor.expect_sym(Symbol::CloseParen)?;
-        let body = Node::parse(cursor, errors);
-        Ok(Self { name, body })
-    }
-}
-
-impl Debug for Function {
+impl Debug for Module<Unresolved> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("fn ")?;
-        f.write_str(&self.name)?;
-        f.write_str("() ")?;
-        self.body.fmt(f)?;
-        Ok(())
+        self.functions.fmt(f)
     }
 }
 
+impl Resolvable<Module<Resolved>> for Module<Unresolved> {
+    fn resolve(self) -> Result<Module<Resolved>, ()> {
+        Ok(Module {
+            functions: self
+                .functions
+                .into_iter()
+                .map(|f| f.resolve())
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}

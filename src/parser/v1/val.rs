@@ -1,4 +1,4 @@
-use super::{CharCursor, MaybeParsable, ParserError, ParserErrors, Symbol, Token, TokenCursor};
+use super::{CharCursor, MaybeParsable, ParserError, ParserErrors, Resolvable, Symbol, Token, TokenCursor};
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -82,6 +82,12 @@ pub fn string_from(cursor: &mut CharCursor) -> Result<String, ParserError> {
             }
             _ => c,
         })
+    }
+}
+
+impl Resolvable<Literal> for Literal {
+    fn resolve(self) -> Result<Literal, ()> {
+        Ok(self)
     }
 }
 

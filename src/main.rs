@@ -2,8 +2,10 @@
 
 mod util;
 mod compiler;
+mod ir;
 mod parser;
 
 fn main() {
-    compiler::main();
+    parser::main();
+    // compiler::main();
 }

@@ -1,33 +1,23 @@
 use std::fmt::{Debug, Write};
 
 use super::token::{Symbol, Token};
-use super::{Body, Node, Parsable, ParserError, ParserErrors, TokenCursor, Literal};
+use super::{
+    Body, Literal, MaybeResolved, Node, Operator, Parsable, ParserError, ParserErrors, Resolvable,
+    Resolved, TokenCursor, Unresolved,
+};
 
-pub type ExprNode = Node<Box<Expr>>;
+type BoxNode<R> = Node<Box<Expr<R>>, R>;
 
-#[derive(Clone)]
-pub enum Expr {
-    Lit(Node<Literal>),
+pub enum Expr<R: MaybeResolved> {
+    Lit(Node<Literal, R>),
     Ident(String),
-    BinaryOp(Operator, ExprNode, ExprNode),
-    Block(Node<Body>),
-    Call(ExprNode, Vec<Node<Expr>>),
-    Group(ExprNode),
+    BinaryOp(Operator, BoxNode<R>, BoxNode<R>),
+    Block(Node<Body<R>, R>),
+    Call(BoxNode<R>, Vec<Node<Expr<R>, R>>),
+    Group(BoxNode<R>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum Operator {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    LessThan,
-    GreaterThan,
-    Access,
-    Assign,
-}
-
-impl Expr {
+impl Expr<Unresolved> {
     pub fn ended_with_error(&self) -> bool {
         match self {
             Expr::Lit(_) => false,
@@ -40,7 +30,7 @@ impl Expr {
     }
 }
 
-impl Parsable for Expr {
+impl Parsable for Expr<Unresolved> {
     fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
         let start = cursor.next_pos();
         let next = cursor.expect_peek()?;
@@ -48,7 +38,7 @@ impl Parsable for Expr {
             cursor.next();
             if cursor.expect_peek()?.is_symbol(Symbol::CloseParen) {
                 cursor.next();
-                return Ok(Expr::Lit(Node::new(
+                return Ok(Expr::Lit(Node::new_unres(
                     Literal::Unit,
                     cursor.next_pos().char_span(),
                 )));
@@ -84,7 +74,7 @@ impl Parsable for Expr {
             let inner = Node::parse(cursor, errors);
             cursor.expect_sym(Symbol::CloseParen)?;
             let end = cursor.prev_end();
-            e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), vec![inner]);
+            e1 = Self::Call(Node::new_unres(Box::new(e1), start.to(end)), vec![inner]);
             let Some(next2) = cursor.peek() else {
                 return Ok(e1);
             };
@@ -93,16 +83,17 @@ impl Parsable for Expr {
         let end = cursor.prev_end();
         Ok(if let Some(mut op) = Operator::from_token(&next.token) {
             cursor.next();
-            let mut n1 = Node::new(Box::new(e1), start.to(end));
+            let mut n1 = Node::new_unres(e1, start.to(end)).bx();
             let mut n2 = Node::parse(cursor, errors).bx();
-            if let Ok(box Self::BinaryOp(op2, n21, n22)) = n2.as_ref() {
+            if let Ok(box Self::BinaryOp(op2, _, _)) = n2.as_ref() {
                 if op.presedence() > op2.presedence() {
-                    n1 = Node::new(
-                        Box::new(Self::BinaryOp(op, n1, n21.clone())),
-                        start.to(n21.span.end),
-                    );
-                    op = *op2;
-                    n2 = n22.clone();
+                    let Ok(box Self::BinaryOp(op2, n21, n22)) = n2.inner else {
+                        unreachable!();
+                    };
+                    let end = n21.span.end;
+                    n1 = Node::new_unres(Self::BinaryOp(op, n1, n21), start.to(end)).bx();
+                    op = op2;
+                    n2 = n22;
                 }
             }
             Self::BinaryOp(op, n1, n2)
@@ -112,64 +103,25 @@ impl Parsable for Expr {
     }
 }
 
-impl Operator {
-    pub fn presedence(&self) -> u32 {
-        match self {
-            Operator::Assign => 0,
-            Operator::LessThan => 1,
-            Operator::GreaterThan => 1,
-            Operator::Add => 2,
-            Operator::Sub => 3,
-            Operator::Mul => 4,
-            Operator::Div => 5,
-            Operator::Access => 6,
-        }
-    }
-    pub fn str(&self) -> &str {
-        match self {
-            Self::Add => "+",
-            Self::Sub => "-",
-            Self::Mul => "*",
-            Self::Div => "/",
-            Self::LessThan => "<",
-            Self::GreaterThan => ">",
-            Self::Access => ".",
-            Self::Assign => "=",
-        }
-    }
-    pub fn from_token(token: &Token) -> Option<Self> {
-        let Token::Symbol(symbol) = token else {
-            return None;
-        };
-        Some(match symbol {
-            Symbol::OpenAngle => Operator::LessThan,
-            Symbol::CloseAngle => Operator::GreaterThan,
-            Symbol::Plus => Operator::Add,
-            Symbol::Minus => Operator::Sub,
-            Symbol::Asterisk => Operator::Mul,
-            Symbol::Slash => Operator::Div,
-            Symbol::Dot => Operator::Access,
-            Symbol::Equals => Operator::Assign,
-            _ => {
-                return None;
-            }
+impl Resolvable<Expr<Resolved>> for Expr<Unresolved> {
+    fn resolve(self) -> Result<Expr<Resolved>, ()> {
+        Ok(match self {
+            Expr::Lit(l) => Expr::Lit(l.resolve()?),
+            Expr::Ident(n) => Expr::Ident(n),
+            Expr::BinaryOp(o, e1, e2) => Expr::BinaryOp(o, e1.resolve()?, e2.resolve()?),
+            Expr::Block(b) => Expr::Block(b.resolve()?),
+            Expr::Call(f, args) => Expr::Call(
+                f.resolve()?,
+                args.into_iter()
+                    .map(|arg| arg.resolve())
+                    .collect::<Result<_, ()>>()?,
+            ),
+            Expr::Group(e) => Expr::Group(e.resolve()?),
         })
-    }
-    pub fn pad(&self) -> bool {
-        match self {
-            Self::Add => true,
-            Self::Sub => true,
-            Self::Mul => true,
-            Self::Div => true,
-            Self::LessThan => true,
-            Self::GreaterThan => true,
-            Self::Access => false,
-            Self::Assign => true,
-        }
     }
 }
 
-impl Debug for Expr {
+impl Debug for Expr<Unresolved> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Lit(c) => c.fmt(f)?,
