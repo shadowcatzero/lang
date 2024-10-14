@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::{FileSpan, ParserError, ParserErrors, TokenCursor};
+use super::FileSpan;
 
 pub trait MaybeResolved {
     type Inner<T>;
@@ -24,63 +24,8 @@ pub struct Node<T, R: MaybeResolved> {
     pub span: FileSpan,
 }
 
-pub trait Parsable: Sized {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError>;
-}
-
-pub trait MaybeParsable: Sized {
-    fn maybe_parse(
-        cursor: &mut TokenCursor,
-        errors: &mut ParserErrors,
-    ) -> Result<Option<Self>, ParserError>;
-}
-
-impl<T: Parsable> Node<T, Unresolved> {
-    pub fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Self {
-        let start = cursor.next_pos();
-        let inner = T::parse(cursor, errors).map_err(|e| errors.add(e));
-        let end = cursor.prev_end();
-        Self {
-            inner,
-            span: start.to(end),
-        }
-    }
-}
-
-impl<T: MaybeParsable> Node<T, Unresolved> {
-    pub fn maybe_parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Option<Self> {
-        let start = cursor.next_pos();
-        let inner = match T::maybe_parse(cursor, errors) {
-            Ok(v) => Ok(v?),
-            Err(e) => {
-                errors.add(e);
-                Err(())
-            }
-        };
-        let end = cursor.prev_end();
-        Some(Self {
-            inner,
-            span: start.to(end),
-        })
-    }
-}
-
-pub trait NodeParsable {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Node<Self, Unresolved>
-    where
-        Self: Sized;
-}
-impl<T: Parsable> NodeParsable for T {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Node<Self, Unresolved>
-    where
-        Self: Sized,
-    {
-        Node::<Self, Unresolved>::parse(cursor, errors)
-    }
-}
-
 impl<T> Node<T, Unresolved> {
-    pub fn new_unres(inner: T, span: FileSpan) -> Self {
+    pub fn new(inner: T, span: FileSpan) -> Self {
         Self {
             inner: Ok(inner),
             span,

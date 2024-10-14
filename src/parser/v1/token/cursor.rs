@@ -46,15 +46,6 @@ impl CharCursor<'_> {
             self.next_pos.col += 1;
         }
     }
-    pub fn advance_if(&mut self, c: char) -> bool {
-        if let Some(c2) = self.peek() {
-            if c2 == c {
-                self.advance();
-                return true;
-            }
-        }
-        false
-    }
     pub fn expect_next(&mut self) -> Result<char, ParserError> {
         self.next().ok_or(ParserError::unexpected_end())
     }

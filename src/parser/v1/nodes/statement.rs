@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Write};
 use super::{
-    Expr, Keyword, MaybeResolved, Node, Parsable, ParserError, ParserErrors, Resolvable, Resolved,
-    Symbol, Token, TokenCursor, Unresolved,
+    Expr, Keyword, MaybeResolved, Node, Parsable, ParseResult, ParserErrors, Resolvable, Resolved, Symbol, Token, TokenCursor, Unresolved
 };
 
 pub enum Statement<R: MaybeResolved> {
@@ -10,34 +9,22 @@ pub enum Statement<R: MaybeResolved> {
     Expr(Node<Expr<R>, R>),
 }
 
-impl Statement<Unresolved> {
-    pub fn ended_with_error(&self) -> bool {
-        let expr = match self {
-            Statement::Let(_, e) => e,
-            Statement::Return(e) => e,
-            Statement::Expr(e) => e,
-        };
-        expr.is_err() || expr.as_ref().is_ok_and(|e| e.ended_with_error())
-    }
-}
-
 impl Parsable for Statement<Unresolved> {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
         let next = cursor.expect_peek()?;
-        Ok(match next.token {
+        match next.token {
             Token::Keyword(Keyword::Let) => {
                 cursor.next();
                 let name = cursor.expect_ident()?;
                 cursor.expect_sym(Symbol::Equals)?;
-                let expr = Node::parse(cursor, errors);
-                Self::Let(name, expr)
+                Node::parse(cursor, errors).map(|expr| Self::Let(name, expr))
             }
             Token::Keyword(Keyword::Return) => {
                 cursor.next();
-                Self::Return(Node::parse(cursor, errors))
+                Node::parse(cursor, errors).map(Self::Return)
             }
-            _ => Self::Expr(Node::parse(cursor, errors)),
-        })
+            _ => Node::parse(cursor, errors).map(Self::Expr),
+        }
     }
 }
 

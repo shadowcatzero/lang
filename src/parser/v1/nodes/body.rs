@@ -1,8 +1,8 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    token::Symbol, MaybeResolved, Node, NodeParsable, Parsable, ParserError, ParserErrors,
-    Resolvable, Resolved, Statement, TokenCursor, Unresolved,
+    token::Symbol, MaybeResolved, Node, NodeParsable, Parsable, ParseResult, ParserError,
+    ParserErrors, Resolvable, Resolved, Statement, TokenCursor, Unresolved,
 };
 use crate::util::Padder;
 
@@ -11,20 +11,25 @@ pub struct Body<R: MaybeResolved> {
 }
 
 impl Parsable for Body<Unresolved> {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Result<Self, ParserError> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
         let mut statements = Vec::new();
         let statement_end = &[Symbol::Semicolon, Symbol::CloseCurly];
         cursor.expect_sym(Symbol::OpenCurly)?;
         if cursor.expect_peek()?.is_symbol(Symbol::CloseCurly) {
             cursor.next();
-            return Ok(Self { statements });
+            return ParseResult::Ok(Self { statements });
         }
         let mut expect_semi = false;
+        let mut recover = false;
         loop {
-            let next = cursor.expect_peek()?;
+            let Some(next) = cursor.peek() else {
+                recover = true;
+                errors.add(ParserError::unexpected_end());
+                break;
+            };
             if next.is_symbol(Symbol::CloseCurly) {
                 cursor.next();
-                return Ok(Self { statements });
+                break;
             }
             if next.is_symbol(Symbol::Semicolon) {
                 cursor.next();
@@ -36,15 +41,19 @@ impl Parsable for Body<Unresolved> {
                     spans: vec![cursor.next_pos().char_span()],
                 });
             }
-            let statement = Statement::parse_node(cursor, errors);
+            let res = Statement::parse_node(cursor, errors);
+            statements.push(res.node);
             expect_semi = true;
-            if statement.is_err() || statement.as_ref().is_ok_and(|s| s.ended_with_error()) {
-                let res = cursor
+            if res.recover
+                && cursor
                     .seek(|t| t.is_symbol_and(|s| statement_end.contains(&s)))
-                    .ok_or(ParserError::unexpected_end())?;
+                    .is_none()
+            {
+                recover = true;
+                break;
             }
-            statements.push(statement);
         }
+        ParseResult::from_recover(Self { statements }, recover)
     }
 }
 

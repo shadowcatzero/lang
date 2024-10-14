@@ -28,6 +28,10 @@ pub enum Symbol {
     SingleQuote,
     DoubleQuote,
     Bang,
+    Ampersand,
+    DoubleAmpersand,
+    Pipe,
+    DoublePipe,
 }
 
 impl Symbol {
@@ -59,6 +63,8 @@ impl Symbol {
             '\'' => Self::SingleQuote,
             '"' => Self::DoubleQuote,
             '!' => Self::Bang,
+            '&' => Self::Ampersand,
+            '|' => Self::Pipe,
             _ => return None,
         })
     }
@@ -79,9 +85,17 @@ impl Symbol {
                 '=' => Self::DoubleEquals,
                 '>' => Self::DoubleArrow,
                 _ => return,
-            }
+            },
             Self::Slash => match next {
                 '/' => Self::DoubleSlash,
+                _ => return,
+            },
+            Self::Ampersand => match next {
+                '&' => Self::DoubleAmpersand,
+                _ => return,
+            }
+            Self::Pipe => match next {
+                '&' => Self::DoublePipe,
                 _ => return,
             }
             _ => return,
@@ -114,6 +128,10 @@ impl Symbol {
             Self::SingleQuote => "'",
             Self::DoubleQuote => "\"",
             Self::Bang => "!",
+            Self::Ampersand => "&",
+            Self::DoubleAmpersand => "&&",
+            Self::Pipe => "|",
+            Self::DoublePipe => "||",
         }
     }
 }
