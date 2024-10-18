@@ -18,14 +18,14 @@ impl Instruction {
 pub type Funct3 = Bits32<2, 0>;
 
 pub const fn r_type(
-    funct7: u32,
+    funct7: Bits32<6, 0>,
     rs2: Reg,
     rs1: Reg,
     funct3: Bits32<2, 0>,
     rd: Reg,
     opcode: u32,
 ) -> I {
-    I((funct7 << 25)
+    I((funct7.val() << 25)
         + (rs2.val() << 20)
         + (rs1.val() << 15)
         + (funct3.val() << 12)

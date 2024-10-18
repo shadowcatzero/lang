@@ -1,16 +1,16 @@
 use std::fmt::{Debug, Write};
 
-use super::token::{Symbol, Token};
 use super::{
-    BinaryOperator, Body, Literal, MaybeResolved, Node, NodeParsable, Parsable, ParseResult,
-    ParserError, ParserErrors, Resolvable, Resolved, TokenCursor, UnaryOperator, Unresolved,
+    BinaryOperator, Body, Ident, Literal, MaybeResolved, Node, NodeParsable, Parsable, ParseResult,
+    ParserError, ParserErrors, Resolvable, Resolved, Symbol, TokenCursor, UnaryOperator,
+    Unresolved,
 };
 
 type BoxNode<R> = Node<Box<Expr<R>>, R>;
 
 pub enum Expr<R: MaybeResolved> {
     Lit(Node<Literal, R>),
-    Ident(String),
+    Ident(Node<Ident, R>),
     BinaryOp(BinaryOperator, BoxNode<R>, BoxNode<R>),
     UnaryOp(UnaryOperator, BoxNode<R>),
     Block(Node<Body<R>, R>),
@@ -53,16 +53,12 @@ impl Parsable for Expr<Unresolved> {
         } else if let Some(val) = Node::maybe_parse(cursor, errors) {
             Self::Lit(val)
         } else {
-            let next = cursor.peek().unwrap();
-            match &next.token {
-                Token::Ident(name) => {
-                    let name = name.to_string();
-                    cursor.next();
-                    Self::Ident(name)
-                }
-                _ => {
-                    return ParseResult::Err(ParserError::unexpected_token(next, "an expression"));
-                }
+            let res = Node::parse(cursor, &mut ParserErrors::new());
+            if res.node.is_ok() {
+                Self::Ident(res.node)
+            } else {
+                let next = cursor.expect_peek()?;
+                return ParseResult::Err(ParserError::unexpected_token(next, "an expression"));
             }
         };
         let Some(mut next) = cursor.peek() else {
@@ -71,13 +67,21 @@ impl Parsable for Expr<Unresolved> {
         while next.is_symbol(Symbol::OpenParen) {
             cursor.next();
             let mut args = Vec::new();
-            while !cursor.expect_peek()?.is_symbol(Symbol::CloseParen) {
+            loop {
+                let next = cursor.expect_peek()?;
+                if next.is_symbol(Symbol::CloseParen) {
+                    break;
+                }
                 let res = Node::<Expr<Unresolved>, Unresolved>::parse(cursor, errors);
                 args.push(res.node);
                 if res.recover {
-                    cursor.seek_sym(Symbol::CloseParen);
+                    cursor.seek_syms(&[Symbol::CloseParen, Symbol::Comma]);
+                }
+                let next = cursor.expect_peek()?;
+                if !next.is_symbol(Symbol::Comma) {
                     break;
                 }
+                cursor.next();
             }
             cursor.expect_sym(Symbol::CloseParen)?;
             let end = cursor.prev_end();
@@ -118,7 +122,7 @@ impl Resolvable<Expr<Resolved>> for Expr<Unresolved> {
     fn resolve(self) -> Result<Expr<Resolved>, ()> {
         Ok(match self {
             Expr::Lit(l) => Expr::Lit(l.resolve()?),
-            Expr::Ident(n) => Expr::Ident(n),
+            Expr::Ident(n) => Expr::Ident(n.resolve()?),
             Expr::BinaryOp(o, e1, e2) => Expr::BinaryOp(o, e1.resolve()?, e2.resolve()?),
             Expr::UnaryOp(o, e) => Expr::UnaryOp(o, e.resolve()?),
             Expr::Block(b) => Expr::Block(b.resolve()?),
@@ -137,7 +141,7 @@ impl Debug for Expr<Unresolved> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expr::Lit(c) => c.fmt(f)?,
-            Expr::Ident(n) => f.write_str(n)?,
+            Expr::Ident(n) => n.fmt(f)?,
             Expr::Block(b) => b.fmt(f)?,
             Expr::BinaryOp(op, e1, e2) => {
                 write!(f, "({:?}", *e1)?;

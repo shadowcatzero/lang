@@ -4,7 +4,8 @@ mod func;
 mod module;
 mod op;
 mod statement;
-mod val;
+mod lit;
+mod ident;
 
 pub use body::*;
 pub use expr::*;
@@ -12,6 +13,7 @@ pub use func::*;
 pub use module::*;
 pub use op::*;
 pub use statement::*;
-pub use val::*;
+pub use lit::*;
+pub use ident::*;
 
 use super::*;

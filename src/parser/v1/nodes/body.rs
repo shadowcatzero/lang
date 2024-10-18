@@ -7,13 +7,12 @@ use super::{
 use crate::util::Padder;
 
 pub struct Body<R: MaybeResolved> {
-    statements: Vec<Node<Statement<R>, R>>,
+    pub statements: Vec<Node<Statement<R>, R>>,
 }
 
 impl Parsable for Body<Unresolved> {
     fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
         let mut statements = Vec::new();
-        let statement_end = &[Symbol::Semicolon, Symbol::CloseCurly];
         cursor.expect_sym(Symbol::OpenCurly)?;
         if cursor.expect_peek()?.is_symbol(Symbol::CloseCurly) {
             cursor.next();
@@ -44,13 +43,12 @@ impl Parsable for Body<Unresolved> {
             let res = Statement::parse_node(cursor, errors);
             statements.push(res.node);
             expect_semi = true;
-            if res.recover
-                && cursor
-                    .seek(|t| t.is_symbol_and(|s| statement_end.contains(&s)))
-                    .is_none()
-            {
-                recover = true;
-                break;
+            if res.recover {
+                cursor.seek_syms(&[Symbol::Semicolon, Symbol::CloseCurly]);
+                if cursor.peek().is_none() {
+                    recover = true;
+                    break;
+                }
             }
         }
         ParseResult::from_recover(Self { statements }, recover)

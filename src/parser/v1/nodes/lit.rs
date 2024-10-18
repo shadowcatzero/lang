@@ -1,4 +1,6 @@
-use super::{CharCursor, MaybeParsable, ParserError, ParserErrors, Resolvable, Symbol, Token, TokenCursor};
+use super::{
+    CharCursor, MaybeParsable, ParserError, ParserErrors, Resolvable, Symbol, Token, TokenCursor,
+};
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -17,7 +19,10 @@ pub struct Number {
 }
 
 impl MaybeParsable for Literal {
-    fn maybe_parse(cursor: &mut TokenCursor, _: &mut ParserErrors) -> Result<Option<Self>, ParserError> {
+    fn maybe_parse(
+        cursor: &mut TokenCursor,
+        _: &mut ParserErrors,
+    ) -> Result<Option<Self>, ParserError> {
         let inst = cursor.expect_peek()?;
         let mut res = match &inst.token {
             Token::Symbol(Symbol::SingleQuote) => {
@@ -42,15 +47,14 @@ impl MaybeParsable for Literal {
             _ => return Ok(None),
         };
         cursor.next();
-        if let Some(next) = cursor.peek() {
-            if let Self::Number(num) = &mut res {
-                if let Token::Symbol(Symbol::Dot) = next.token {
-                    let chars = cursor.chars();
-                    if let Some(c) = chars.peek() {
-                        if c.is_ascii_digit() {
+        if let (Some(next), Self::Number(num)) = (cursor.peek(), &mut res) {
+            if next.token.is_symbol(Symbol::Dot) {
+                cursor.next();
+                if let Some(next) = cursor.peek() {
+                    if let Token::Ident(i) = &next.token {
+                        if i.chars().next().unwrap().is_ascii_digit() {
+                            num.decimal = Some(i.to_string());
                             cursor.next();
-                            let decimal = cursor.expect_ident()?;
-                            num.decimal = Some(decimal);
                         }
                     }
                 }
@@ -114,4 +118,3 @@ impl Debug for Number {
         Ok(())
     }
 }
-

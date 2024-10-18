@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Write};
 use super::{
-    Expr, Keyword, MaybeResolved, Node, Parsable, ParseResult, ParserErrors, Resolvable, Resolved, Symbol, Token, TokenCursor, Unresolved
+    Expr, Ident, Keyword, MaybeResolved, Node, Parsable, ParseResult, ParserErrors, Resolvable, Resolved, Symbol, Token, TokenCursor, Unresolved
 };
 
 pub enum Statement<R: MaybeResolved> {
-    Let(String, Node<Expr<R>, R>),
+    Let(Node<Ident, R>, Node<Expr<R>, R>),
     Return(Node<Expr<R>, R>),
     Expr(Node<Expr<R>, R>),
 }
@@ -15,7 +15,7 @@ impl Parsable for Statement<Unresolved> {
         match next.token {
             Token::Keyword(Keyword::Let) => {
                 cursor.next();
-                let name = cursor.expect_ident()?;
+                let name = Node::parse(cursor, errors)?;
                 cursor.expect_sym(Symbol::Equals)?;
                 Node::parse(cursor, errors).map(|expr| Self::Let(name, expr))
             }
@@ -31,7 +31,7 @@ impl Parsable for Statement<Unresolved> {
 impl Resolvable<Statement<Resolved>> for Statement<Unresolved> {
     fn resolve(self) -> Result<Statement<Resolved>, ()> {
         Ok(match self {
-            Self::Let(i, e) => Statement::Let(i, e.resolve()?),
+            Self::Let(i, e) => Statement::Let(i.resolve()?, e.resolve()?),
             Self::Return(e) => Statement::Return(e.resolve()?),
             Self::Expr(e) => Statement::Expr(e.resolve()?),
         })
@@ -43,7 +43,7 @@ impl Debug for Statement<Unresolved> {
         match self {
             Statement::Let(n, e) => {
                 f.write_str("let ")?;
-                f.write_str(n)?;
+                n.fmt(f);
                 f.write_str(" = ")?;
                 e.fmt(f)?;
                 f.write_char(';')?;

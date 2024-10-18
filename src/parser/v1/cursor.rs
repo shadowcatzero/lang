@@ -36,6 +36,14 @@ impl<'a> TokenCursor<'a> {
             .is_some_and(|n| n.token != Token::Symbol(symbol))
         {}
     }
+    pub fn seek_syms(&mut self, syms: &[Symbol]) {
+        while self
+            .peek()
+            .is_some_and(|n| !syms.iter().any(|s| n.is_symbol(*s)))
+        {
+            self.next();
+        }
+    }
     pub fn seek(&mut self, f: impl Fn(&TokenInstance) -> bool) -> Option<&TokenInstance> {
         loop {
             if f(self.peek()?) {
@@ -52,13 +60,6 @@ impl<'a> TokenCursor<'a> {
     }
     pub fn expect_peek(&mut self) -> Result<&TokenInstance, ParserError> {
         self.peek().ok_or(ParserError::unexpected_end())
-    }
-    pub fn expect_ident(&mut self) -> Result<String, ParserError> {
-        let i = self.expect_next()?;
-        let Token::Ident(n) = &i.token else {
-            return Err(ParserError::unexpected_token(&i, "an identifier"));
-        };
-        Ok(n.to_string())
     }
     pub fn chars(&mut self) -> &mut CharCursor<'a> {
         &mut self.cursor

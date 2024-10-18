@@ -59,13 +59,13 @@ impl Deref for WritableSymbol {
     }
 }
 
-pub struct SymMap<I: Instr> {
+pub struct SymMap<I> {
     i: usize,
     ro_data: Vec<(Vec<u8>, Symbol)>,
     functions: Vec<(Vec<I>, Symbol)>,
 }
 
-impl<I: Instr> SymMap<I> {
+impl<I> SymMap<I> {
     pub fn new() -> Self {
         Self {
             i: 0,

@@ -1,6 +1,8 @@
 mod v1;
 mod v2;
 
+pub use v1::*;
+
 pub fn main() {
     let arg = std::env::args_os().nth(1);
     if let Some(path) = arg {

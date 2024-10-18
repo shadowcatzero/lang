@@ -68,17 +68,6 @@ impl<T, U> FromResidual<ParseResult<T>> for ParseResult<U> {
     }
 }
 
-impl<T> ParseResult<T> {
-    pub fn map<U, F: FnOnce(T) -> U>(self, op: F) -> ParseResult<U> {
-        match self {
-            Self::Ok(v) => ParseResult::Ok(op(v)),
-            Self::Recover(v) => ParseResult::Recover(op(v)),
-            Self::Err(e) => ParseResult::Err(e),
-            Self::SubErr => ParseResult::SubErr,
-        }
-    }
-}
-
 pub struct NodeParseResult<T> {
     pub node: Node<T, Unresolved>,
     pub recover: bool,
@@ -116,8 +105,8 @@ impl<T> Try for NodeParseResult<T> {
 }
 
 impl<T> FromResidual for NodeParseResult<T> {
-    fn from_residual(residual: <Self as Try>::Residual) -> Self {
-        // ???
+    fn from_residual(_: <Self as Try>::Residual) -> Self {
+        // I hope this is unreachable ???
         unreachable!()
     }
 }

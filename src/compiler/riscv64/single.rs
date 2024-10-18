@@ -31,8 +31,20 @@ pub const fn sw(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
 pub const fn sd(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     s_type(src, base, width::D, offset.to_u(), STORE)
 }
+pub const fn add(dest: Reg, src1: Reg, src2: Reg) -> I {
+    r_type(Bits32::new(0), src2, src1, ADD, dest, OP)
+}
 pub const fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> I {
     i_type(imm.to_u(), src, ADD, dest, IMM_OP)
+}
+pub const fn andi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> I {
+    i_type(imm.to_u(), src, AND, dest, IMM_OP)
+}
+pub const fn slli(dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
+    i_type(Bits32::new(imm.to_u().val()), src, SLL, dest, IMM_OP)
+}
+pub const fn srli(dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
+    i_type(Bits32::new(imm.to_u().val()), src, SR, dest, IMM_OP)
 }
 pub const fn jal(dest: Reg, offset: BitsI32<20, 1>) -> I {
     j_type(offset.to_u(), dest, JAL)

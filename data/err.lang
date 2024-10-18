@@ -19,6 +19,7 @@ fn main() {
         let a = 3;
         b
     };
+    exit(3, let, "hello");
 }
 
 fn test() {

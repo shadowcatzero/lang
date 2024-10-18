@@ -10,7 +10,7 @@ mod program;
 mod riscv64;
 mod target;
 
-use program::*;
+pub use program::*;
 
 pub fn main() {
     use std::io::prelude::*;

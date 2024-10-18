@@ -32,6 +32,7 @@ pub enum Symbol {
     DoubleAmpersand,
     Pipe,
     DoublePipe,
+    Comma,
 }
 
 impl Symbol {
@@ -65,6 +66,7 @@ impl Symbol {
             '!' => Self::Bang,
             '&' => Self::Ampersand,
             '|' => Self::Pipe,
+            ',' => Self::Comma,
             _ => return None,
         })
     }
@@ -93,11 +95,11 @@ impl Symbol {
             Self::Ampersand => match next {
                 '&' => Self::DoubleAmpersand,
                 _ => return,
-            }
+            },
             Self::Pipe => match next {
                 '&' => Self::DoublePipe,
                 _ => return,
-            }
+            },
             _ => return,
         };
         cursor.advance();
@@ -128,6 +130,7 @@ impl Symbol {
             Self::SingleQuote => "'",
             Self::DoubleQuote => "\"",
             Self::Bang => "!",
+            Self::Comma => ",",
             Self::Ampersand => "&",
             Self::DoubleAmpersand => "&&",
             Self::Pipe => "|",
