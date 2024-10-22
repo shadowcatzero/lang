@@ -1,8 +1,10 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    BinaryOperator, Body, Ident, Literal, Node, NodeParsable, Parsable, ParseResult, ParserError,
-    ParserErrors, Symbol, TokenCursor, UnaryOperator,
+    op::{BinaryOp, UnaryOp},
+    util::parse_list,
+    AsmBlock, Block, Ident, Keyword, Literal, Node, NodeParsable, Parsable, ParseResult, ParserMsg,
+    ParserOutput, Symbol, TokenCursor,
 };
 
 type BoxNode = Node<Box<Expr>>;
@@ -10,15 +12,16 @@ type BoxNode = Node<Box<Expr>>;
 pub enum Expr {
     Lit(Node<Literal>),
     Ident(Node<Ident>),
-    BinaryOp(BinaryOperator, BoxNode, BoxNode),
-    UnaryOp(UnaryOperator, BoxNode),
-    Block(Node<Body>),
+    BinaryOp(BinaryOp, BoxNode, BoxNode),
+    UnaryOp(UnaryOp, BoxNode),
+    Block(Node<Block>),
     Call(BoxNode, Vec<Node<Expr>>),
     Group(BoxNode),
+    AsmBlock(Node<AsmBlock>),
 }
 
 impl Parsable for Expr {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
+    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self> {
         let start = cursor.next_pos();
         let next = cursor.expect_peek()?;
         let mut e1 = if next.is_symbol(Symbol::OpenParen) {
@@ -30,17 +33,20 @@ impl Parsable for Expr {
                     cursor.next_pos().char_span(),
                 )));
             }
-            let res = Node::parse(cursor, errors);
+            let res = Node::parse(cursor, output);
             if res.recover {
                 cursor.seek_sym(Symbol::CloseParen);
             }
             cursor.expect_sym(Symbol::CloseParen)?;
             Self::Group(res.node.bx())
         } else if next.is_symbol(Symbol::OpenCurly) {
-            Self::Block(Body::parse_node(cursor, errors)?)
-        } else if let Some(op) = UnaryOperator::from_token(next) {
+            Self::Block(Block::parse_node(cursor, output)?)
+        } else if next.is_keyword(Keyword::Asm) {
             cursor.next();
-            return Node::parse(cursor, errors).map(|n| {
+            Self::AsmBlock(Node::parse(cursor, output)?)
+        } else if let Some(op) = UnaryOp::from_token(next) {
+            cursor.next();
+            return Node::parse(cursor, output).map(|n| {
                 let n = n.bx();
                 if let Some(box Self::BinaryOp(op2, n1, n2)) = n.inner {
                     let span = start.to(n1.span.end);
@@ -49,15 +55,15 @@ impl Parsable for Expr {
                     Self::UnaryOp(op, n)
                 }
             });
-        } else if let Some(val) = Node::maybe_parse(cursor, errors) {
+        } else if let Some(val) = Node::maybe_parse(cursor, output) {
             Self::Lit(val)
         } else {
-            let res = Node::parse(cursor, &mut ParserErrors::new());
+            let res = Node::parse(cursor, &mut ParserOutput::new());
             if res.node.is_some() {
                 Self::Ident(res.node)
             } else {
                 let next = cursor.expect_peek()?;
-                return ParseResult::Err(ParserError::unexpected_token(next, "an expression"));
+                return ParseResult::Err(ParserMsg::unexpected_token(next, "an expression"));
             }
         };
         let Some(mut next) = cursor.peek() else {
@@ -65,24 +71,7 @@ impl Parsable for Expr {
         };
         while next.is_symbol(Symbol::OpenParen) {
             cursor.next();
-            let mut args = Vec::new();
-            loop {
-                let next = cursor.expect_peek()?;
-                if next.is_symbol(Symbol::CloseParen) {
-                    break;
-                }
-                let res = Node::<Expr>::parse(cursor, errors);
-                args.push(res.node);
-                if res.recover {
-                    cursor.seek_syms(&[Symbol::CloseParen, Symbol::Comma]);
-                }
-                let next = cursor.expect_peek()?;
-                if !next.is_symbol(Symbol::Comma) {
-                    break;
-                }
-                cursor.next();
-            }
-            cursor.expect_sym(Symbol::CloseParen)?;
+            let args = parse_list(cursor, output, Symbol::CloseParen)?;
             let end = cursor.prev_end();
             e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), args);
             let Some(next2) = cursor.peek() else {
@@ -92,10 +81,10 @@ impl Parsable for Expr {
         }
         let end = cursor.prev_end();
         let mut recover = false;
-        let res = if let Some(mut op) = BinaryOperator::from_token(&next.token) {
+        let res = if let Some(mut op) = BinaryOp::from_token(&next.token) {
             cursor.next();
             let mut n1 = Node::new(e1, start.to(end)).bx();
-            let res = Node::parse(cursor, errors);
+            let res = Node::parse(cursor, output);
             let mut n2 = res.node.bx();
             recover = res.recover;
             if let Some(box Self::BinaryOp(op2, _, _)) = n2.as_ref() {
@@ -150,6 +139,7 @@ impl Debug for Expr {
                 write!(f, "{:?})", *e)?;
             }
             Expr::Group(inner) => inner.fmt(f)?,
+            Expr::AsmBlock(inner) => inner.fmt(f)?,
         }
         Ok(())
     }

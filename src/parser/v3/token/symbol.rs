@@ -17,6 +17,7 @@ pub enum Symbol {
     Slash,
     DoubleSlash,
     Dot,
+    DoubleDot,
     OpenParen,
     CloseParen,
     OpenCurly,
@@ -100,6 +101,10 @@ impl Symbol {
                 '&' => Self::DoublePipe,
                 _ => return,
             },
+            Self::Dot => match next {
+                '.' => Self::DoubleDot,
+                _ => return,
+            }
             _ => return,
         };
         cursor.advance();
@@ -119,6 +124,7 @@ impl Symbol {
             Self::Slash => "/",
             Self::DoubleSlash => "//",
             Self::Dot => ".",
+            Self::DoubleDot => "..",
             Self::OpenParen => "(",
             Self::CloseParen => ")",
             Self::OpenCurly => "{",

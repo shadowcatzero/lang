@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use super::{Parsable, ParseResult, ParserError, Token};
+use super::{Parsable, ParseResult, ParserMsg, Token};
 
 pub struct Ident(String);
 
@@ -10,10 +10,10 @@ impl Ident {
 }
 
 impl Parsable for Ident {
-    fn parse(cursor: &mut super::TokenCursor, errors: &mut super::ParserErrors) -> ParseResult<Self> {
+    fn parse(cursor: &mut super::TokenCursor, errors: &mut super::ParserOutput) -> ParseResult<Self> {
         let next = cursor.expect_peek()?;
-        let Token::Ident(name) = &next.token else {
-            return ParseResult::Err(ParserError::unexpected_token(next, "an identifier"));
+        let Token::Word(name) = &next.token else {
+            return ParseResult::Err(ParserMsg::unexpected_token(next, "an identifier"));
         };
         let name = name.to_string();
         cursor.next();

@@ -4,15 +4,25 @@ pub enum Keyword {
     Let,
     If,
     Return,
+    Struct,
+    Trait,
+    Impl,
+    For,
+    Asm,
 }
 
 impl Keyword {
     pub fn from_string(str: &str) -> Option<Self> {
         Some(match str {
             "fn" => Self::Fn,
+            "struct" => Self::Struct,
             "let" => Self::Let,
             "if" => Self::If,
+            "for" => Self::For,
             "return" => Self::Return,
+            "trait" => Self::Trait,
+            "impl" => Self::Impl,
+            "asm" => Self::Asm,
             _ => return None,
         })
     }

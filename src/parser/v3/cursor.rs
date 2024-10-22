@@ -1,6 +1,7 @@
-use super::error::ParserError;
+use crate::ir::FilePos;
+
+use super::error::ParserMsg;
 use super::token::{CharCursor, Keyword, Symbol, Token, TokenInstance};
-use super::FilePos;
 
 pub struct TokenCursor<'a> {
     cursor: CharCursor<'a>,
@@ -15,19 +16,19 @@ impl<'a> TokenCursor<'a> {
         self.next_pos = self.cursor.next_pos();
         std::mem::replace(&mut self.next, TokenInstance::parse(&mut self.cursor))
     }
-    pub fn expect_next(&mut self) -> Result<TokenInstance, ParserError> {
-        self.peek().ok_or(ParserError::unexpected_end())?;
+    pub fn expect_next(&mut self) -> Result<TokenInstance, ParserMsg> {
+        self.peek().ok_or(ParserMsg::unexpected_end())?;
         Ok(self.next().unwrap())
     }
-    pub fn expect_token(&mut self, t: Token) -> Result<(), ParserError> {
+    pub fn expect_token(&mut self, t: Token) -> Result<(), ParserMsg> {
         let next = self.expect_next()?;
         if t == next.token {
             Ok(())
         } else {
-            Err(ParserError::unexpected_token(&next, &format!("{t:?}")))
+            Err(ParserMsg::unexpected_token(&next, &format!("{t:?}")))
         }
     }
-    pub fn expect_sym(&mut self, symbol: Symbol) -> Result<(), ParserError> {
+    pub fn expect_sym(&mut self, symbol: Symbol) -> Result<(), ParserMsg> {
         self.expect_token(Token::Symbol(symbol))
     }
     pub fn seek_sym(&mut self, symbol: Symbol) {
@@ -52,14 +53,14 @@ impl<'a> TokenCursor<'a> {
             self.next();
         }
     }
-    pub fn expect_kw(&mut self, kw: Keyword) -> Result<(), ParserError> {
+    pub fn expect_kw(&mut self, kw: Keyword) -> Result<(), ParserMsg> {
         self.expect_token(Token::Keyword(kw))
     }
     pub fn peek(&self) -> Option<&TokenInstance> {
         self.next.as_ref()
     }
-    pub fn expect_peek(&mut self) -> Result<&TokenInstance, ParserError> {
-        self.peek().ok_or(ParserError::unexpected_end())
+    pub fn expect_peek(&mut self) -> Result<&TokenInstance, ParserMsg> {
+        self.peek().ok_or(ParserMsg::unexpected_end())
     }
     pub fn chars(&mut self) -> &mut CharCursor<'a> {
         &mut self.cursor

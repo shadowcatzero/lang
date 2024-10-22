@@ -1,19 +1,19 @@
 mod cursor;
-mod file;
 mod keyword;
 mod symbol;
 
 use std::ops::Deref;
 
 pub use cursor::*;
-pub use file::*;
 pub use keyword::*;
 pub use symbol::*;
+
+use crate::ir::FileSpan;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
     Symbol(Symbol),
-    Ident(String),
+    Word(String),
     Keyword(Keyword),
 }
 
@@ -51,7 +51,7 @@ impl TokenInstance {
         let token = if let Some(keyword) = Keyword::from_string(&word) {
             Token::Keyword(keyword)
         } else {
-            Token::Ident(word)
+            Token::Word(word)
         };
         Some(Self {
             token,

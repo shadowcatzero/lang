@@ -1,21 +1,21 @@
-use super::{
-    token::{FileSpan, TokenInstance},
-    FilePos, Ident, Node,
-};
+use crate::ir::{FilePos, FileSpan};
+
+use super::{token::TokenInstance, Ident, Node};
 
 #[derive(Debug, Clone)]
-pub struct ParserError {
+pub struct ParserMsg {
     pub msg: String,
     pub spans: Vec<FileSpan>,
 }
 
-pub struct ParserErrors {
-    pub errs: Vec<ParserError>,
+pub struct ParserOutput {
+    pub errs: Vec<ParserMsg>,
+    pub hints: Vec<ParserMsg>,
 }
 
-impl ParserError {
+impl ParserMsg {
     pub fn from_instances(instances: &[&TokenInstance], msg: String) -> Self {
-        ParserError {
+        ParserMsg {
             msg,
             spans: instances.iter().map(|i| i.span).collect(),
         }
@@ -49,14 +49,14 @@ impl ParserError {
     }
     pub fn unexpected_token(inst: &TokenInstance, expected: &str) -> Self {
         let t = &inst.token;
-        ParserError::from_instances(
+        ParserMsg::from_instances(
             &[inst],
             format!("unexpected token {t:?}; expected {expected}"),
         )
     }
-    pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
+    pub fn write_for(&self, ty: &str, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
         let after = if self.spans.is_empty() { "" } else { ":" };
-        writeln!(writer, "error: {}{}", self.msg, after)?;
+        writeln!(writer, "{}: {}{}", ty, self.msg, after)?;
         for span in &self.spans {
             span.write_for(writer, file)?;
         }
@@ -64,11 +64,25 @@ impl ParserError {
     }
 }
 
-impl ParserErrors {
+impl ParserOutput {
     pub fn new() -> Self {
-        Self { errs: Vec::new() }
+        Self {
+            errs: Vec::new(),
+            hints: Vec::new(),
+        }
     }
-    pub fn add(&mut self, err: ParserError) {
+    pub fn err(&mut self, err: ParserMsg) {
         self.errs.push(err);
+    }
+    pub fn hint(&mut self, err: ParserMsg) {
+        self.hints.push(err);
+    }
+    pub fn write_for(&self, out: &mut impl std::io::Write, file: &str) {
+        for err in &self.errs {
+            err.write_for("error", out, file).unwrap();
+        }
+        for hint in &self.hints {
+            hint.write_for("hint", out, file).unwrap();
+        }
     }
 }

@@ -1,29 +1,31 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    token::Symbol, Node, NodeParsable, Parsable, ParseResult, ParserError,
-    ParserErrors, Statement, TokenCursor,
+    token::Symbol, Node, NodeParsable, Parsable, ParseResult, ParserMsg, ParserOutput, Statement,
+    TokenCursor,
 };
 use crate::util::Padder;
 
-pub struct Body {
+pub struct Block {
     pub statements: Vec<Node<Statement>>,
+    pub result: Option<Node<Box<Statement>>>,
 }
 
-impl Parsable for Body {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
+impl Parsable for Block {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> ParseResult<Self> {
         let mut statements = Vec::new();
+        let mut result = None;
         cursor.expect_sym(Symbol::OpenCurly)?;
         if cursor.expect_peek()?.is_symbol(Symbol::CloseCurly) {
             cursor.next();
-            return ParseResult::Ok(Self { statements });
+            return ParseResult::Ok(Self { statements, result });
         }
         let mut expect_semi = false;
         let mut recover = false;
         loop {
             let Some(next) = cursor.peek() else {
                 recover = true;
-                errors.add(ParserError::unexpected_end());
+                errors.err(ParserMsg::unexpected_end());
                 break;
             };
             if next.is_symbol(Symbol::CloseCurly) {
@@ -35,7 +37,7 @@ impl Parsable for Body {
                 expect_semi = false;
                 continue;
             } else if expect_semi {
-                errors.add(ParserError {
+                errors.err(ParserMsg {
                     msg: "expected ';'".to_string(),
                     spans: vec![cursor.next_pos().char_span()],
                 });
@@ -51,11 +53,16 @@ impl Parsable for Body {
                 }
             }
         }
-        ParseResult::from_recover(Self { statements }, recover)
+        if expect_semi {
+            if let Some(s) = statements.pop() {
+                result = Some(s.bx());
+            }
+        }
+        ParseResult::from_recover(Self { statements, result }, recover)
     }
 }
 
-impl Debug for Body {
+impl Debug for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.statements.first().is_some() {
             f.write_str("{\n    ")?;

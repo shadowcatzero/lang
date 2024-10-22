@@ -7,7 +7,7 @@ use std::{
 
 mod elf;
 mod program;
-mod riscv64;
+pub mod riscv64;
 mod target;
 
 pub use program::*;

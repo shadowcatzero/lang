@@ -3,12 +3,14 @@ use std::{
     ops::{ControlFlow, FromResidual, Try},
 };
 
-use super::{Node, ParserError, ParserErrors, TokenCursor};
+use crate::ir::FilePos;
+
+use super::{Node, ParserMsg, ParserOutput, TokenCursor};
 
 pub enum ParseResult<T> {
     Ok(T),
     Recover(T),
-    Err(ParserError),
+    Err(ParserMsg),
     SubErr,
 }
 
@@ -23,18 +25,15 @@ impl<T> ParseResult<T> {
 }
 
 impl<T> Try for ParseResult<T> {
-    type Output = Result<T, T>;
-    type Residual = Option<ParserError>;
+    type Output = T;
+    type Residual = Option<ParserMsg>;
     fn from_output(output: Self::Output) -> Self {
-        match output {
-            Ok(v) => Self::Ok(v),
-            Err(v) => Self::Recover(v),
-        }
+        Self::Ok(output)
     }
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
-            ParseResult::Ok(v) => ControlFlow::Continue(Ok(v)),
-            ParseResult::Recover(v) => ControlFlow::Continue(Err(v)),
+            ParseResult::Ok(v) => ControlFlow::Continue(v),
+            ParseResult::Recover(v) => ControlFlow::Break(None),
             ParseResult::Err(e) => ControlFlow::Break(Some(e)),
             ParseResult::SubErr => ControlFlow::Break(None),
         }
@@ -50,8 +49,8 @@ impl<T> FromResidual for ParseResult<T> {
     }
 }
 
-impl<T> FromResidual<Result<Infallible, ParserError>> for ParseResult<T> {
-    fn from_residual(residual: Result<Infallible, ParserError>) -> Self {
+impl<T> FromResidual<Result<Infallible, ParserMsg>> for ParseResult<T> {
+    fn from_residual(residual: Result<Infallible, ParserMsg>) -> Self {
         match residual {
             Err(e) => Self::Err(e),
         }
@@ -112,24 +111,24 @@ impl<T> FromResidual for NodeParseResult<T> {
 }
 
 pub trait Parsable: Sized {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self>;
+    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self>;
 }
 
 pub trait MaybeParsable: Sized {
     fn maybe_parse(
         cursor: &mut TokenCursor,
-        errors: &mut ParserErrors,
-    ) -> Result<Option<Self>, ParserError>;
+        errors: &mut ParserOutput,
+    ) -> Result<Option<Self>, ParserMsg>;
 }
 
 impl<T: Parsable> Node<T> {
-    pub fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> NodeParseResult<T> {
-        let start = cursor.next_pos();
-        let (inner, recover) = match T::parse(cursor, errors) {
+    pub fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> NodeParseResult<T> {
+        let start = cursor.peek().map(|t| t.span.start).unwrap_or(FilePos::start());
+        let (inner, recover) = match T::parse(cursor, output) {
             ParseResult::Ok(v) => (Some(v), false),
             ParseResult::Recover(v) => (Some(v), true),
             ParseResult::Err(e) => {
-                errors.add(e);
+                output.err(e);
                 (None, true)
             }
             ParseResult::SubErr => (None, true),
@@ -146,12 +145,12 @@ impl<T: Parsable> Node<T> {
 }
 
 impl<T: MaybeParsable> Node<T> {
-    pub fn maybe_parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> Option<Self> {
+    pub fn maybe_parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> Option<Self> {
         let start = cursor.next_pos();
         let inner = match T::maybe_parse(cursor, errors) {
             Ok(v) => Some(v?),
             Err(e) => {
-                errors.add(e);
+                errors.err(e);
                 None
             }
         };
@@ -164,12 +163,12 @@ impl<T: MaybeParsable> Node<T> {
 }
 
 pub trait NodeParsable {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> NodeParseResult<Self>
+    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> NodeParseResult<Self>
     where
         Self: Sized;
 }
 impl<T: Parsable> NodeParsable for T {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> NodeParseResult<Self>
+    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> NodeParseResult<Self>
     where
         Self: Sized,
     {

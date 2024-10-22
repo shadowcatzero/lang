@@ -1,7 +1,7 @@
 use std::{iter::Peekable, str::Chars};
 
-use super::super::ParserError;
-use super::FilePos;
+use crate::ir::FilePos;
+use super::super::ParserMsg;
 
 pub struct CharCursor<'a> {
     chars: Peekable<Chars<'a>>,
@@ -15,12 +15,12 @@ impl CharCursor<'_> {
         self.advance();
         Some(res)
     }
-    pub fn expect(&mut self, c: char) -> Result<(), ParserError> {
+    pub fn expect(&mut self, c: char) -> Result<(), ParserMsg> {
         let next = self.expect_next()?;
         if next == c {
             Ok(())
         } else {
-            Err(ParserError::at(
+            Err(ParserMsg::at(
                 self.prev_pos,
                 format!("unexpected char '{next}'; expected '{c}'"),
             ))
@@ -46,8 +46,8 @@ impl CharCursor<'_> {
             self.next_pos.col += 1;
         }
     }
-    pub fn expect_next(&mut self) -> Result<char, ParserError> {
-        self.next().ok_or(ParserError::unexpected_end())
+    pub fn expect_next(&mut self) -> Result<char, ParserMsg> {
+        self.next().ok_or(ParserMsg::unexpected_end())
     }
     pub fn next_pos(&self) -> FilePos {
         self.next_pos

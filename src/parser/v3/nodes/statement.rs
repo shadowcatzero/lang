@@ -1,23 +1,23 @@
 use super::{
-    Expr, Ident, Keyword, Node, Parsable, ParseResult, ParserErrors, Symbol, Token, TokenCursor,
+    Expr, Keyword, Node, Parsable, ParseResult, ParserOutput, Symbol, Token, TokenCursor, VarDef,
 };
 use std::fmt::{Debug, Write};
 
 pub enum Statement {
-    Let(Node<Ident>, Node<Expr>),
+    Let(Node<VarDef>, Node<Expr>),
     Return(Node<Expr>),
     Expr(Node<Expr>),
 }
 
 impl Parsable for Statement {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserErrors) -> ParseResult<Self> {
+    fn parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> ParseResult<Self> {
         let next = cursor.expect_peek()?;
         match next.token {
             Token::Keyword(Keyword::Let) => {
                 cursor.next();
-                let name = Node::parse(cursor, errors)?;
+                let def = Node::parse(cursor, errors)?;
                 cursor.expect_sym(Symbol::Equals)?;
-                Node::parse(cursor, errors).map(|expr| Self::Let(name, expr))
+                Node::parse(cursor, errors).map(|expr| Self::Let(def, expr))
             }
             Token::Keyword(Keyword::Return) => {
                 cursor.next();
