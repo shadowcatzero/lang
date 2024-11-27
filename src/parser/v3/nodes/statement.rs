@@ -33,7 +33,7 @@ impl Debug for Statement {
         match self {
             Statement::Let(n, e) => {
                 f.write_str("let ")?;
-                n.fmt(f);
+                n.fmt(f)?;
                 f.write_str(" = ")?;
                 e.fmt(f)?;
                 f.write_char(';')?;

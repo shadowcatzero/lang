@@ -1,8 +1,9 @@
 mod namespace;
-mod structure;
+mod lvl1;
+mod lvl2;
 mod file;
 
 pub use namespace::*;
-pub use structure::*;
+pub use lvl1::*;
 pub use file::*;
 

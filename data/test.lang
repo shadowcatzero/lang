@@ -1,3 +1,13 @@
+trait Add {
+    fn add(self, other: Self) -> Self
+}
+
+impl Add for b32 {
+    asm fn add(self, other) {
+        add {out}, {self}, {other}
+    }
+}
+
 fn main() {
     asm {
         li a0, 3

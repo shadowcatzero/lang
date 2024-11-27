@@ -9,6 +9,7 @@ mod elf;
 mod program;
 pub mod riscv64;
 mod target;
+mod instruction;
 
 pub use program::*;
 
