@@ -1,38 +1,35 @@
-use super::{CharCursor, MaybeParsable, ParserMsg, ParserOutput, Symbol, Token, TokenCursor};
+use super::{CharCursor, MaybeParsable, ParserCtx, ParserMsg, Symbol, Token};
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum Literal {
+pub enum PLiteral {
     String(String),
     Char(char),
-    Number(Number),
+    Number(PNumber),
     Unit,
 }
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Number {
+pub struct PNumber {
     pub whole: String,
     pub decimal: Option<String>,
     pub ty: Option<String>,
 }
 
-impl MaybeParsable for Literal {
-    fn maybe_parse(
-        cursor: &mut TokenCursor,
-        _: &mut ParserOutput,
-    ) -> Result<Option<Self>, ParserMsg> {
-        let inst = cursor.expect_peek()?;
+impl MaybeParsable for PLiteral {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, ParserMsg> {
+        let inst = ctx.expect_peek()?;
         Ok(Some(match &inst.token {
             Token::Symbol(Symbol::SingleQuote) => {
-                let chars = cursor.chars();
+                let chars = ctx.chars();
                 let c = chars.expect_next()?;
                 chars.expect('\'')?;
-                cursor.next();
+                ctx.next();
                 Self::Char(c)
             }
             Token::Symbol(Symbol::DoubleQuote) => {
-                let res = Self::String(string_from(cursor.chars())?);
-                cursor.next();
+                let res = Self::String(string_from(ctx.chars())?);
+                ctx.next();
                 res
             }
             Token::Word(text) => {
@@ -41,21 +38,21 @@ impl MaybeParsable for Literal {
                     return Ok(None);
                 }
                 let (whole, ty) = parse_whole_num(text);
-                let mut num = Number {
+                let mut num = PNumber {
                     whole,
                     decimal: None,
                     ty,
                 };
-                cursor.next();
-                if num.ty.is_none() && cursor.peek().is_some_and(|i| i.is_symbol(Symbol::Dot)) {
-                    cursor.next();
-                    if let Some(next) = cursor.peek() {
+                ctx.next();
+                if num.ty.is_none() && ctx.peek().is_some_and(|i| i.is_symbol(Symbol::Dot)) {
+                    ctx.next();
+                    if let Some(next) = ctx.peek() {
                         if let Token::Word(i) = &next.token {
                             if i.chars().next().unwrap().is_ascii_digit() {
                                 let (decimal, ty) = parse_whole_num(i);
                                 num.decimal = Some(decimal);
                                 num.ty = ty;
-                                cursor.next();
+                                ctx.next();
                             }
                         }
                     }
@@ -110,7 +107,7 @@ pub fn string_from(cursor: &mut CharCursor) -> Result<String, ParserMsg> {
     }
 }
 
-impl Debug for Literal {
+impl Debug for PLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(str) => str.fmt(f),
@@ -121,7 +118,7 @@ impl Debug for Literal {
     }
 }
 
-impl Debug for Number {
+impl Debug for PNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.whole)?;
         if let Some(d) = &self.decimal {

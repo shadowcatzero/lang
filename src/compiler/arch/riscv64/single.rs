@@ -2,7 +2,7 @@ use crate::util::{Bits32, BitsI32};
 
 use super::*;
 
-use Instruction as I;
+use RawInstruction as I;
 
 pub const fn ecall() -> I {
     i_type(Bits32::new(0), zero, Bits32::new(0), zero, SYSTEM)

@@ -1,53 +1,63 @@
-use crate::compiler::riscv64::{AsmInstruction, Reg};
-
 use super::{
-    util::parse_list, AsmBlock, Ident, Keyword, Node, Parsable, ParseResult, SelfVar, Symbol,
+    util::parse_list, PAsmBlock, PIdent, Keyword, Node, Parsable, ParseResult, ParserCtx, Symbol, PType, PVarDef,
 };
 
-#[derive(Debug)]
-pub struct AsmFunctionHeader {
-    pub name: Node<Ident>,
-    pub sel: Option<Node<SelfVar>>,
-    pub args: Vec<Node<Reg>>,
-}
-
-#[derive(Debug)]
-pub struct AsmFunction {
-    pub header: Node<AsmFunctionHeader>,
-    pub body: Node<AsmBlock>,
-}
-
-impl Parsable for AsmFunctionHeader {
-    fn parse(
-        cursor: &mut super::TokenCursor,
-        output: &mut super::ParserOutput,
-    ) -> ParseResult<Self> {
-        cursor.expect_kw(Keyword::Asm)?;
-        cursor.expect_kw(Keyword::Fn)?;
-        let name = Node::parse(cursor, output)?;
-        cursor.expect_sym(Symbol::OpenParen)?;
-        let sel = Node::maybe_parse(cursor, output);
-        if sel.is_some() {
-            if let Err(err) = cursor.expect_sym(Symbol::Comma) {
-                output.err(err);
-                cursor.seek_syms(&[Symbol::Comma, Symbol::CloseParen]);
-                if cursor.peek().is_some_and(|i| i.is_symbol(Symbol::Comma)) {
-                    cursor.next();
-                }
-            }
-        }
-        let args = parse_list(cursor, output, Symbol::CloseParen)?;
-        ParseResult::Ok(Self { name, sel, args })
-    }
-}
-
-impl Parsable for AsmFunction {
-    fn parse(
-        cursor: &mut super::TokenCursor,
-        output: &mut super::ParserOutput,
-    ) -> ParseResult<Self> {
-        let header = Node::parse(cursor, output)?;
-        let body = Node::parse(cursor, output)?;
-        ParseResult::Ok(Self { header, body })
-    }
-}
+// #[derive(Debug)]
+// pub struct AsmFunctionHeader {
+//     pub name: Node<Ident>,
+//     pub args: Vec<Node<AsmVarDef>>,
+// }
+//
+// #[derive(Debug)]
+// pub struct AsmFunction {
+//     pub header: Node<AsmFunctionHeader>,
+//     pub body: Node<AsmBlock>,
+// }
+//
+// impl Parsable for AsmFunctionHeader {
+//     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+//         ctx.expect_kw(Keyword::Asm)?;
+//         ctx.expect_kw(Keyword::Fn)?;
+//         let name = ctx.parse()?;
+//         ctx.expect_sym(Symbol::OpenParen)?;
+//         let args = parse_list(ctx, Symbol::CloseParen)?;
+//         ParseResult::Ok(Self { name, args })
+//     }
+// }
+//
+// impl Parsable for AsmFunction {
+//     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+//         let header = ctx.parse()?;
+//         let body = ctx.parse()?;
+//         ParseResult::Ok(Self { header, body })
+//     }
+// }
+//
+// pub struct AsmVarDef {
+//     pub reg: Node<Ident>,
+//     pub name: Node<Ident>,
+//     pub ty: Option<Node<Type>>,
+// }
+//
+// impl Parsable for AsmVarDef {
+//     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+//         let reg = ctx.parse()?;
+//         let name = ctx.parse()?;
+//         if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
+//             ctx.next();
+//             ctx.parse().map(|ty| Self { reg, name, ty: Some(ty) })
+//         } else {
+//             ParseResult::Ok(Self { reg, name, ty: None })
+//         }
+//     }
+// }
+//
+// impl std::fmt::Debug for AsmVarDef {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         self.name.fmt(f)?;
+//         if let Some(ty) = &self.ty {
+//             write!(f, ": {:?}", ty)?;
+//         }
+//         Ok(())
+//     }
+// }

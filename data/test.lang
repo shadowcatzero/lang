@@ -1,18 +1,21 @@
-trait Add {
-    fn add(self, other: Self) -> Self
+fn start() {
+    print("Hello World!\n", 13);
+    exit(39);
 }
 
-impl Add for b32 {
-    asm fn add(self, other) {
-        add {out}, {self}, {other}
-    }
-}
-
-fn main() {
-    asm {
-        li a0, 3
-        li a7, 93
+fn print(msg, len) {
+    asm (a1 = msg, a2 = len) {
+        ld a2, 0, a2
+        li a0, 1
+        li a7, 64
         ecall
     }
 }
 
+fn exit(status) {
+    asm (a0 = status) {
+        ld a0, 0, a0
+        li a7, 93
+        ecall
+    };
+}

@@ -1,13 +1,24 @@
-use super::{Origin, TypeDef, TypeIdent};
+use super::{Origin, TypeDef, TypeID};
 
 #[derive(Clone)]
 pub enum Type {
-    Concrete(TypeIdent),
-    Generic { base: TypeIdent, args: Vec<Type> },
+    Concrete(TypeID),
+    Bits(u32),
+    Generic { base: TypeID, args: Vec<Type> },
     Fn { args: Vec<Type>, ret: Box<Type> },
     Ref(Box<Type>),
+    Array(Box<Type>),
     Infer,
     Error,
+}
+
+impl Type {
+    pub fn rf(self) -> Self {
+        Self::Ref(Box::new(self))
+    }
+    pub fn arr(self) -> Self {
+        Self::Array(Box::new(self))
+    }
 }
 
 #[repr(usize)]
@@ -29,7 +40,14 @@ impl BuiltinType {
             },
         }
     }
-    pub fn id(&self) -> TypeIdent {
-        TypeIdent::builtin(self)
+    pub fn id(&self) -> TypeID {
+        TypeID::builtin(self)
     }
 }
+
+impl TypeID {
+    pub fn builtin(ty: &BuiltinType) -> Self {
+        Self(*ty as usize)
+    }
+}
+

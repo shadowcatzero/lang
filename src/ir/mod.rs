@@ -1,9 +1,11 @@
-mod namespace;
-mod lvl1;
-mod lvl2;
+mod upper;
 mod file;
+mod lower;
+mod id;
+mod asm;
+pub mod arch;
 
-pub use namespace::*;
-pub use lvl1::*;
+pub use upper::*;
+pub use lower::*;
 pub use file::*;
-
+pub use id::*;

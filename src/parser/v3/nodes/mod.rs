@@ -13,6 +13,7 @@ mod util;
 mod trai;
 mod asm_fn;
 mod asm_block;
+mod asm_instr;
 
 pub use block::*;
 pub use expr::*;
@@ -28,6 +29,7 @@ pub use trai::*;
 pub use op::*;
 pub use asm_fn::*;
 pub use asm_block::*;
+pub use asm_instr::*;
 
 
 use super::*;

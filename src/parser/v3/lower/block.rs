@@ -1,15 +1,10 @@
-use crate::ir::Instruction;
+use crate::ir::{IRUInstruction, VarID};
 
-use super::{Block, ExprResult, FnLowerCtx, Node, Statement};
+use super::{PBlock, FnLowerCtx, FnLowerable, PStatement};
 
-impl Node<Block> {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
-        self.as_ref()?.lower(ctx)
-    }
-}
-
-impl Block {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
+impl FnLowerable for PBlock {
+    type Output = VarID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarID> {
         let ctx = &mut ctx.sub();
         for statement in &self.statements {
             statement.lower(ctx);
@@ -18,41 +13,24 @@ impl Block {
     }
 }
 
-impl Node<Box<Statement>> {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
-        self.as_ref()?.lower(ctx)
-    }
-}
-
-impl Node<Statement> {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
-        self.as_ref()?.lower(ctx)
-    }
-}
-
-impl Statement {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
+impl FnLowerable for PStatement {
+    type Output = VarID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarID> {
         match self {
-            super::Statement::Let(def, e) => {
+            super::PStatement::Let(def, e) => {
                 let def = def.lower(ctx.map, ctx.output)?;
                 let res = e.lower(ctx);
                 if let Some(res) = res {
-                    match res {
-                        ExprResult::Var(v) => ctx.map.name_var(&def, v),
-                        ExprResult::Fn(_) => todo!(),
-                    }
+                    ctx.map.name_var(&def, res);
                 }
                 None
             }
-            super::Statement::Return(e) => {
-                let res = e.lower(ctx)?;
-                match res {
-                    ExprResult::Var(v) => ctx.push(Instruction::Ret { src: v }),
-                    _ => todo!(),
-                }
+            super::PStatement::Return(e) => {
+                let src = e.lower(ctx)?;
+                ctx.push(IRUInstruction::Ret { src });
                 None
             }
-            super::Statement::Expr(e) => e.lower(ctx),
+            super::PStatement::Expr(e) => e.lower(ctx),
         }
     }
 }

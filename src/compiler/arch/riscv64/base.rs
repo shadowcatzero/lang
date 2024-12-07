@@ -2,11 +2,11 @@ use crate::util::Bits32;
 
 use super::Reg;
 
-pub struct Instruction(u32);
+pub struct RawInstruction(u32);
 
-use Instruction as I;
+use RawInstruction as I;
 
-impl Instruction {
+impl RawInstruction {
     pub fn to_le_bytes(&self) -> impl IntoIterator<Item = u8> {
         self.0.to_le_bytes().into_iter()
     }

@@ -1,7 +1,7 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::ir::FilePos;
 use super::super::ParserMsg;
+use crate::ir::FilePos;
 
 pub struct CharCursor<'a> {
     chars: Peekable<Chars<'a>>,

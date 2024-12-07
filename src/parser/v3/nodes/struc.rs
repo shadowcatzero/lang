@@ -1,45 +1,45 @@
 use std::fmt::Debug;
 
 use super::{
-    util::parse_list, Ident, Keyword, Node, Parsable, ParseResult, ParserMsg, ParserOutput,
-    Symbol, TokenCursor, Type, VarDef,
+    util::parse_list, PIdent, Keyword, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol,
+    PType, PVarDef,
 };
 
 #[derive(Debug)]
-pub struct Struct {
-    pub name: Node<Ident>,
-    pub fields: StructFields,
+pub struct PStruct {
+    pub name: Node<PIdent>,
+    pub fields: PStructFields,
 }
 
 #[derive(Debug)]
-pub enum StructFields {
-    Named(Vec<Node<VarDef>>),
-    Tuple(Vec<Node<Type>>),
+pub enum PStructFields {
+    Named(Vec<Node<PVarDef>>),
+    Tuple(Vec<Node<PType>>),
     None,
 }
 
-impl Parsable for Struct {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> ParseResult<Self> {
-        cursor.expect_kw(Keyword::Struct)?;
-        let name = Node::parse(cursor, errors)?;
-        let next = cursor.expect_peek()?;
+impl Parsable for PStruct {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        ctx.expect_kw(Keyword::Struct)?;
+        let name = ctx.parse()?;
+        let next = ctx.expect_peek()?;
         let fields = if next.is_symbol(Symbol::Semicolon) {
-            cursor.next();
-            StructFields::None
+            ctx.next();
+            PStructFields::None
         } else if next.is_symbol(Symbol::OpenCurly) {
-            cursor.next();
-            StructFields::Named(parse_list(cursor, errors, Symbol::CloseCurly)?)
+            ctx.next();
+            PStructFields::Named(parse_list(ctx, Symbol::CloseCurly)?)
         } else if next.is_symbol(Symbol::OpenParen) {
-            cursor.next();
-            StructFields::Tuple(parse_list(cursor, errors, Symbol::CloseParen)?)
+            ctx.next();
+            PStructFields::Tuple(parse_list(ctx, Symbol::CloseParen)?)
         } else {
-            errors.err(ParserMsg::unexpected_token(next, "`;`, `(`, or `{`"));
-            return ParseResult::Recover(Struct {
+            let msg = ParserMsg::unexpected_token(next, "`;`, `(`, or `{`");
+            ctx.err(msg);
+            return ParseResult::Recover(PStruct {
                 name,
-                fields: StructFields::None,
+                fields: PStructFields::None,
             });
         };
-        ParseResult::Ok(Struct { name, fields })
+        ParseResult::Ok(PStruct { name, fields })
     }
 }
-

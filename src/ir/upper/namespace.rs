@@ -4,13 +4,15 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::{BuiltinType, FileSpan, FnDef, Function, Type, TypeDef, VarDef};
+use super::*;
 
 pub struct Namespace {
     pub fn_defs: Vec<FnDef>,
     pub var_defs: Vec<VarDef>,
     pub type_defs: Vec<TypeDef>,
-    pub fns: Vec<Option<Function>>,
+    pub fns: Vec<Option<IRUFunction>>,
+    pub data: Vec<Vec<u8>>,
+    pub fn_map: HashMap<VarID, FnID>,
     pub temp: usize,
     pub stack: Vec<HashMap<String, Idents>>,
 }
@@ -21,6 +23,8 @@ impl Namespace {
             fn_defs: Vec::new(),
             var_defs: Vec::new(),
             type_defs: Vec::new(),
+            data: Vec::new(),
+            fn_map: HashMap::new(),
             fns: Vec::new(),
             temp: 0,
             stack: vec![HashMap::new()],
@@ -43,27 +47,36 @@ impl Namespace {
         }
         None
     }
-    pub fn get_var(&self, id: VarIdent) -> &VarDef {
+    pub fn get_var(&self, id: VarID) -> &VarDef {
         &self.var_defs[id.0]
     }
-    pub fn get_fn(&self, id: FnIdent) -> &FnDef {
+    pub fn get_fn(&self, id: FnID) -> &FnDef {
         &self.fn_defs[id.0]
     }
-    pub fn get_type(&self, id: TypeIdent) -> &TypeDef {
+    pub fn get_fn_var(&self, id: VarID) -> &FnDef {
+        &self.fn_defs[self.fn_map[&id].0]
+    }
+    pub fn get_type(&self, id: TypeID) -> &TypeDef {
         &self.type_defs[id.0]
     }
-    pub fn alias_fn(&mut self, name: &str, id: FnIdent) {
+    pub fn alias_fn(&mut self, name: &str, id: FnID) {
         self.insert(name, Ident::Fn(id));
     }
-    pub fn name_var(&mut self, def: &VarDef, var: VarIdent) {
+    pub fn named_var(&mut self, def: VarDef) -> VarID {
+        // TODO: this is stupid
+        let id = self.def_var(def.clone());
+        self.name_var(&def, id);
+        id
+    }
+    pub fn name_var(&mut self, def: &VarDef, var: VarID) {
         self.insert(&def.name, Ident::Var(var));
     }
-    pub fn def_var(&mut self, var: VarDef) -> VarIdent {
+    pub fn def_var(&mut self, var: VarDef) -> VarID {
         let i = self.var_defs.len();
         self.var_defs.push(var);
-        VarIdent(i)
+        VarID(i)
     }
-    pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarIdent {
+    pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarID {
         let v = self.def_var(VarDef {
             name: format!("temp{}", self.temp),
             origin: super::Origin::File(origin),
@@ -72,20 +85,37 @@ impl Namespace {
         self.temp += 1;
         v
     }
-    pub fn def_fn(&mut self, def: FnDef) -> FnIdent {
+    pub fn def_fn(&mut self, def: FnDef) -> FnID {
         let i = self.fn_defs.len();
-        let id = FnIdent(i);
+        let id = FnID(i);
+        let var_def = VarDef {
+            name: def.name.clone(),
+            origin: def.origin,
+            ty: def.ty(),
+        };
+
+        let vid = self.def_var(var_def);
+        self.insert(&def.name, Ident::Var(vid));
+        self.fn_map.insert(vid, id);
+
         self.insert(&def.name, Ident::Fn(id));
         self.fn_defs.push(def);
         self.fns.push(None);
+
+
         id
     }
-    pub fn def_type(&mut self, def: TypeDef) -> TypeIdent {
+    pub fn def_type(&mut self, def: TypeDef) -> TypeID {
         let i = self.type_defs.len();
-        let id = TypeIdent(i);
+        let id = TypeID(i);
         self.insert(&def.name, Ident::Type(id));
         self.type_defs.push(def);
         id
+    }
+    pub fn def_data(&mut self, bytes: Vec<u8>) -> DataID {
+        let i = self.data.len();
+        self.data.push(bytes);
+        DataID(i)
     }
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();
@@ -121,6 +151,8 @@ impl Namespace {
             }
             Type::Error => str += "{error}",
             Type::Infer => str += "{inferred}",
+            Type::Bits(size) => str += &format!("b{}", size),
+            Type::Array(t) => str += &format!("[{}]", self.type_name(t)),
         }
         str
     }
@@ -133,7 +165,7 @@ impl Namespace {
             last.insert(name.to_string(), Idents::new(id));
         }
     }
-    pub fn write_fn(&mut self, id: FnIdent, f: Function) {
+    pub fn write_fn(&mut self, id: FnID, f: IRUFunction) {
         self.fns[id.0] = Some(f);
     }
 }
@@ -161,18 +193,17 @@ impl DerefMut for NamespaceGuard<'_> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Ident {
-    Var(VarIdent),
-    Fn(FnIdent),
-    Type(TypeIdent),
+    Var(VarID),
+    Fn(FnID),
+    Type(TypeID),
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Idents {
     pub latest: Ident,
-    pub var: Option<VarIdent>,
-    pub func: Option<FnIdent>,
-    pub var_func: Option<VarOrFnIdent>,
-    pub ty: Option<TypeIdent>,
+    pub var: Option<VarID>,
+    pub func: Option<FnID>,
+    pub ty: Option<TypeID>,
 }
 
 impl Idents {
@@ -181,7 +212,6 @@ impl Idents {
             latest,
             var: None,
             func: None,
-            var_func: None,
             ty: None,
         };
         s.insert(latest);
@@ -192,50 +222,12 @@ impl Idents {
         match i {
             Ident::Var(v) => {
                 self.var = Some(v);
-                self.var_func = Some(VarOrFnIdent::Var(v));
             }
             Ident::Fn(f) => {
                 self.func = Some(f);
-                self.var_func = Some(VarOrFnIdent::Fn(f));
             }
             Ident::Type(t) => self.ty = Some(t),
         }
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct TypeIdent(usize);
-#[derive(Clone, Copy)]
-pub struct VarIdent(usize);
-#[derive(Clone, Copy)]
-pub struct FnIdent(usize);
-
-#[derive(Debug, Clone, Copy)]
-pub enum VarOrFnIdent {
-    Var(VarIdent),
-    Fn(FnIdent),
-}
-
-impl TypeIdent {
-    pub fn builtin(ty: &BuiltinType) -> Self {
-        Self(*ty as usize)
-    }
-}
-
-impl Debug for VarIdent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "v{}", self.0)
-    }
-}
-
-impl Debug for TypeIdent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "t{}", self.0)
-    }
-}
-
-impl Debug for FnIdent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "f{}", self.0)
-    }
-}

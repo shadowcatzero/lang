@@ -1,8 +1,8 @@
 use crate::ir::NamespaceGuard;
 
-use super::{Module, ParserOutput};
+use super::{PModule, ParserOutput};
 
-impl Module {
+impl PModule {
     pub fn lower(&self, map: &mut NamespaceGuard, output: &mut ParserOutput) {
         let mut fns = Vec::new();
         for f in &self.functions {
@@ -13,8 +13,10 @@ impl Module {
             }
         }
         for (f, id) in self.functions.iter().zip(fns) {
-            if let (Some(res), Some(id)) = (f.lower_body(map, output), id) {
-                map.write_fn(id, res);
+            if let Some(id) = id {
+                if let Some(res) = f.lower_body(id, map, output) {
+                    map.write_fn(id, res);
+                }
             }
         }
     }

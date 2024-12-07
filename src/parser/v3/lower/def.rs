@@ -1,6 +1,6 @@
 use crate::ir::{FileSpan, NamespaceGuard, Origin, Type, VarDef};
 
-use super::{Node, ParserMsg, ParserOutput, Type as PType, VarDef as PVarDef};
+use super::{Node, ParserMsg, ParserOutput, PType, PVarDef};
 
 impl Node<PVarDef> {
     pub fn lower(
@@ -9,7 +9,7 @@ impl Node<PVarDef> {
         output: &mut ParserOutput,
     ) -> Option<VarDef> {
         let s = self.as_ref()?;
-        let name = s.name.as_ref()?.val().clone();
+        let name = s.name.as_ref()?.to_string();
         let ty = match &s.ty {
             Some(ty) => ty.lower(namespace, output),
             None => Type::Infer,

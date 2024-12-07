@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 
-use super::{util::parse_list, Node, Parsable, ParseResult, ParserMsg, Symbol, Token};
+use super::{util::parse_list, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol, Token};
 
-pub struct Type {
+pub struct PType {
     pub name: String,
-    pub args: Vec<Node<Type>>,
+    pub args: Vec<Node<PType>>,
 }
 
-impl Type {
+impl PType {
     pub fn unit() -> Self {
         Self {
             name: "()".to_string(),
@@ -16,15 +16,12 @@ impl Type {
     }
 }
 
-impl Parsable for Type {
-    fn parse(
-        cursor: &mut super::TokenCursor,
-        errors: &mut super::ParserOutput,
-    ) -> ParseResult<Self> {
-        let next = cursor.expect_peek()?;
+impl Parsable for PType {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let next = ctx.expect_peek()?;
         let res = if next.is_symbol(Symbol::Ampersand) {
-            cursor.next();
-            let arg = Node::parse(cursor, errors)?;
+            ctx.next();
+            let arg = ctx.parse()?;
             Self {
                 name: "&".to_string(),
                 args: vec![arg],
@@ -34,12 +31,12 @@ impl Parsable for Type {
                 return ParseResult::Err(ParserMsg::unexpected_token(next, "a type identifier"));
             };
             let n = name.to_string();
-            cursor.next();
+            ctx.next();
             let mut args = Vec::new();
-            if let Some(next) = cursor.peek() {
+            if let Some(next) = ctx.peek() {
                 if next.is_symbol(Symbol::OpenAngle) {
-                    cursor.next();
-                    args = parse_list(cursor, errors, Symbol::CloseAngle)?;
+                    ctx.next();
+                    args = parse_list(ctx, Symbol::CloseAngle)?;
                 }
             }
             Self { name: n, args }
@@ -48,7 +45,7 @@ impl Parsable for Type {
     }
 }
 
-impl Debug for Type {
+impl Debug for PType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)?;
         if self.name == "&" {

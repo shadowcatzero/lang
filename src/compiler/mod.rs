@@ -5,13 +5,20 @@ use std::{
     process::Command,
 };
 
+pub mod arch;
 mod elf;
 mod program;
-pub mod riscv64;
 mod target;
-mod instruction;
 
 pub use program::*;
+
+use crate::ir::Program;
+
+pub fn compile(program: Program) -> Vec<u8> {
+    let (compiled, start) = arch::riscv64::compile(program);
+    let binary = elf::create(compiled, start.expect("no start method found"));
+    binary
+}
 
 pub fn main() {
     use std::io::prelude::*;
@@ -27,7 +34,7 @@ pub fn main() {
         .mode(0o750)
         .open(path)
         .expect("Failed to create file");
-    file.write_all(&riscv64::gen())
+    file.write_all(&arch::riscv64::gen())
         .expect("Failed to write to file");
     file.sync_all().expect("Failed to sync file");
     let mut p = Command::new("qemu-riscv64");
@@ -64,4 +71,3 @@ pub fn main() {
         }
     }
 }
-

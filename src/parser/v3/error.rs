@@ -1,6 +1,6 @@
 use crate::ir::{FilePos, FileSpan};
 
-use super::{token::TokenInstance, Ident, Node};
+use super::{token::TokenInstance, PIdent, Node};
 
 #[derive(Debug, Clone)]
 pub struct ParserMsg {
@@ -32,9 +32,9 @@ impl ParserMsg {
             spans: vec![span],
         }
     }
-    pub fn identifier_not_found(id: &Node<Ident>) -> Self {
+    pub fn identifier_not_found(id: &Node<PIdent>) -> Self {
         Self {
-            msg: format!("Identifier '{}' not found", id.as_ref().unwrap().val()),
+            msg: format!("Identifier '{}' not found", id.as_ref().unwrap()),
             spans: vec![id.span],
         }
     }
@@ -71,11 +71,11 @@ impl ParserOutput {
             hints: Vec::new(),
         }
     }
-    pub fn err(&mut self, err: ParserMsg) {
-        self.errs.push(err);
+    pub fn err(&mut self, msg: ParserMsg) {
+        self.errs.push(msg);
     }
-    pub fn hint(&mut self, err: ParserMsg) {
-        self.hints.push(err);
+    pub fn hint(&mut self, msg: ParserMsg) {
+        self.hints.push(msg);
     }
     pub fn write_for(&self, out: &mut impl std::io::Write, file: &str) {
         for err in &self.errs {

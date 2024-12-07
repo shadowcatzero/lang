@@ -1,71 +1,69 @@
 use super::{
-    util::parse_list, Block, Ident, Keyword, Node, Parsable, ParseResult, ParserOutput, SelfVar,
-    Symbol, TokenCursor, Type, VarDef,
+    util::parse_list, PBlock, PIdent, Keyword, Node, Parsable, ParseResult, ParserCtx,
+    Symbol, PType, PVarDef,
 };
 use std::fmt::Debug;
 
-pub struct FunctionHeader {
-    pub name: Node<Ident>,
-    pub sel: Option<Node<SelfVar>>,
-    pub args: Vec<Node<VarDef>>,
-    pub ret: Option<Node<Type>>,
+pub struct PFunctionHeader {
+    pub name: Node<PIdent>,
+    pub args: Vec<Node<PVarDef>>,
+    pub ret: Option<Node<PType>>,
 }
 
-pub struct Function {
-    pub header: Node<FunctionHeader>,
-    pub body: Node<Block>,
+pub struct PFunction {
+    pub header: Node<PFunctionHeader>,
+    pub body: Node<PBlock>,
 }
 
-impl Parsable for FunctionHeader {
-    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self> {
-        cursor.expect_kw(Keyword::Fn)?;
-        let name = Node::parse(cursor, output)?;
-        cursor.expect_sym(Symbol::OpenParen)?;
-        let sel = Node::maybe_parse(cursor, output);
-        if sel.is_some() {
-            if let Err(err) = cursor.expect_sym(Symbol::Comma) {
-                output.err(err);
-                cursor.seek_syms(&[Symbol::Comma, Symbol::CloseParen]);
-                if cursor.peek().is_some_and(|i| i.is_symbol(Symbol::Comma)) {
-                    cursor.next();
-                }
-            }
-        }
-        let args = parse_list(cursor, output, Symbol::CloseParen)?;
-        let ret = if cursor.peek().is_some_and(|i| i.is_symbol(Symbol::Arrow)) {
-            cursor.next();
-            Some(Node::parse(cursor, output)?)
+impl Parsable for PFunctionHeader {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        ctx.expect_kw(Keyword::Fn)?;
+        let name = ctx.parse()?;
+        ctx.expect_sym(Symbol::OpenParen)?;
+        // let sel = ctx.maybe_parse();
+        // if sel.is_some() {
+        //     if let Err(err) = ctx.expect_sym(Symbol::Comma) {
+        //         ctx.err(err);
+        //         ctx.seek_syms(&[Symbol::Comma, Symbol::CloseParen]);
+        //         if ctx.peek().is_some_and(|i| i.is_symbol(Symbol::Comma)) {
+        //             ctx.next();
+        //         }
+        //     }
+        // }
+        let args = parse_list(ctx, Symbol::CloseParen)?;
+        let ret = if ctx.peek().is_some_and(|i| i.is_symbol(Symbol::Arrow)) {
+            ctx.next();
+            Some(ctx.parse()?)
         } else {
             None
         };
         ParseResult::Ok(Self {
             name,
             args,
-            sel,
             ret,
         })
     }
 }
 
-impl Parsable for Function {
-    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self> {
-        let header = Node::parse(cursor, output)?;
-        let body = Node::parse(cursor, output)?;
+impl Parsable for PFunction {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let header = ctx.parse()?;
+        let body = ctx.parse()?;
         ParseResult::Ok(Self { header, body })
     }
 }
 
-impl Debug for FunctionHeader {
+impl Debug for PFunctionHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("fn ")?;
         self.name.fmt(f)?;
         f.write_str("(")?;
-        if let Some(s) = &self.sel {
-            s.fmt(f)?;
-            if self.args.first().is_some() {
-                f.write_str(", ")?;
-            }
-        }
+        // if let Some(s) = &self.sel {
+        //     s.fmt(f)?;
+        //     if self.args.first().is_some() {
+        //         f.write_str(", ")?;
+        //     }
+        // }
         if let Some(a) = self.args.first() {
             a.fmt(f)?;
         }
@@ -80,7 +78,7 @@ impl Debug for FunctionHeader {
         Ok(())
     }
 }
-impl Debug for Function {
+impl Debug for PFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.header.fmt(f)?;
         f.write_str(" ")?;

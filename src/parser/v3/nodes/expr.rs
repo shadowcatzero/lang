@@ -1,52 +1,52 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    op::{BinaryOp, UnaryOp},
+    op::{PInfixOp, UnaryOp},
     util::parse_list,
-    AsmBlock, Block, Ident, Keyword, Literal, Node, NodeParsable, Parsable, ParseResult, ParserMsg,
-    ParserOutput, Symbol, TokenCursor,
+    PAsmBlock, PBlock, PIdent, Keyword, PLiteral, Node, NodeParsable, Parsable, ParseResult, ParserCtx,
+    ParserMsg, Symbol,
 };
 
-type BoxNode = Node<Box<Expr>>;
+type BoxNode = Node<Box<PExpr>>;
 
-pub enum Expr {
-    Lit(Node<Literal>),
-    Ident(Node<Ident>),
-    BinaryOp(BinaryOp, BoxNode, BoxNode),
+pub enum PExpr {
+    Lit(Node<PLiteral>),
+    Ident(Node<PIdent>),
+    BinaryOp(PInfixOp, BoxNode, BoxNode),
     UnaryOp(UnaryOp, BoxNode),
-    Block(Node<Block>),
-    Call(BoxNode, Vec<Node<Expr>>),
+    Block(Node<PBlock>),
+    Call(BoxNode, Vec<Node<PExpr>>),
     Group(BoxNode),
-    AsmBlock(Node<AsmBlock>),
+    AsmBlock(Node<PAsmBlock>),
 }
 
-impl Parsable for Expr {
-    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self> {
-        let start = cursor.next_pos();
-        let next = cursor.expect_peek()?;
+impl Parsable for PExpr {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let start = ctx.next_start();
+        let next = ctx.expect_peek()?;
         let mut e1 = if next.is_symbol(Symbol::OpenParen) {
-            cursor.next();
-            if cursor.expect_peek()?.is_symbol(Symbol::CloseParen) {
-                cursor.next();
-                return ParseResult::Ok(Expr::Lit(Node::new(
-                    Literal::Unit,
-                    cursor.next_pos().char_span(),
+            ctx.next();
+            if ctx.expect_peek()?.is_symbol(Symbol::CloseParen) {
+                ctx.next();
+                return ParseResult::Ok(PExpr::Lit(Node::new(
+                    PLiteral::Unit,
+                    ctx.next_start().char_span(),
                 )));
             }
-            let res = Node::parse(cursor, output);
+            let res = ctx.parse();
             if res.recover {
-                cursor.seek_sym(Symbol::CloseParen);
+                ctx.seek_sym(Symbol::CloseParen);
             }
-            cursor.expect_sym(Symbol::CloseParen)?;
+            ctx.expect_sym(Symbol::CloseParen)?;
             Self::Group(res.node.bx())
         } else if next.is_symbol(Symbol::OpenCurly) {
-            Self::Block(Block::parse_node(cursor, output)?)
+            Self::Block(PBlock::parse_node(ctx)?)
         } else if next.is_keyword(Keyword::Asm) {
-            cursor.next();
-            Self::AsmBlock(Node::parse(cursor, output)?)
+            ctx.next();
+            Self::AsmBlock(ctx.parse()?)
         } else if let Some(op) = UnaryOp::from_token(next) {
-            cursor.next();
-            return Node::parse(cursor, output).map(|n| {
+            ctx.next();
+            return ctx.parse().map(|n| {
                 let n = n.bx();
                 if let Some(box Self::BinaryOp(op2, n1, n2)) = n.inner {
                     let span = start.to(n1.span.end);
@@ -55,36 +55,36 @@ impl Parsable for Expr {
                     Self::UnaryOp(op, n)
                 }
             });
-        } else if let Some(val) = Node::maybe_parse(cursor, output) {
+        } else if let Some(val) = Node::maybe_parse(ctx) {
             Self::Lit(val)
         } else {
-            let res = Node::parse(cursor, &mut ParserOutput::new());
+            let res = ctx.parse();
             if res.node.is_some() {
                 Self::Ident(res.node)
             } else {
-                let next = cursor.expect_peek()?;
+                let next = ctx.expect_peek()?;
                 return ParseResult::Err(ParserMsg::unexpected_token(next, "an expression"));
             }
         };
-        let Some(mut next) = cursor.peek() else {
+        let Some(mut next) = ctx.peek() else {
             return ParseResult::Ok(e1);
         };
         while next.is_symbol(Symbol::OpenParen) {
-            cursor.next();
-            let args = parse_list(cursor, output, Symbol::CloseParen)?;
-            let end = cursor.prev_end();
+            ctx.next();
+            let args = parse_list(ctx, Symbol::CloseParen)?;
+            let end = ctx.prev_end();
             e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), args);
-            let Some(next2) = cursor.peek() else {
+            let Some(next2) = ctx.peek() else {
                 return ParseResult::Ok(e1);
             };
             next = next2
         }
-        let end = cursor.prev_end();
+        let end = ctx.prev_end();
         let mut recover = false;
-        let res = if let Some(mut op) = BinaryOp::from_token(&next.token) {
-            cursor.next();
+        let res = if let Some(mut op) = PInfixOp::from_token(&next.token) {
+            ctx.next();
             let mut n1 = Node::new(e1, start.to(end)).bx();
-            let res = Node::parse(cursor, output);
+            let res = ctx.parse();
             let mut n2 = res.node.bx();
             recover = res.recover;
             if let Some(box Self::BinaryOp(op2, _, _)) = n2.as_ref() {
@@ -106,13 +106,13 @@ impl Parsable for Expr {
     }
 }
 
-impl Debug for Expr {
+impl Debug for PExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Lit(c) => c.fmt(f)?,
-            Expr::Ident(n) => n.fmt(f)?,
-            Expr::Block(b) => b.fmt(f)?,
-            Expr::BinaryOp(op, e1, e2) => {
+            PExpr::Lit(c) => c.fmt(f)?,
+            PExpr::Ident(n) => n.fmt(f)?,
+            PExpr::Block(b) => b.fmt(f)?,
+            PExpr::BinaryOp(op, e1, e2) => {
                 write!(f, "({:?}", *e1)?;
                 if op.pad() {
                     write!(f, " {} ", op.str())?;
@@ -121,7 +121,7 @@ impl Debug for Expr {
                 }
                 write!(f, "{:?})", *e2)?;
             }
-            Expr::Call(n, args) => {
+            PExpr::Call(n, args) => {
                 n.fmt(f)?;
                 f.write_char('(')?;
                 if let Some(a) = args.first() {
@@ -133,13 +133,13 @@ impl Debug for Expr {
                 }
                 f.write_char(')')?;
             }
-            Expr::UnaryOp(op, e) => {
+            PExpr::UnaryOp(op, e) => {
                 write!(f, "(")?;
                 write!(f, "{}", op.str())?;
                 write!(f, "{:?})", *e)?;
             }
-            Expr::Group(inner) => inner.fmt(f)?,
-            Expr::AsmBlock(inner) => inner.fmt(f)?,
+            PExpr::Group(inner) => inner.fmt(f)?,
+            PExpr::AsmBlock(inner) => inner.fmt(f)?,
         }
         Ok(())
     }

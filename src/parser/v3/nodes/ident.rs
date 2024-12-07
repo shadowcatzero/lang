@@ -1,29 +1,52 @@
-use std::fmt::Debug;
-use super::{Parsable, ParseResult, ParserMsg, Token};
+use super::{MaybeParsable, Parsable, ParseResult, ParserCtx, ParserMsg, Token};
+use std::{
+    fmt::{Debug, Display},
+    ops::Deref,
+};
 
-pub struct Ident(String);
+#[derive(Clone)]
+pub struct PIdent(String);
 
-impl Ident {
-    pub fn val(&self) -> &String {
-        &self.0
-    }
-}
-
-impl Parsable for Ident {
-    fn parse(cursor: &mut super::TokenCursor, errors: &mut super::ParserOutput) -> ParseResult<Self> {
-        let next = cursor.expect_peek()?;
+impl Parsable for PIdent {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let next = ctx.expect_peek()?;
         let Token::Word(name) = &next.token else {
             return ParseResult::Err(ParserMsg::unexpected_token(next, "an identifier"));
         };
         let name = name.to_string();
-        cursor.next();
+        ctx.next();
         ParseResult::Ok(Self(name))
     }
 }
 
-impl Debug for Ident {
+impl MaybeParsable for PIdent {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, ParserMsg> {
+        let Some(next) = ctx.peek() else { return Ok(None) };
+        let Token::Word(name) = &next.token else {
+            return Ok(None);
+        };
+        let name = name.to_string();
+        ctx.next();
+        Ok(Some(Self(name)))
+    }
+}
+
+impl Debug for PIdent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
+impl Deref for PIdent {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Display for PIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}

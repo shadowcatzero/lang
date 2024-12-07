@@ -5,7 +5,7 @@ use std::{
 
 use crate::ir::FilePos;
 
-use super::{Node, ParserMsg, ParserOutput, TokenCursor};
+use super::{Node, ParserCtx, ParserMsg};
 
 pub enum ParseResult<T> {
     Ok(T),
@@ -33,6 +33,7 @@ impl<T> Try for ParseResult<T> {
     fn branch(self) -> ControlFlow<Self::Residual, Self::Output> {
         match self {
             ParseResult::Ok(v) => ControlFlow::Continue(v),
+            // TODO: this is messed up; need to break w a Result<Option<T>> or smth :woozy:
             ParseResult::Recover(v) => ControlFlow::Break(None),
             ParseResult::Err(e) => ControlFlow::Break(Some(e)),
             ParseResult::SubErr => ControlFlow::Break(None),
@@ -111,29 +112,26 @@ impl<T> FromResidual for NodeParseResult<T> {
 }
 
 pub trait Parsable: Sized {
-    fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> ParseResult<Self>;
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self>;
 }
 
 pub trait MaybeParsable: Sized {
-    fn maybe_parse(
-        cursor: &mut TokenCursor,
-        errors: &mut ParserOutput,
-    ) -> Result<Option<Self>, ParserMsg>;
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, ParserMsg>;
 }
 
 impl<T: Parsable> Node<T> {
-    pub fn parse(cursor: &mut TokenCursor, output: &mut ParserOutput) -> NodeParseResult<T> {
-        let start = cursor.peek().map(|t| t.span.start).unwrap_or(FilePos::start());
-        let (inner, recover) = match T::parse(cursor, output) {
+    pub fn parse(ctx: &mut ParserCtx) -> NodeParseResult<T> {
+        let start = ctx.peek().map(|t| t.span.start).unwrap_or(FilePos::start());
+        let (inner, recover) = match T::parse(ctx) {
             ParseResult::Ok(v) => (Some(v), false),
             ParseResult::Recover(v) => (Some(v), true),
             ParseResult::Err(e) => {
-                output.err(e);
+                ctx.err(e);
                 (None, true)
             }
             ParseResult::SubErr => (None, true),
         };
-        let end = cursor.prev_end();
+        let end = ctx.prev_end();
         NodeParseResult {
             node: Self {
                 inner,
@@ -145,16 +143,16 @@ impl<T: Parsable> Node<T> {
 }
 
 impl<T: MaybeParsable> Node<T> {
-    pub fn maybe_parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> Option<Self> {
-        let start = cursor.next_pos();
-        let inner = match T::maybe_parse(cursor, errors) {
+    pub fn maybe_parse(ctx: &mut ParserCtx) -> Option<Self> {
+        let start = ctx.next_start();
+        let inner = match T::maybe_parse(ctx) {
             Ok(v) => Some(v?),
             Err(e) => {
-                errors.err(e);
+                ctx.err(e);
                 None
             }
         };
-        let end = cursor.prev_end();
+        let end = ctx.prev_end();
         Some(Self {
             inner,
             span: start.to(end),
@@ -163,15 +161,15 @@ impl<T: MaybeParsable> Node<T> {
 }
 
 pub trait NodeParsable {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> NodeParseResult<Self>
+    fn parse_node(ctx: &mut ParserCtx) -> NodeParseResult<Self>
     where
         Self: Sized;
 }
 impl<T: Parsable> NodeParsable for T {
-    fn parse_node(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> NodeParseResult<Self>
+    fn parse_node(ctx: &mut ParserCtx) -> NodeParseResult<Self>
     where
         Self: Sized,
     {
-        Node::<Self>::parse(cursor, errors)
+        Node::<Self>::parse(ctx)
     }
 }

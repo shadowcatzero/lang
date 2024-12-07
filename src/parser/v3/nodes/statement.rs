@@ -1,51 +1,45 @@
-use super::{
-    Expr, Keyword, Node, Parsable, ParseResult, ParserOutput, Symbol, Token, TokenCursor, VarDef,
-};
-use std::fmt::{Debug, Write};
+use super::{PExpr, Keyword, Node, Parsable, ParseResult, ParserCtx, Symbol, Token, PVarDef};
 
-pub enum Statement {
-    Let(Node<VarDef>, Node<Expr>),
-    Return(Node<Expr>),
-    Expr(Node<Expr>),
+pub enum PStatement {
+    Let(Node<PVarDef>, Node<PExpr>),
+    Return(Node<PExpr>),
+    Expr(Node<PExpr>),
 }
 
-impl Parsable for Statement {
-    fn parse(cursor: &mut TokenCursor, errors: &mut ParserOutput) -> ParseResult<Self> {
-        let next = cursor.expect_peek()?;
+impl Parsable for PStatement {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let next = ctx.expect_peek()?;
         match next.token {
             Token::Keyword(Keyword::Let) => {
-                cursor.next();
-                let def = Node::parse(cursor, errors)?;
-                cursor.expect_sym(Symbol::Equals)?;
-                Node::parse(cursor, errors).map(|expr| Self::Let(def, expr))
+                ctx.next();
+                let def = ctx.parse()?;
+                ctx.expect_sym(Symbol::Equals)?;
+                ctx.parse().map(|expr| Self::Let(def, expr))
             }
             Token::Keyword(Keyword::Return) => {
-                cursor.next();
-                Node::parse(cursor, errors).map(Self::Return)
+                ctx.next();
+                ctx.parse().map(Self::Return)
             }
-            _ => Node::parse(cursor, errors).map(Self::Expr),
+            _ => ctx.parse().map(Self::Expr),
         }
     }
 }
 
-impl Debug for Statement {
+impl std::fmt::Debug for PStatement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Statement::Let(n, e) => {
+            PStatement::Let(n, e) => {
                 f.write_str("let ")?;
                 n.fmt(f)?;
                 f.write_str(" = ")?;
                 e.fmt(f)?;
-                f.write_char(';')?;
             }
-            Statement::Return(e) => {
+            PStatement::Return(e) => {
                 f.write_str("return ")?;
                 e.fmt(f)?;
-                f.write_char(';')?;
             }
-            Statement::Expr(e) => {
+            PStatement::Expr(e) => {
                 e.fmt(f)?;
-                f.write_char(';')?;
             }
         }
         Ok(())

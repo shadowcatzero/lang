@@ -1,14 +1,21 @@
 use std::{collections::HashMap, ops::Deref};
 
-pub fn create_program<I: Instr>(map: SymMap<I>, start: Symbol) -> (Vec<u8>, Option<Addr>) {
+use crate::ir::AddrID;
+
+pub fn create_program<I: Instr>(
+    fns: Vec<(Vec<I>, AddrID)>,
+    ro_data: Vec<(Vec<u8>, AddrID)>,
+    start: Option<AddrID>,
+) -> (Vec<u8>, Option<Addr>) {
     let mut data = Vec::new();
-    let mut sym_table = SymTable::new(map.len());
-    let mut missing = HashMap::<Symbol, Vec<(Addr, I)>>::new();
-    for (val, id) in map.ro_data {
+    let mut sym_table = SymTable::new(fns.len() + ro_data.len());
+    let mut missing = HashMap::<AddrID, Vec<(Addr, I)>>::new();
+    for (val, id) in ro_data {
         sym_table.insert(id, Addr(data.len() as u64));
         data.extend(val);
     }
-    for (fun, id) in map.functions {
+    data.resize(data.len() + (4 - data.len() % 4), 0);
+    for (fun, id) in fns {
         sym_table.insert(id, Addr(data.len() as u64));
         for i in fun {
             let i_pos = Addr(data.len() as u64);
@@ -30,11 +37,15 @@ pub fn create_program<I: Instr>(map: SymMap<I>, start: Symbol) -> (Vec<u8>, Opti
         }
     }
     assert!(missing.is_empty());
-    (data, sym_table.get(start))
+    (
+        data,
+        start.map(|s| sym_table.get(s).expect("start symbol doesn't exist")),
+    )
 }
 
 pub trait Instr {
-    fn push(&self, data: &mut Vec<u8>, syms: &SymTable, pos: Addr, missing: bool) -> Option<Symbol>;
+    fn push(&self, data: &mut Vec<u8>, syms: &SymTable, pos: Addr, missing: bool)
+        -> Option<AddrID>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -73,19 +84,23 @@ impl<I> SymMap<I> {
             functions: Vec::new(),
         }
     }
-    pub fn push_ro_data(&mut self, data: impl Into<Vec<u8>>) -> (Symbol, usize) {
+    pub fn push_ro_data(&mut self, data: Vec<u8>) -> Symbol {
         let sym = self.reserve();
-        self.write_ro_data(sym, data)
+        self.write_ro_data(sym, data.into())
+    }
+    pub fn push_ro_data_size(&mut self, data: Vec<u8>) -> (Symbol, usize) {
+        let sym = self.reserve();
+        let len = data.len();
+        (self.write_ro_data(sym, data), len)
     }
     pub fn push_fn(&mut self, instructions: Vec<I>) -> Symbol {
         let sym = self.reserve();
         self.write_fn(sym, instructions)
     }
-    pub fn write_ro_data(&mut self, sym: WritableSymbol, data: impl Into<Vec<u8>>) -> (Symbol, usize) {
+    pub fn write_ro_data(&mut self, sym: WritableSymbol, data: Vec<u8>) -> Symbol {
         let data = data.into();
-        let len = data.len();
         self.ro_data.push((data, *sym));
-        (*sym, len)
+        *sym
     }
     pub fn write_fn(&mut self, sym: WritableSymbol, instructions: Vec<I>) -> Symbol {
         self.functions.push((instructions, *sym));
@@ -106,10 +121,10 @@ impl SymTable {
     pub fn new(len: usize) -> Self {
         Self(vec![Addr::NONE; len])
     }
-    pub fn insert(&mut self, sym: Symbol, addr: Addr) {
+    pub fn insert(&mut self, sym: AddrID, addr: Addr) {
         self.0[sym.0] = addr;
     }
-    pub fn get(&self, sym: Symbol) -> Option<Addr> {
+    pub fn get(&self, sym: AddrID) -> Option<Addr> {
         match self.0[sym.0] {
             Addr::NONE => None,
             addr => Some(addr),

@@ -1,7 +1,7 @@
 use super::{Symbol, Token};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum BinaryOp {
+pub enum PInfixOp {
     Add,
     Sub,
     Mul,
@@ -12,7 +12,7 @@ pub enum BinaryOp {
     Assign,
 }
 
-impl BinaryOp {
+impl PInfixOp {
     pub fn presedence(&self) -> u32 {
         match self {
             Self::Assign => 0,
@@ -69,7 +69,7 @@ pub enum UnaryOp {
     Deref,
 }
 
-impl BinaryOp {
+impl PInfixOp {
     pub fn from_token(token: &Token) -> Option<Self> {
         let Token::Symbol(symbol) = token else {
             return None;

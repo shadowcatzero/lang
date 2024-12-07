@@ -1,32 +1,37 @@
-use super::{func::FnLowerCtx, Expr as PExpr, Node, UnaryOp};
-use crate::ir::{FnIdent, Instruction, Type, VarIdent, VarOrFnIdent};
+use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
+use crate::ir::{IRUInstruction, Type, VarID};
 
-impl PExpr {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
+impl FnLowerable for PExpr {
+    type Output = VarID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarID> {
         Some(match self {
             PExpr::Lit(l) => match l.as_ref()? {
-                super::Literal::String(s) => todo!(),
-                super::Literal::Char(c) => todo!(),
-                super::Literal::Number(n) => todo!(),
-                super::Literal::Unit => {
+                super::PLiteral::String(s) => {
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let src = ctx.map.def_data(s.as_bytes().to_vec());
+                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    dest
+                }
+                super::PLiteral::Char(c) => {
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let src = ctx.map.def_data(c.to_string().as_bytes().to_vec());
+                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    dest
+                }
+                super::PLiteral::Number(n) => {
+                    // TODO: temp
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let src = ctx
+                        .map
+                        .def_data(n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec());
+                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    dest
+                }
+                super::PLiteral::Unit => {
                     todo!();
                 }
             },
-            PExpr::Ident(i) => {
-                let name = i.as_ref()?.val();
-                let Some(id) = ctx.get(name) else {
-                    ctx.err(format!("Identifier '{}' not found.", name));
-                    return None;
-                };
-                let Some(vf) = id.var_func else {
-                    ctx.err(format!("Variable or function '{}' not found; Found type, but types cannot be used here.", name));
-                    return None;
-                };
-                match vf {
-                    VarOrFnIdent::Var(var) => ExprResult::Var(var),
-                    VarOrFnIdent::Fn(f) => ExprResult::Fn(f),
-                }
-            }
+            PExpr::Ident(i) => ctx.get_var(i)?,
             PExpr::BinaryOp(op, e1, e2) => {
                 let res1 = e1.lower(ctx)?;
                 let res2 = e2.lower(ctx)?;
@@ -36,101 +41,50 @@ impl PExpr {
             PExpr::UnaryOp(op, e) => {
                 let res = e.lower(ctx)?;
                 match op {
-                    UnaryOp::Ref => ExprResult::Var(match res {
-                        ExprResult::Var(v) => {
-                            let temp = ctx.temp(ctx.map.get_var(v).ty.clone());
-                            ctx.push(Instruction::Ref { dest: temp, src: v });
-                            temp
-                        }
-                        ExprResult::Fn(f) => {
-                            let temp = ctx.temp(Type::Ref(Box::new(ctx.map.get_fn(f).ty())));
-                            ctx.push(Instruction::Lf { dest: temp, src: f });
-                            temp
-                        }
-                    }),
-                    UnaryOp::Deref => match res {
-                        ExprResult::Var(v) => match &ctx.map.get_var(v).ty {
-                            Type::Ref(inner) => {
-                                todo!()
-                            }
-                            t => {
-                                ctx.err(format!(
-                                    "Cannot dereference type {:?}",
-                                    ctx.map.type_name(t)
-                                ));
-                                return None;
-                            }
-                        },
-                        ExprResult::Fn(f) => {
-                            ctx.err("Cannot dereference functions".to_string());
+                    UnaryOp::Ref => {
+                        let temp = ctx.temp(ctx.map.get_var(res).ty.clone());
+                        ctx.push(IRUInstruction::Ref {
+                            dest: temp,
+                            src: res,
+                        });
+                        temp
+                    }
+                    UnaryOp::Deref => {
+                        let t = &ctx.map.get_var(res).ty;
+                        let Type::Ref(inner) = t else {
+                            ctx.err(format!(
+                                "Cannot dereference type {:?}",
+                                ctx.map.type_name(t)
+                            ));
                             return None;
-                        }
-                    },
+                        };
+                        todo!();
+                    }
                     UnaryOp::Not => todo!(),
                 }
             }
             PExpr::Block(b) => b.lower(ctx)?,
             PExpr::AsmBlock(b) => {
-                ctx.push(Instruction::AsmBlock {
-                    instructions: b.as_ref()?.instructions.clone(),
-                });
+                b.lower(ctx);
                 return None;
             }
             PExpr::Call(e, args) => {
-                let fe = e.lower(ctx)?;
+                let f = e.lower(ctx)?;
                 let mut nargs = Vec::new();
                 for arg in args.iter() {
                     let arg = arg.lower(ctx)?;
-                    nargs.push(match arg {
-                        ExprResult::Var(v) => v,
-                        ExprResult::Fn(_) => todo!(),
-                    });
+                    nargs.push(arg);
                 }
-                match fe {
-                    ExprResult::Fn(f) => {
-                        let temp = ctx.temp(ctx.map.get_fn(f).ret.clone());
-                        ctx.push(Instruction::Call {
-                            dest: temp,
-                            f,
-                            args: nargs,
-                        });
-                        ExprResult::Var(temp)
-                    }
-                    o => {
-                        ctx.err(format!("Expected function, found {:?}", o));
-                        return None;
-                    }
-                }
+                let temp = ctx.temp(ctx.map.get_fn_var(f).ret.clone());
+                ctx.push(IRUInstruction::Call {
+                    dest: temp,
+                    f,
+                    args: nargs,
+                });
+                // ctx.err(format!("Expected function, found {:?}", f));
+                return None;
             }
             PExpr::Group(e) => e.lower(ctx)?,
         })
     }
-}
-
-impl Node<PExpr> {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
-        self.inner.as_ref()?.lower(&mut FnLowerCtx {
-            map: ctx.map,
-            instructions: ctx.instructions,
-            output: ctx.output,
-            span: self.span,
-        })
-    }
-}
-
-impl Node<Box<PExpr>> {
-    pub fn lower(&self, ctx: &mut FnLowerCtx) -> Option<ExprResult> {
-        self.inner.as_ref()?.lower(&mut FnLowerCtx {
-            map: ctx.map,
-            instructions: ctx.instructions,
-            output: ctx.output,
-            span: self.span,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub enum ExprResult {
-    Var(VarIdent),
-    Fn(FnIdent),
 }

@@ -1,6 +1,7 @@
 use super::{FileSpan, Type};
 use std::fmt::Debug;
 
+#[derive(Clone)]
 pub struct FnDef {
     pub name: String,
     pub args: Vec<VarDef>,
@@ -8,6 +9,7 @@ pub struct FnDef {
     pub origin: Origin,
 }
 
+#[derive(Clone)]
 pub struct TypeDef {
     pub name: String,
     pub args: usize,

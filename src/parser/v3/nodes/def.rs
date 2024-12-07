@@ -1,21 +1,20 @@
 use std::fmt::Debug;
 
-use super::{Ident, MaybeParsable, Node, Parsable, ParseResult, ParserMsg, Symbol, Token, Type};
+use super::{
+    PIdent, MaybeParsable, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol, Token, PType,
+};
 
-pub struct VarDef {
-    pub name: Node<Ident>,
-    pub ty: Option<Node<Type>>,
+pub struct PVarDef {
+    pub name: Node<PIdent>,
+    pub ty: Option<Node<PType>>,
 }
 
-impl Parsable for VarDef {
-    fn parse(
-        cursor: &mut super::TokenCursor,
-        errors: &mut super::ParserOutput,
-    ) -> ParseResult<Self> {
-        let name = Node::parse(cursor, errors)?;
-        if cursor.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
-            cursor.next();
-            Node::parse(cursor, errors).map(|ty| Self { name, ty: Some(ty) })
+impl Parsable for PVarDef {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let name = ctx.parse()?;
+        if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
+            ctx.next();
+            ctx.parse().map(|ty| Self { name, ty: Some(ty) })
         } else {
             ParseResult::Ok(Self { name, ty: None })
         }
@@ -33,20 +32,17 @@ pub enum SelfType {
 }
 
 impl MaybeParsable for SelfVar {
-    fn maybe_parse(
-        cursor: &mut super::TokenCursor,
-        errors: &mut super::ParserOutput,
-    ) -> Result<Option<Self>, super::ParserMsg> {
-        if let Some(mut next) = cursor.peek() {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, super::ParserMsg> {
+        if let Some(mut next) = ctx.peek() {
             let mut ty = SelfType::Take;
             if next.is_symbol(Symbol::Ampersand) {
-                cursor.next();
+                ctx.next();
                 ty = SelfType::Ref;
-                next = cursor.expect_peek()?;
+                next = ctx.expect_peek()?;
             }
             if let Token::Word(name) = &next.token {
                 if name == "self" {
-                    cursor.next();
+                    ctx.next();
                     return Ok(Some(Self { ty }));
                 }
             }
@@ -58,7 +54,7 @@ impl MaybeParsable for SelfVar {
     }
 }
 
-impl Debug for VarDef {
+impl Debug for PVarDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.name.fmt(f)?;
         if let Some(ty) = &self.ty {
