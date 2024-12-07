@@ -7,20 +7,20 @@ impl FnLowerable for PExpr {
         Some(match self {
             PExpr::Lit(l) => match l.as_ref()? {
                 super::PLiteral::String(s) => {
-                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(64).arr().rf());
                     let src = ctx.map.def_data(s.as_bytes().to_vec());
                     ctx.push(IRUInstruction::LoadData { dest, src });
                     dest
                 }
                 super::PLiteral::Char(c) => {
-                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(64).arr().rf());
                     let src = ctx.map.def_data(c.to_string().as_bytes().to_vec());
                     ctx.push(IRUInstruction::LoadData { dest, src });
                     dest
                 }
                 super::PLiteral::Number(n) => {
                     // TODO: temp
-                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).arr().rf());
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(64));
                     let src = ctx
                         .map
                         .def_data(n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec());
@@ -69,20 +69,27 @@ impl FnLowerable for PExpr {
                 return None;
             }
             PExpr::Call(e, args) => {
-                let f = e.lower(ctx)?;
+                let fe = e.lower(ctx)?;
                 let mut nargs = Vec::new();
                 for arg in args.iter() {
                     let arg = arg.lower(ctx)?;
                     nargs.push(arg);
                 }
-                let temp = ctx.temp(ctx.map.get_fn_var(f).ret.clone());
+                let def = ctx.map.get_fn_var(fe);
+                let ty = match def {
+                    Some(def) => def.ret.clone(),
+                    None => {
+                        ctx.err_at(e.span, format!("Expected function, found {}", ctx.map.type_name(&ctx.map.get_var(fe).ty)));
+                        Type::Error
+                    },
+                };
+                let temp = ctx.temp(ty);
                 ctx.push(IRUInstruction::Call {
                     dest: temp,
-                    f,
+                    f: fe,
                     args: nargs,
                 });
-                // ctx.err(format!("Expected function, found {:?}", f));
-                return None;
+                temp
             }
             PExpr::Group(e) => e.lower(ctx)?,
         })

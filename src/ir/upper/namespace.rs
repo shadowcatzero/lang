@@ -53,8 +53,8 @@ impl Namespace {
     pub fn get_fn(&self, id: FnID) -> &FnDef {
         &self.fn_defs[id.0]
     }
-    pub fn get_fn_var(&self, id: VarID) -> &FnDef {
-        &self.fn_defs[self.fn_map[&id].0]
+    pub fn get_fn_var(&self, id: VarID) -> Option<&FnDef> {
+        Some(&self.fn_defs[self.fn_map.get(&id)?.0])
     }
     pub fn get_type(&self, id: TypeID) -> &TypeDef {
         &self.type_defs[id.0]
@@ -101,7 +101,6 @@ impl Namespace {
         self.insert(&def.name, Ident::Fn(id));
         self.fn_defs.push(def);
         self.fns.push(None);
-
 
         id
     }
@@ -230,4 +229,3 @@ impl Idents {
         }
     }
 }
-

@@ -1,7 +1,7 @@
 #![feature(box_patterns)]
 #![feature(try_trait_v2)]
 
-use ir::{Namespace, Program};
+use ir::{Namespace, IRLProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
 use std::{
     fs::{create_dir_all, OpenOptions},
@@ -43,7 +43,7 @@ fn run_file(file: &str, gdb: bool) {
                 // for def in &namespace.var_defs {
                 //     println!("{}: {}", def.name, namespace.type_name(&def.ty));
                 // }
-                let program = Program::create(&namespace);
+                let program = IRLProgram::create(&namespace);
                 let bin = compiler::compile(program);
                 println!("compiled");
                 save_run(&bin, gdb);

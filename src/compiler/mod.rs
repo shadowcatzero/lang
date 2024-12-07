@@ -12,9 +12,9 @@ mod target;
 
 pub use program::*;
 
-use crate::ir::Program;
+use crate::ir::IRLProgram;
 
-pub fn compile(program: Program) -> Vec<u8> {
+pub fn compile(program: IRLProgram) -> Vec<u8> {
     let (compiled, start) = arch::riscv64::compile(program);
     let binary = elf::create(compiled, start.expect("no start method found"));
     binary

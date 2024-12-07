@@ -2,12 +2,14 @@ use std::collections::HashMap;
 
 use super::{AddrID, IRLData, IRLFunction, IRLInstruction, IRUInstruction, Namespace, VarID};
 
-pub struct Program {
+pub struct IRLProgram {
     pub fns: Vec<IRLFunction>,
     pub data: Vec<IRLData>,
 }
 
-impl Program {
+// NOTE: there are THREE places here where I specify size (8)
+
+impl IRLProgram {
     pub fn create(ns: &Namespace) -> Self {
         let mut fns = Vec::new();
         let mut data = Vec::new();

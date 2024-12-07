@@ -4,13 +4,13 @@ use crate::{
     compiler::{arch::riscv64::Reg, create_program, Addr},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
-        IRLInstruction as IRI, Program,
+        IRLInstruction as IRI, IRLProgram,
     },
 };
 
 use super::{LinkerInstruction as LI, *};
 
-pub fn compile(program: Program) -> (Vec<u8>, Option<Addr>) {
+pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
     let mut fns = Vec::new();
     let mut data = Vec::new();
     for d in program.data {
