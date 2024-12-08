@@ -19,7 +19,7 @@ pub struct Namespace {
 
 impl Namespace {
     pub fn new() -> Self {
-        let mut s = Self {
+        Self {
             fn_defs: Vec::new(),
             var_defs: Vec::new(),
             type_defs: Vec::new(),
@@ -28,11 +28,7 @@ impl Namespace {
             fns: Vec::new(),
             temp: 0,
             stack: vec![HashMap::new()],
-        };
-        for b in BuiltinType::enumerate() {
-            s.def_type(b.def());
         }
-        s
     }
     pub fn push(&mut self) -> NamespaceGuard {
         self.stack.push(HashMap::new());
@@ -75,6 +71,27 @@ impl Namespace {
         let i = self.var_defs.len();
         self.var_defs.push(var);
         VarID(i)
+    }
+    pub fn size_of_type(&self, ty: &Type) -> Option<Size> {
+        // TODO: target matters
+        Some(match ty {
+            Type::Concrete(id) => {
+                let def = &self.type_defs[id.0];
+                todo!()
+            }
+            Type::Bits(b) => *b,
+            Type::Generic { base, args } => todo!(),
+            Type::Fn { args, ret } => todo!(),
+            Type::Ref(_) => 64,
+            Type::Array(ty, len) => self.size_of_type(ty)? * len,
+            Type::Slice(_) => 128,
+            Type::Infer => return None,
+            Type::Error => return None,
+            Type::Unit => 0,
+        })
+    }
+    pub fn size_of_var(&self, var: &VarID) -> Option<Size> {
+        self.size_of_type(&self.var_defs[var.0].ty)
     }
     pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarID {
         let v = self.def_var(VarDef {
@@ -151,7 +168,9 @@ impl Namespace {
             Type::Error => str += "{error}",
             Type::Infer => str += "{inferred}",
             Type::Bits(size) => str += &format!("b{}", size),
-            Type::Array(t) => str += &format!("[{}]", self.type_name(t)),
+            Type::Array(t, len) => str += &format!("[{}; {len}]", self.type_name(t)),
+            Type::Unit => str += "()",
+            Type::Slice(t) => str += &format!("&[{}]", self.type_name(t)),
         }
         str
     }
@@ -166,6 +185,16 @@ impl Namespace {
     }
     pub fn write_fn(&mut self, id: FnID, f: IRUFunction) {
         self.fns[id.0] = Some(f);
+    }
+    pub fn iter_vars(&self) -> impl Iterator<Item = (VarID, &VarDef)> {
+        (0..self.var_defs.len())
+            .map(|i| VarID(i))
+            .zip(self.var_defs.iter())
+    }
+    pub fn iter_fns(&self) -> impl Iterator<Item = (FnID, Option<&IRUFunction>)> {
+        (0..self.fns.len())
+            .map(|i| FnID(i))
+            .zip(self.fns.iter().map(|f| f.as_ref()))
     }
 }
 

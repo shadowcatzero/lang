@@ -1,6 +1,6 @@
 use crate::ir::{FileSpan, NamespaceGuard, Origin, Type, VarDef};
 
-use super::{Node, ParserMsg, ParserOutput, PType, PVarDef};
+use super::{Node, PType, PVarDef, ParserMsg, ParserOutput};
 
 impl Node<PVarDef> {
     pub fn lower(
@@ -54,8 +54,16 @@ impl PType {
                 if let Ok(num) = self.name.parse::<u32>() {
                     Type::Bits(num)
                 } else {
-                    output.err(ParserMsg::from_span(span, "Type not found".to_string()));
-                    Type::Error
+                    match self.name.as_str() {
+                        "slice" => {
+                            let inner = self.args[0].lower(namespace, output);
+                            Type::Slice(Box::new(inner))
+                        }
+                        _ => {
+                            output.err(ParserMsg::from_span(span, "Type not found".to_string()));
+                            Type::Error
+                        }
+                    }
                 }
             }
         }

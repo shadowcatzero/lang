@@ -37,10 +37,13 @@ fn run_file(file: &str, gdb: bool) {
             let mut namespace = Namespace::new();
             module.lower(&mut namespace.push(), &mut ctx.output);
             if ctx.output.errs.is_empty() {
-                println!("vars:");
-                for def in &namespace.var_defs {
-                    println!("    {}: {}", def.name, namespace.type_name(&def.ty));
-                }
+                // println!("vars:");
+                // for (id, def) in namespace.iter_vars() {
+                //     println!("    {id:?} = {}: {}", def.name, namespace.type_name(&def.ty));
+                // }
+                // for (id, f) in namespace.iter_fns() {
+                //     println!("{id:?} = {:#?}", f.unwrap());
+                // }
                 let program = IRLProgram::create(&namespace);
                 let bin = compiler::compile(program.expect("morir"));
                 println!("compiled");

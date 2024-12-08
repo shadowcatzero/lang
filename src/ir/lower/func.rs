@@ -7,8 +7,9 @@ use std::collections::HashMap;
 pub struct IRLFunction {
     pub name: String,
     pub instructions: Vec<IRLInstruction>,
-    pub stack: HashMap<VarID, usize>,
-    pub args: Vec<(VarID, usize)>,
+    pub stack: HashMap<VarID, Size>,
+    pub args: Vec<(VarID, Size)>,
+    pub makes_call: bool,
 }
 
 #[derive(Debug)]
@@ -23,12 +24,19 @@ pub enum IRLInstruction {
     },
     LoadAddr {
         dest: VarID,
+        offset: Size,
         src: Symbol,
+    },
+    LoadData {
+        dest: VarID,
+        offset: Size,
+        src: Symbol,
+        len: Len,
     },
     Call {
         dest: VarID,
         f: Symbol,
-        args: Vec<(VarID, usize)>,
+        args: Vec<(VarID, Size)>,
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,

@@ -1,5 +1,5 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
-use crate::ir::{IRUInstruction, Type, VarID};
+use crate::ir::{IRUInstruction, Size, Type, VarID};
 
 impl FnLowerable for PExpr {
     type Output = VarID;
@@ -7,13 +7,15 @@ impl FnLowerable for PExpr {
         Some(match self {
             PExpr::Lit(l) => match l.as_ref()? {
                 super::PLiteral::String(s) => {
-                    let dest = ctx.map.temp_var(l.span, Type::Bits(64).arr().rf());
-                    let src = ctx.map.def_data(s.as_bytes().to_vec());
-                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).slice());
+                    let data = s.as_bytes().to_vec();
+                    let len = data.len() as Size;
+                    let src = ctx.map.def_data(data);
+                    ctx.push(IRUInstruction::LoadSlice { dest, src, len });
                     dest
                 }
                 super::PLiteral::Char(c) => {
-                    let dest = ctx.map.temp_var(l.span, Type::Bits(64).arr().rf());
+                    let dest = ctx.map.temp_var(l.span, Type::Bits(8).slice());
                     let src = ctx.map.def_data(c.to_string().as_bytes().to_vec());
                     ctx.push(IRUInstruction::LoadData { dest, src });
                     dest
@@ -79,9 +81,15 @@ impl FnLowerable for PExpr {
                 let ty = match def {
                     Some(def) => def.ret.clone(),
                     None => {
-                        ctx.err_at(e.span, format!("Expected function, found {}", ctx.map.type_name(&ctx.map.get_var(fe).ty)));
+                        ctx.err_at(
+                            e.span,
+                            format!(
+                                "Expected function, found {}",
+                                ctx.map.type_name(&ctx.map.get_var(fe).ty)
+                            ),
+                        );
                         Type::Error
-                    },
+                    }
                 };
                 let temp = ctx.temp(ty);
                 ctx.push(IRUInstruction::Call {

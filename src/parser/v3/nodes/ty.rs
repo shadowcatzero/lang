@@ -7,15 +7,6 @@ pub struct PType {
     pub args: Vec<Node<PType>>,
 }
 
-impl PType {
-    pub fn unit() -> Self {
-        Self {
-            name: "()".to_string(),
-            args: Vec::new(),
-        }
-    }
-}
-
 impl Parsable for PType {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let next = ctx.expect_peek()?;

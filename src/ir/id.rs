@@ -9,6 +9,9 @@ pub struct FnID(pub usize);
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct DataID(pub usize);
 
+pub type Size = u32;
+pub type Len = u32;
+
 impl Debug for VarID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "var{}", self.0)

@@ -56,13 +56,17 @@ impl SymbolSpaceBuilder {
     pub fn pop_fn(&mut self) -> Option<(WritableSymbol, FnID)> {
         self.unwritten_fns.pop()
     }
-    pub fn ro_data(&mut self, id: &DataID, data: &Vec<u8>) -> Symbol {
+    pub fn anon_ro_data(&mut self, data: &[u8]) -> Symbol {
+        let sym = self.reserve();
+        self.write_ro_data(sym, data.to_vec())
+    }
+    pub fn ro_data(&mut self, id: &DataID, data: &[u8]) -> Symbol {
         match self.data_map.get(id) {
             Some(s) => *s,
             None => {
                 let sym = self.reserve();
                 self.data_map.insert(*id, *sym);
-                self.write_ro_data(sym, data.clone())
+                self.write_ro_data(sym, data.to_vec())
             }
         }
     }

@@ -1,8 +1,8 @@
-use super::{FnLowerable, PFunction, Node, ParserMsg, ParserOutput};
+use super::{FnLowerable, Node, PFunction, ParserMsg, ParserOutput};
 use crate::{
     ir::{
-        BuiltinType, FileSpan, FnDef, FnID, IRUFunction, Idents, IRUInstruction, IRInstructions,
-        NamespaceGuard, Origin, Type, VarDef, VarID,
+        FileSpan, FnDef, FnID, IRInstructions, IRUFunction, IRUInstruction, Idents, NamespaceGuard,
+        Origin, Type, VarDef, VarID,
     },
     parser,
 };
@@ -46,7 +46,7 @@ impl PFunction {
             .collect();
         let ret = match &header.ret {
             Some(ty) => ty.lower(map, output),
-            None => Type::Concrete(BuiltinType::Unit.id()),
+            None => Type::Unit,
         };
         Some(map.def_fn(FnDef {
             name: name.to_string(),
@@ -63,9 +63,7 @@ impl PFunction {
     ) -> IRUFunction {
         let mut instructions = IRInstructions::new();
         let def = map.get_fn(id).clone();
-        let args = def.args.iter().map(|a| {
-            map.named_var(a.clone())
-        }).collect();
+        let args = def.args.iter().map(|a| map.named_var(a.clone())).collect();
         let mut ctx = FnLowerCtx {
             instructions: &mut instructions,
             map,
@@ -78,67 +76,6 @@ impl PFunction {
         IRUFunction::new(def.name.clone(), args, instructions)
     }
 }
-
-// impl Node<AsmFunction> {
-//     pub fn lower_header(
-//         &self,
-//         map: &mut NamespaceGuard,
-//         output: &mut ParserOutput,
-//     ) -> Option<FnIdent> {
-//         self.as_ref()?.lower_header(map, output)
-//     }
-//     pub fn lower_body(
-//         &self,
-//         map: &mut NamespaceGuard,
-//         output: &mut ParserOutput,
-//     ) -> Option<Function> {
-//         Some(self.as_ref()?.lower_body(map, output))
-//     }
-// }
-//
-// impl AsmFunction {
-//     pub fn lower_header(
-//         &self,
-//         map: &mut NamespaceGuard,
-//         output: &mut ParserOutput,
-//     ) -> Option<FnIdent> {
-//         let header = self.header.as_ref()?;
-//         let name = header.name.as_ref()?;
-//         let args = header
-//             .args
-//             .iter()
-//             .map(|a| {
-//                 // a.lower(map, output).unwrap_or(VarDef {
-//                 //     name: "{error}".to_string(),
-//                 //     origin: Origin::File(a.span),
-//                 //     ty: Type::Error,
-//                 // })
-//             })
-//             .collect();
-//         // let ret = match &header.ret {
-//         //     Some(ty) => ty.lower(map, output),
-//         //     None => Type::Concrete(BuiltinType::Unit.id()),
-//         // };
-//         let ret = Type::Concrete(BuiltinType::Unit.id());
-//         Some(map.def_fn(FnDef {
-//             name: name.to_string(),
-//             origin: Origin::File(self.header.span),
-//             args,
-//             ret,
-//         }))
-//     }
-//     pub fn lower_body(&self, map: &mut NamespaceGuard, output: &mut ParserOutput) -> Function {
-//         let mut instructions = Instructions::new();
-//         let mut ctx = FnLowerCtx {
-//             instructions: &mut instructions,
-//             map,
-//             output,
-//             span: self.body.span,
-//         };
-//         self.body.lower(&mut ctx);
-//         Function::new(instructions)
-//     }
-// }
 
 pub struct FnLowerCtx<'a, 'n> {
     pub map: &'a mut NamespaceGuard<'n>,
