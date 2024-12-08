@@ -37,7 +37,7 @@ impl PType {
         output: &mut ParserOutput,
         span: FileSpan,
     ) -> Type {
-        match namespace.get(&self.name).map(|ids| ids.ty).flatten() {
+        match namespace.get(&self.name).and_then(|ids| ids.ty) {
             Some(id) => {
                 if self.args.is_empty() {
                     Type::Concrete(id)
@@ -51,8 +51,12 @@ impl PType {
                 }
             }
             None => {
-                output.err(ParserMsg::from_span(span, "Type not found".to_string()));
-                Type::Error
+                if let Ok(num) = self.name.parse::<u32>() {
+                    Type::Bits(num)
+                } else {
+                    output.err(ParserMsg::from_span(span, "Type not found".to_string()));
+                    Type::Error
+                }
             }
         }
     }

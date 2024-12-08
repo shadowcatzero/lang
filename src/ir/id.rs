@@ -8,8 +8,6 @@ pub struct VarID(pub usize);
 pub struct FnID(pub usize);
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct DataID(pub usize);
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct AddrID(pub usize);
 
 impl Debug for VarID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -32,11 +30,5 @@ impl Debug for FnID {
 impl Debug for DataID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "data{}", self.0)
-    }
-}
-
-impl Debug for AddrID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "@{}", self.0)
     }
 }

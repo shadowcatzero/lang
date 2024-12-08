@@ -1,9 +1,9 @@
 mod func;
-mod data;
 mod program;
+mod symbol;
 
 pub use func::*;
-pub use data::*;
 pub use program::*;
+pub use symbol::*;
 
 use super::*;

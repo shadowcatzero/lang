@@ -1,6 +1,11 @@
 fn start() {
     print("Hello World!\n", 13);
-    exit(39);
+    print("Hello World!\n", 13);
+    exit(0);
+}
+
+fn unused() {
+    print("Hello World!\n", 13);
 }
 
 fn print(msg, len) {
@@ -12,7 +17,7 @@ fn print(msg, len) {
     }
 }
 
-fn exit(status) {
+fn exit(status: 32) {
     asm (a0 = status) {
         ld a0, 0, a0
         li a7, 93

@@ -25,7 +25,6 @@ fn main() {
     } else {
         run_stdin();
     }
-    // compiler::main();
 }
 
 fn run_file(file: &str, gdb: bool) {
@@ -38,13 +37,12 @@ fn run_file(file: &str, gdb: bool) {
             let mut namespace = Namespace::new();
             module.lower(&mut namespace.push(), &mut ctx.output);
             if ctx.output.errs.is_empty() {
-                // println!("{:#?}", namespace.fns);
-                // println!("vars:");
-                // for def in &namespace.var_defs {
-                //     println!("{}: {}", def.name, namespace.type_name(&def.ty));
-                // }
+                println!("vars:");
+                for def in &namespace.var_defs {
+                    println!("    {}: {}", def.name, namespace.type_name(&def.ty));
+                }
                 let program = IRLProgram::create(&namespace);
-                let bin = compiler::compile(program);
+                let bin = compiler::compile(program.expect("morir"));
                 println!("compiled");
                 save_run(&bin, gdb);
             }

@@ -13,11 +13,10 @@ use super::{LinkerInstruction as LI, *};
 pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
     let mut fns = Vec::new();
     let mut data = Vec::new();
-    for d in program.data {
-        data.push((d.data, d.addr));
+    for (sym, d) in program.ro_data() {
+        data.push((d.clone(), *sym));
     }
-    let mut start = None;
-    for f in program.fns {
+    for (sym, f) in program.fns() {
         let mut v = Vec::new();
         let mut stack = HashMap::new();
         let mut stack_len = 0;
@@ -106,12 +105,10 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                 IRI::Ret { src } => todo!(),
             }
         }
-        if f.name == "start" {
-            start = Some(f.addr);
-        } else {
+        if *sym != program.entry() {
             v.push(LI::Ret);
         }
-        fns.push((v, f.addr));
+        fns.push((v, *sym));
     }
-    create_program(fns, data, start)
+    create_program(fns, data, Some(program.entry()))
 }

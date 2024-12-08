@@ -1,4 +1,4 @@
-use crate::{compiler::program::{Addr, Instr, SymTable}, ir::AddrID};
+use crate::{compiler::program::{Addr, Instr, SymTable}, ir::Symbol};
 
 use super::*;
 
@@ -12,10 +12,10 @@ pub enum LinkerInstruction {
     Sd { src: Reg, offset: i32, base: Reg },
     Ld { dest: Reg, offset: i32, base: Reg },
     Mv { dest: Reg, src: Reg },
-    La { dest: Reg, src: AddrID },
+    La { dest: Reg, src: Symbol },
     Jal { dest: Reg, offset: i32 },
-    Call(AddrID),
-    J(AddrID),
+    Call(Symbol),
+    J(Symbol),
     Ret,
     Ecall,
     Li { dest: Reg, imm: i64 },
@@ -28,7 +28,7 @@ impl Instr for LinkerInstruction {
         sym_map: &SymTable,
         pos: Addr,
         missing: bool,
-    ) -> Option<AddrID> {
+    ) -> Option<Symbol> {
         let last = match self {
             Self::Add { dest, src1, src2 } => add(*dest, *src1, *src2),
             Self::Addi { dest, src, imm } => addi(*dest, *src, BitsI32::new(*imm)),
