@@ -1,12 +1,18 @@
 use std::fmt::Debug;
 
 use super::{
-    PIdent, MaybeParsable, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol, Token, PType,
+    MaybeParsable, Node, PExpr, PIdent, PType, Parsable, ParseResult, ParserCtx, Symbol,
+    Token, CompilerMsg
 };
 
 pub struct PVarDef {
     pub name: Node<PIdent>,
     pub ty: Option<Node<PType>>,
+}
+
+pub struct PFieldDef {
+    pub name: Node<PIdent>,
+    pub val: Option<Node<PExpr>>,
 }
 
 impl Parsable for PVarDef {
@@ -17,6 +23,21 @@ impl Parsable for PVarDef {
             ctx.parse().map(|ty| Self { name, ty: Some(ty) })
         } else {
             ParseResult::Ok(Self { name, ty: None })
+        }
+    }
+}
+
+impl Parsable for PFieldDef {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let name = ctx.parse()?;
+        if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
+            ctx.next();
+            ctx.parse().map(|ty| Self {
+                name,
+                val: Some(ty),
+            })
+        } else {
+            ParseResult::Ok(Self { name, val: None })
         }
     }
 }
@@ -32,7 +53,7 @@ pub enum SelfType {
 }
 
 impl MaybeParsable for SelfVar {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, super::ParserMsg> {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg> {
         if let Some(mut next) = ctx.peek() {
             let mut ty = SelfType::Take;
             if next.is_symbol(Symbol::Ampersand) {
@@ -47,7 +68,7 @@ impl MaybeParsable for SelfVar {
                 }
             }
             if ty != SelfType::Take {
-                return Err(ParserMsg::unexpected_token(next, "self"));
+                return Err(CompilerMsg::unexpected_token(next, "self"));
             }
         }
         Ok(None)
@@ -59,6 +80,16 @@ impl Debug for PVarDef {
         self.name.fmt(f)?;
         if let Some(ty) = &self.ty {
             write!(f, ": {:?}", ty)?;
+        }
+        Ok(())
+    }
+}
+
+impl Debug for PFieldDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.name.fmt(f)?;
+        if let Some(val) = &self.val {
+            write!(f, ": {:?}", val)?;
         }
         Ok(())
     }

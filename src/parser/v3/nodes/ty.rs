@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::{util::parse_list, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol, Token};
+use super::{util::parse_list, Node, Parsable, ParseResult, ParserCtx, CompilerMsg, Symbol, Token};
 
 pub struct PType {
     pub name: String,
@@ -19,7 +19,7 @@ impl Parsable for PType {
             }
         } else {
             let Token::Word(name) = &next.token else {
-                return ParseResult::Err(ParserMsg::unexpected_token(next, "a type identifier"));
+                return ParseResult::Err(CompilerMsg::unexpected_token(next, "a type identifier"));
             };
             let n = name.to_string();
             ctx.next();

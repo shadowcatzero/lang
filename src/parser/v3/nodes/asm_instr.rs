@@ -1,4 +1,4 @@
-use super::{PIdent, Node, Parsable, ParseResult, ParserCtx, ParserMsg, Symbol};
+use super::{Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol, CompilerMsg};
 
 pub struct PInstruction {
     pub op: Node<PIdent>,
@@ -38,7 +38,7 @@ impl Parsable for PAsmArg {
 
         let next = ctx.expect_peek()?;
         if !next.is_symbol(Symbol::OpenCurly) {
-            return ParseResult::Err(ParserMsg::unexpected_token(
+            return ParseResult::Err(CompilerMsg::unexpected_token(
                 next,
                 "An identifier or {identifier}",
             ));

@@ -1,5 +1,5 @@
 use super::{
-    PFunction, PImpl, Keyword, Node, Parsable, ParseResult, ParserCtx, ParserMsg,
+    PFunction, PImpl, Keyword, Node, Parsable, ParseResult, ParserCtx, CompilerMsg,
     PStruct, Symbol, Token, PTrait,
 };
 use std::fmt::Debug;
@@ -52,18 +52,18 @@ impl Parsable for PModule {
                         }
                     }
                     _ => {
-                        ctx.err(ParserMsg::unexpected_token(next, "a definition"));
+                        ctx.err(CompilerMsg::unexpected_token(next, "a definition"));
                         ctx.next();
                     }
                 }
             } else if next.is_symbol(Symbol::Semicolon) {
-                ctx.hint(ParserMsg::from_instances(
+                ctx.hint(CompilerMsg::from_instances(
                     &[next],
                     "unneeded semicolon".to_string(),
                 ));
                 ctx.next();
             } else {
-                ctx.err(ParserMsg::unexpected_token(next, "a definition"));
+                ctx.err(CompilerMsg::unexpected_token(next, "a definition"));
                 ctx.next();
             }
         }

@@ -1,4 +1,4 @@
-use super::{CharCursor, MaybeParsable, ParserCtx, ParserMsg, Symbol, Token};
+use super::{CharCursor, MaybeParsable, ParserCtx, CompilerMsg, Symbol, Token};
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub struct PNumber {
 }
 
 impl MaybeParsable for PLiteral {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, ParserMsg> {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg> {
         let inst = ctx.expect_peek()?;
         Ok(Some(match &inst.token {
             Token::Symbol(Symbol::SingleQuote) => {
@@ -37,7 +37,7 @@ impl MaybeParsable for PLiteral {
                 if !first.is_ascii_digit() {
                     return Ok(None);
                 }
-                let (whole, ty) = parse_whole_num(text);
+                let (whole, ty) = parse_whole_num(&text);
                 let mut num = PNumber {
                     whole,
                     decimal: None,
@@ -81,7 +81,7 @@ pub fn parse_whole_num(text: &str) -> (String, Option<String>) {
     (whole, if ty.is_empty() { None } else { Some(ty) })
 }
 
-pub fn string_from(cursor: &mut CharCursor) -> Result<String, ParserMsg> {
+pub fn string_from(cursor: &mut CharCursor) -> Result<String, CompilerMsg> {
     let mut str = String::new();
     loop {
         let c = cursor.expect_next()?;

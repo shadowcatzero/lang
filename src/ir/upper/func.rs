@@ -1,52 +1,51 @@
 use std::fmt::Write;
 
-use super::{arch::riscv64::RV64Instruction, DataID, FnID, Len, VarID};
-use crate::{compiler::arch::riscv64::Reg, util::Padder};
+use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, VarID};
+use crate::{common::FileSpan, compiler::arch::riscv64::Reg, util::Padder};
 
 pub struct IRUFunction {
     pub name: String,
     pub args: Vec<VarID>,
-    pub instructions: Vec<IRUInstruction>,
+    pub instructions: Vec<IRUInstrInst>,
 }
 
 pub enum IRUInstruction {
     Mv {
-        dest: VarID,
-        src: VarID,
+        dest: VarInst,
+        src: VarInst,
     },
     Ref {
-        dest: VarID,
-        src: VarID,
+        dest: VarInst,
+        src: VarInst,
     },
     LoadData {
-        dest: VarID,
+        dest: VarInst,
         src: DataID,
     },
     LoadSlice {
-        dest: VarID,
+        dest: VarInst,
         src: DataID,
-        len: Len,
     },
     LoadFn {
-        dest: VarID,
+        dest: VarInst,
         src: FnID,
     },
     Call {
-        dest: VarID,
-        f: VarID,
-        args: Vec<VarID>,
+        dest: VarInst,
+        f: VarInst,
+        args: Vec<VarInst>,
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,
-        args: Vec<(Reg, VarID)>,
+        args: Vec<(Reg, VarInst)>,
     },
     Ret {
-        src: VarID,
+        src: VarInst,
     },
 }
 
 pub struct IRInstructions {
-    vec: Vec<IRUInstruction>,
+    vec: Vec<IRUInstrInst>,
 }
 
 impl IRUFunction {
@@ -63,8 +62,8 @@ impl IRInstructions {
     pub fn new() -> Self {
         Self { vec: Vec::new() }
     }
-    pub fn push(&mut self, i: IRUInstruction) {
-        self.vec.push(i);
+    pub fn push(&mut self, i: IRUInstruction, span: FileSpan) {
+        self.vec.push(IRUInstrInst { i, span });
     }
 }
 
@@ -75,7 +74,7 @@ impl std::fmt::Debug for IRUInstruction {
             Self::Ref { dest, src } => write!(f, "{dest:?} <- &{src:?}"),
             Self::LoadData { dest, src } => write!(f, "{dest:?} <- {src:?}"),
             Self::LoadFn { dest, src } => write!(f, "{dest:?} <- {src:?}"),
-            Self::LoadSlice { dest, src, len } => write!(f, "{dest:?} <- &[{src:?}; {len}]"),
+            Self::LoadSlice { dest, src } => write!(f, "{dest:?} <- &[{src:?}]"),
             Self::Call {
                 dest,
                 f: func,

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ir::{FnID, SymbolSpace};
+use crate::ir::SymbolSpace;
 
-use super::{IRLFunction, IRLInstruction, IRUInstruction, Len, Namespace, Symbol, VarID};
+use super::{IRLFunction, IRLInstruction, IRUInstruction, IRUProgram, Len, Symbol, Type, VarID};
 
 pub struct IRLProgram {
     sym_space: SymbolSpace,
@@ -12,110 +12,116 @@ pub struct IRLProgram {
 // NOTE: there are THREE places here where I specify size (8)
 
 impl IRLProgram {
-    pub fn create(ns: &Namespace) -> Option<Self> {
+    pub fn create(p: &IRUProgram) -> Result<Self, String> {
         let mut start = None;
-        for (i, f) in ns.iter_fns() {
-            if f?.name == "start" {
+        for (i, f) in p.iter_fns() {
+            if f.name == "start" {
                 start = Some(i);
             }
         }
-        let start = start?;
+        let start = start.ok_or("no start method found")?;
         let mut builder = SymbolSpace::with_entries(&[start]);
         let entry = builder.func(&start);
         while let Some((sym, i)) = builder.pop_fn() {
-            let f = ns.fns[i.0].as_ref().unwrap();
+            let f = p.fns[i.0].as_ref().unwrap();
             let mut instrs = Vec::new();
             let mut stack = HashMap::new();
             let mut makes_call = false;
-            let mut alloc_stack = |i: &VarID| -> bool {
+            let mut alloc_stack = |i: VarID| -> bool {
                 let size = *stack
-                    .entry(*i)
-                    .or_insert(ns.size_of_var(i).expect("unsized type"));
+                    .entry(i)
+                    .or_insert(p.size_of_var(i).expect("unsized type"));
                 size == 0
             };
             for i in &f.instructions {
-                match i {
+                match &i.i {
                     IRUInstruction::Mv { dest, src } => {
-                        if alloc_stack(dest) {
+                        if alloc_stack(dest.id) {
                             continue;
                         }
                         instrs.push(IRLInstruction::Mv {
-                            dest: *dest,
-                            src: *src,
+                            dest: dest.id,
+                            src: src.id,
                         });
                     }
                     IRUInstruction::Ref { dest, src } => {
-                        if alloc_stack(dest) {
+                        if alloc_stack(dest.id) {
                             continue;
                         }
                         instrs.push(IRLInstruction::Ref {
-                            dest: *dest,
-                            src: *src,
+                            dest: dest.id,
+                            src: src.id,
                         });
                     }
                     IRUInstruction::LoadData { dest, src } => {
-                        if alloc_stack(dest) {
+                        if alloc_stack(dest.id) {
                             continue;
                         }
-                        let data = &ns.data[src.0];
+                        let data = &p.data[src.0];
                         let sym = builder.ro_data(src, data);
                         instrs.push(IRLInstruction::LoadData {
-                            dest: *dest,
+                            dest: dest.id,
                             offset: 0,
                             len: data.len() as Len,
                             src: sym,
                         });
                     }
-                    IRUInstruction::LoadSlice { dest, src, len } => {
-                        if alloc_stack(dest) {
+                    IRUInstruction::LoadSlice { dest, src } => {
+                        if alloc_stack(dest.id) {
                             continue;
                         }
-                        let sym = builder.ro_data(src, &ns.data[src.0]);
+                        let data = &p.data[src.0];
+                        let def = p.get_data(*src);
+                        let Type::Array(ty, len) = &def.ty else {
+                            return Err(format!("tried to load {} as slice", p.type_name(&def.ty)));
+                        };
+                        let sym = builder.ro_data(src, data);
                         instrs.push(IRLInstruction::LoadAddr {
-                            dest: *dest,
+                            dest: dest.id,
                             offset: 0,
                             src: sym,
                         });
+
                         let sym = builder.anon_ro_data(&(*len as u64).to_le_bytes());
                         instrs.push(IRLInstruction::LoadData {
-                            dest: *dest,
+                            dest: dest.id,
                             offset: 8,
                             len: 8,
                             src: sym,
                         });
                     }
                     IRUInstruction::LoadFn { dest, src } => {
-                        if alloc_stack(dest) {
+                        if alloc_stack(dest.id) {
                             continue;
                         }
                         let sym = builder.func(src);
                         instrs.push(IRLInstruction::LoadAddr {
-                            dest: *dest,
+                            dest: dest.id,
                             offset: 0,
                             src: sym,
                         });
                     }
                     IRUInstruction::Call { dest, f, args } => {
-                        alloc_stack(dest);
+                        alloc_stack(dest.id);
                         makes_call = true;
-                        let fid = &ns.fn_map[f];
+                        let fid = &p.fn_map[&f.id];
                         let sym = builder.func(fid);
                         instrs.push(IRLInstruction::Call {
-                            dest: *dest,
+                            dest: dest.id,
                             f: sym,
                             args: args
                                 .iter()
-                                .map(|a| (*a, ns.size_of_var(a).expect("unsized type")))
+                                .map(|a| (a.id, p.size_of_var(a.id).expect("unsized type")))
                                 .collect(),
                         });
                     }
                     IRUInstruction::AsmBlock { instructions, args } => {
                         instrs.push(IRLInstruction::AsmBlock {
                             instructions: instructions.clone(),
-                            args: args.clone(),
+                            args: args.iter().cloned().map(|(r, v)| (r, v.id)).collect(),
                         })
                     }
-                    IRUInstruction::Ret { src } => instrs.push(IRLInstruction::Ret { src: *src }),
+                    IRUInstruction::Ret { src } => instrs.push(IRLInstruction::Ret { src: src.id }),
                 };
             }
             builder.write_fn(
@@ -127,7 +133,7 @@ impl IRLProgram {
                     args: f
                         .args
                         .iter()
-                        .map(|a| (*a, ns.size_of_var(a).expect("unsized type")))
+                        .map(|a| (*a, p.size_of_var(*a).expect("unsized type")))
                         .collect(),
                     stack,
                 },
@@ -139,7 +145,7 @@ impl IRLProgram {
         //     println!("    {:?}: {}", a, f.name);
         // }
         // println!("datas: {}", sym_space.ro_data().len());
-        Some(Self { sym_space, entry })
+        Ok(Self { sym_space, entry })
     }
 
     pub fn entry(&self) -> Symbol {

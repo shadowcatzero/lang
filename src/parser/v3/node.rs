@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use crate::ir::FileSpan;
+use super::FileSpan;
 
 pub struct Node<T> {
     pub inner: Option<T>,
@@ -46,4 +46,3 @@ impl<T: Debug> Debug for Node<T> {
         }
     }
 }
-

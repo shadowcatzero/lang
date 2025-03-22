@@ -1,4 +1,6 @@
-use super::{FileSpan, Type};
+use crate::common::FileSpan;
+
+use super::Type;
 use std::fmt::Debug;
 
 #[derive(Clone)]
@@ -19,6 +21,12 @@ pub struct TypeDef {
 #[derive(Clone)]
 pub struct VarDef {
     pub name: String,
+    pub ty: Type,
+    pub origin: Origin,
+}
+
+#[derive(Clone)]
+pub struct DataDef {
     pub ty: Type,
     pub origin: Origin,
 }

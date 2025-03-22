@@ -1,10 +1,7 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    op::{PInfixOp, UnaryOp},
-    util::parse_list,
-    PAsmBlock, PBlock, PIdent, Keyword, PLiteral, Node, NodeParsable, Parsable, ParseResult, ParserCtx,
-    ParserMsg, Symbol,
+    op::{PInfixOp, UnaryOp}, util::parse_list, Keyword, Node, NodeParsable, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral, Parsable, ParseResult, ParserCtx, Symbol, CompilerMsg
 };
 
 type BoxNode = Node<Box<PExpr>>;
@@ -18,6 +15,7 @@ pub enum PExpr {
     Call(BoxNode, Vec<Node<PExpr>>),
     Group(BoxNode),
     AsmBlock(Node<PAsmBlock>),
+    Construct(Node<PConstruct>),
 }
 
 impl Parsable for PExpr {
@@ -63,7 +61,7 @@ impl Parsable for PExpr {
                 Self::Ident(res.node)
             } else {
                 let next = ctx.expect_peek()?;
-                return ParseResult::Err(ParserMsg::unexpected_token(next, "an expression"));
+                return ParseResult::Err(CompilerMsg::unexpected_token(next, "an expression"));
             }
         };
         let Some(mut next) = ctx.peek() else {
@@ -140,6 +138,7 @@ impl Debug for PExpr {
             }
             PExpr::Group(inner) => inner.fmt(f)?,
             PExpr::AsmBlock(inner) => inner.fmt(f)?,
+            PExpr::Construct(inner) => inner.fmt(f)?,
         }
         Ok(())
     }

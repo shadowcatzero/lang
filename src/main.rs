@@ -1,7 +1,7 @@
 #![feature(box_patterns)]
 #![feature(try_trait_v2)]
 
-use ir::{Namespace, IRLProgram};
+use ir::{IRLProgram, IRUProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
 use std::{
     fs::{create_dir_all, OpenOptions},
@@ -11,10 +11,12 @@ use std::{
     process::Command,
 };
 
+mod common;
 mod compiler;
 mod ir;
 mod parser;
 mod util;
+use common::*;
 
 fn main() {
     let file = std::env::args_os().nth(1);
@@ -34,7 +36,7 @@ fn run_file(file: &str, gdb: bool) {
         // println!("Parsed:");
         // println!("{:#?}", res.node);
         if let Some(module) = res.node.as_ref() {
-            let mut namespace = Namespace::new();
+            let mut namespace = IRUProgram::new();
             module.lower(&mut namespace.push(), &mut ctx.output);
             if ctx.output.errs.is_empty() {
                 // println!("vars:");
@@ -44,10 +46,14 @@ fn run_file(file: &str, gdb: bool) {
                 // for (id, f) in namespace.iter_fns() {
                 //     println!("{id:?} = {:#?}", f.unwrap());
                 // }
-                let program = IRLProgram::create(&namespace);
-                let bin = compiler::compile(program.expect("morir"));
-                println!("compiled");
-                save_run(&bin, gdb);
+                let output = namespace.validate();
+                output.write_for(&mut stdout(), file);
+                if output.errs.is_empty() {
+                    let program = IRLProgram::create(&namespace);
+                    let bin = compiler::compile(program.expect("morir"));
+                    println!("compiled");
+                    save_run(&bin, gdb);
+                }
             }
         }
     }

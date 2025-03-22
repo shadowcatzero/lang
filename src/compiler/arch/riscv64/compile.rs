@@ -4,7 +4,7 @@ use crate::{
     compiler::{arch::riscv64::Reg, create_program, Addr},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
-        IRLInstruction as IRI, IRLProgram, Len, Size, Symbol, VarID,
+        IRLInstruction as IRI, IRLProgram, Len, Size,
     },
 };
 
@@ -39,6 +39,54 @@ fn mov_mem(
         ]);
         len -= 8;
         off += 8;
+    }
+    while len >= 4 {
+        v.extend([
+            LI::Lw {
+                dest: temp,
+                offset: src_offset + off,
+                base: src,
+            },
+            LI::Sw {
+                src: temp,
+                offset: dest_offset + off,
+                base: dest,
+            },
+        ]);
+        len -= 4;
+        off += 4;
+    }
+    while len >= 2 {
+        v.extend([
+            LI::Lh {
+                dest: temp,
+                offset: src_offset + off,
+                base: src,
+            },
+            LI::Sh {
+                src: temp,
+                offset: dest_offset + off,
+                base: dest,
+            },
+        ]);
+        len -= 2;
+        off += 2;
+    }
+    while len >= 1 {
+        v.extend([
+            LI::Lb {
+                dest: temp,
+                offset: src_offset + off,
+                base: src,
+            },
+            LI::Sb {
+                src: temp,
+                offset: dest_offset + off,
+                base: dest,
+            },
+        ]);
+        len -= 1;
+        off += 1;
     }
 }
 

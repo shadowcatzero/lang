@@ -13,24 +13,33 @@ pub const fn ebreak() -> I {
 pub const fn auipc(dest: Reg, imm: BitsI32<31, 12>) -> I {
     u_type(imm.to_u(), dest, AUIPC)
 }
+
 pub const fn ld(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     i_type(offset.to_u(), base, width::D, dest, LOAD)
 }
 pub const fn lw(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     i_type(offset.to_u(), base, width::W, dest, LOAD)
 }
+pub const fn lh(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
+    i_type(offset.to_u(), base, width::H, dest, LOAD)
+}
 pub const fn lb(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     i_type(offset.to_u(), base, width::B, dest, LOAD)
+}
+
+pub const fn sd(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
+    s_type(src, base, width::D, offset.to_u(), STORE)
 }
 pub const fn sb(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     s_type(src, base, width::B, offset.to_u(), STORE)
 }
+pub const fn sh(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
+    s_type(src, base, width::H, offset.to_u(), STORE)
+}
 pub const fn sw(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
     s_type(src, base, width::W, offset.to_u(), STORE)
 }
-pub const fn sd(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    s_type(src, base, width::D, offset.to_u(), STORE)
-}
+
 pub const fn add(dest: Reg, src1: Reg, src2: Reg) -> I {
     r_type(Bits32::new(0), src2, src1, ADD, dest, OP)
 }

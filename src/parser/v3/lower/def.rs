@@ -1,12 +1,12 @@
-use crate::ir::{FileSpan, NamespaceGuard, Origin, Type, VarDef};
+use crate::ir::{NamespaceGuard, Origin, Type, VarDef};
 
-use super::{Node, PType, PVarDef, ParserMsg, ParserOutput};
+use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType, PVarDef};
 
 impl Node<PVarDef> {
     pub fn lower(
         &self,
         namespace: &mut NamespaceGuard,
-        output: &mut ParserOutput,
+        output: &mut CompilerOutput,
     ) -> Option<VarDef> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?.to_string();
@@ -23,7 +23,7 @@ impl Node<PVarDef> {
 }
 
 impl Node<PType> {
-    pub fn lower(&self, namespace: &mut NamespaceGuard, output: &mut ParserOutput) -> Type {
+    pub fn lower(&self, namespace: &mut NamespaceGuard, output: &mut CompilerOutput) -> Type {
         self.as_ref()
             .map(|t| t.lower(namespace, output, self.span))
             .unwrap_or(Type::Error)
@@ -34,7 +34,7 @@ impl PType {
     pub fn lower(
         &self,
         namespace: &mut NamespaceGuard,
-        output: &mut ParserOutput,
+        output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Type {
         match namespace.get(&self.name).and_then(|ids| ids.ty) {
@@ -60,7 +60,7 @@ impl PType {
                             Type::Slice(Box::new(inner))
                         }
                         _ => {
-                            output.err(ParserMsg::from_span(span, "Type not found".to_string()));
+                            output.err(CompilerMsg::from_span(span, "Type not found".to_string()));
                             Type::Error
                         }
                     }

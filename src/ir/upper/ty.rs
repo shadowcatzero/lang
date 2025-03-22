@@ -1,6 +1,6 @@
-use super::{Len, TypeID};
+use super::{IRUInstruction, IRUProgram, Len, TypeID};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Type {
     Concrete(TypeID),
     Bits(u32),
@@ -23,5 +23,22 @@ impl Type {
     }
     pub fn slice(self) -> Self {
         Self::Slice(Box::new(self))
+    }
+}
+
+pub fn resolve_types(ns: &IRUProgram) {
+    for (i, f) in ns.iter_fns() {
+        for inst in &f.instructions {
+            match &inst.i {
+                IRUInstruction::Mv { dest, src } => todo!(),
+                IRUInstruction::Ref { dest, src } => todo!(),
+                IRUInstruction::LoadData { dest, src } => todo!(),
+                IRUInstruction::LoadSlice { dest, src } => todo!(),
+                IRUInstruction::LoadFn { dest, src } => todo!(),
+                IRUInstruction::Call { dest, f, args } => todo!(),
+                IRUInstruction::AsmBlock { instructions, args } => todo!(),
+                IRUInstruction::Ret { src } => todo!(),
+            }
+        }
     }
 }

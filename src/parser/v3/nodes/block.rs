@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    token::Symbol, Node, NodeParsable, Parsable, ParseResult, ParserCtx, ParserMsg, PStatement,
+    token::Symbol, Node, NodeParsable, PStatement, Parsable, ParseResult, ParserCtx, CompilerMsg,
 };
 use crate::util::Padder;
 
@@ -24,7 +24,7 @@ impl Parsable for PBlock {
         loop {
             let Some(next) = ctx.peek() else {
                 recover = true;
-                ctx.err(ParserMsg::unexpected_end());
+                ctx.err(CompilerMsg::unexpected_end());
                 break;
             };
             if next.is_symbol(Symbol::CloseCurly) {
@@ -36,7 +36,7 @@ impl Parsable for PBlock {
                 expect_semi = false;
                 continue;
             } else if expect_semi {
-                ctx.err(ParserMsg {
+                ctx.err(CompilerMsg {
                     msg: "expected ';'".to_string(),
                     spans: vec![ctx.next_start().char_span()],
                 });

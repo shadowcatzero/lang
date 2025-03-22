@@ -4,12 +4,15 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::*;
+use crate::common::FileSpan;
 
-pub struct Namespace {
+use super::{inst::VarInst, *};
+
+pub struct IRUProgram {
     pub fn_defs: Vec<FnDef>,
     pub var_defs: Vec<VarDef>,
     pub type_defs: Vec<TypeDef>,
+    pub data_defs: Vec<DataDef>,
     pub fns: Vec<Option<IRUFunction>>,
     pub data: Vec<Vec<u8>>,
     pub fn_map: HashMap<VarID, FnID>,
@@ -17,12 +20,13 @@ pub struct Namespace {
     pub stack: Vec<HashMap<String, Idents>>,
 }
 
-impl Namespace {
+impl IRUProgram {
     pub fn new() -> Self {
         Self {
             fn_defs: Vec::new(),
             var_defs: Vec::new(),
             type_defs: Vec::new(),
+            data_defs: Vec::new(),
             data: Vec::new(),
             fn_map: HashMap::new(),
             fns: Vec::new(),
@@ -48,6 +52,9 @@ impl Namespace {
     }
     pub fn get_fn(&self, id: FnID) -> &FnDef {
         &self.fn_defs[id.0]
+    }
+    pub fn get_data(&self, id: DataID) -> &DataDef {
+        &self.data_defs[id.0]
     }
     pub fn get_fn_var(&self, id: VarID) -> Option<&FnDef> {
         Some(&self.fn_defs[self.fn_map.get(&id)?.0])
@@ -90,17 +97,20 @@ impl Namespace {
             Type::Unit => 0,
         })
     }
-    pub fn size_of_var(&self, var: &VarID) -> Option<Size> {
+    pub fn size_of_var(&self, var: VarID) -> Option<Size> {
         self.size_of_type(&self.var_defs[var.0].ty)
     }
-    pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarID {
+    pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarInst {
         let v = self.def_var(VarDef {
             name: format!("temp{}", self.temp),
             origin: super::Origin::File(origin),
             ty,
         });
         self.temp += 1;
-        v
+        VarInst {
+            id: v,
+            span: origin,
+        }
     }
     pub fn def_fn(&mut self, def: FnDef) -> FnID {
         let i = self.fn_defs.len();
@@ -128,8 +138,9 @@ impl Namespace {
         self.type_defs.push(def);
         id
     }
-    pub fn def_data(&mut self, bytes: Vec<u8>) -> DataID {
+    pub fn def_data(&mut self, def: DataDef, bytes: Vec<u8>) -> DataID {
         let i = self.data.len();
+        self.data_defs.push(def);
         self.data.push(bytes);
         DataID(i)
     }
@@ -187,18 +198,17 @@ impl Namespace {
         self.fns[id.0] = Some(f);
     }
     pub fn iter_vars(&self) -> impl Iterator<Item = (VarID, &VarDef)> {
-        (0..self.var_defs.len())
-            .map(|i| VarID(i))
-            .zip(self.var_defs.iter())
+        self.var_defs.iter().enumerate().map(|(i, v)| (VarID(i), v))
     }
-    pub fn iter_fns(&self) -> impl Iterator<Item = (FnID, Option<&IRUFunction>)> {
-        (0..self.fns.len())
-            .map(|i| FnID(i))
-            .zip(self.fns.iter().map(|f| f.as_ref()))
+    pub fn iter_fns(&self) -> impl Iterator<Item = (FnID, &IRUFunction)> {
+        self.fns
+            .iter()
+            .enumerate()
+            .flat_map(|(i, f)| Some((FnID(i), f.as_ref()?)))
     }
 }
 
-pub struct NamespaceGuard<'a>(&'a mut Namespace);
+pub struct NamespaceGuard<'a>(&'a mut IRUProgram);
 
 impl Drop for NamespaceGuard<'_> {
     fn drop(&mut self) {
@@ -207,7 +217,7 @@ impl Drop for NamespaceGuard<'_> {
 }
 
 impl Deref for NamespaceGuard<'_> {
-    type Target = Namespace;
+    type Target = IRUProgram;
     fn deref(&self) -> &Self::Target {
         self.0
     }

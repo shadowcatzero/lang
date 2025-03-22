@@ -3,14 +3,12 @@ use std::{
     ops::{ControlFlow, FromResidual, Try},
 };
 
-use crate::ir::FilePos;
-
-use super::{Node, ParserCtx, ParserMsg};
+use super::{CompilerMsg, FilePos, Node, ParserCtx};
 
 pub enum ParseResult<T> {
     Ok(T),
     Recover(T),
-    Err(ParserMsg),
+    Err(CompilerMsg),
     SubErr,
 }
 
@@ -26,7 +24,7 @@ impl<T> ParseResult<T> {
 
 impl<T> Try for ParseResult<T> {
     type Output = T;
-    type Residual = Option<ParserMsg>;
+    type Residual = Option<CompilerMsg>;
     fn from_output(output: Self::Output) -> Self {
         Self::Ok(output)
     }
@@ -50,8 +48,8 @@ impl<T> FromResidual for ParseResult<T> {
     }
 }
 
-impl<T> FromResidual<Result<Infallible, ParserMsg>> for ParseResult<T> {
-    fn from_residual(residual: Result<Infallible, ParserMsg>) -> Self {
+impl<T> FromResidual<Result<Infallible, CompilerMsg>> for ParseResult<T> {
+    fn from_residual(residual: Result<Infallible, CompilerMsg>) -> Self {
         match residual {
             Err(e) => Self::Err(e),
         }
@@ -115,14 +113,28 @@ pub trait Parsable: Sized {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self>;
 }
 
-pub trait MaybeParsable: Sized {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, ParserMsg>;
+pub trait ParsableWith: Sized {
+    type Data;
+
+    fn parse(ctx: &mut ParserCtx, data: Self::Data) -> ParseResult<Self>;
 }
 
-impl<T: Parsable> Node<T> {
-    pub fn parse(ctx: &mut ParserCtx) -> NodeParseResult<T> {
+pub trait MaybeParsable: Sized {
+    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg>;
+}
+
+impl<T: Parsable> ParsableWith for T {
+    type Data = ();
+
+    fn parse(ctx: &mut ParserCtx, _: Self::Data) -> ParseResult<Self> {
+        T::parse(ctx)
+    }
+}
+
+impl<T: ParsableWith> Node<T> {
+    pub fn parse_with(ctx: &mut ParserCtx, data: T::Data) -> NodeParseResult<T> {
         let start = ctx.peek().map(|t| t.span.start).unwrap_or(FilePos::start());
-        let (inner, recover) = match T::parse(ctx) {
+        let (inner, recover) = match T::parse(ctx, data) {
             ParseResult::Ok(v) => (Some(v), false),
             ParseResult::Recover(v) => (Some(v), true),
             ParseResult::Err(e) => {
@@ -139,6 +151,12 @@ impl<T: Parsable> Node<T> {
             },
             recover,
         }
+    }
+}
+
+impl<T: Parsable> Node<T> {
+    pub fn parse(ctx: &mut ParserCtx) -> NodeParseResult<T> {
+        Node::parse_with(ctx, ())
     }
 }
 

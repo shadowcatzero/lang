@@ -1,33 +1,33 @@
 fn start() {
-    print("Helld!\n");
-    print("Hello World!!!!!\n");
-    thinger();
-    print("what\n");
-    exit(39);
+   print("Helld!\n");
+   print("Hello World!!!!!\n");
+   thinger();
+   print("what\n");
+   exit(39);
 }
 
 fn thinger() {
-    print("estamos jugando\n");
+   print("estamos jugando\n");
 }
 
 fn unused() {
-    print("el unused\n");
+   print("el unused\n");
 }
 
 fn print(msg: slice<8>) {
-    asm (a1 = msg) {
-        ld a2, 8, a1
-        ld a1, 0, a1
-        li a0, 1
-        li a7, 64
-        ecall
-    }
+   asm (a1 = msg) {
+      ld a2, 8, a1
+      ld a1, 0, a1
+      li a0, 1
+      li a7, 64
+      ecall
+   }
 }
 
 fn exit(status: 64) {
-    asm (a0 = status) {
-        ld a0, 0, a0
-        li a7, 93
-        ecall
-    };
+   asm (a0 = status) {
+      ld a0, 0, a0
+      li a7, 93
+      ecall
+   };
 }

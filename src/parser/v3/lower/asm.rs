@@ -1,9 +1,9 @@
 use crate::{
     compiler::arch::riscv64::Reg,
-    ir::{arch::riscv64::RV64Instruction, IRUInstruction, VarID},
+    ir::{arch::riscv64::RV64Instruction, IRUInstruction, VarInst},
 };
 
-use super::{PAsmBlock, PAsmBlockArg, FnLowerCtx, FnLowerable, PInstruction};
+use super::{FnLowerCtx, FnLowerable, PAsmBlock, PAsmBlockArg, PInstruction};
 
 impl FnLowerable for PInstruction {
     type Output = RV64Instruction;
@@ -43,7 +43,7 @@ impl FnLowerable for PAsmBlock {
 }
 
 impl FnLowerable for PAsmBlockArg {
-    type Output = (Reg, VarID);
+    type Output = (Reg, VarInst);
 
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<Self::Output> {
         let var = ctx.get_var(&self.var)?;

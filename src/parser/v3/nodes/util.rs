@@ -1,10 +1,10 @@
-use super::{Node, Parsable, ParserCtx, ParserMsg, Symbol};
+use super::{Node, Parsable, ParserCtx, CompilerMsg, Symbol};
 
 pub fn parse_list_sep<T: Parsable>(
     ctx: &mut ParserCtx,
     sep: Symbol,
     end: Symbol,
-) -> Result<Vec<Node<T>>, ParserMsg> {
+) -> Result<Vec<Node<T>>, CompilerMsg> {
     let mut vals = Vec::new();
     loop {
         let next = ctx.expect_peek()?;
@@ -29,14 +29,14 @@ pub fn parse_list_sep<T: Parsable>(
 pub fn parse_list<T: Parsable>(
     ctx: &mut ParserCtx,
     end: Symbol,
-) -> Result<Vec<Node<T>>, ParserMsg> {
+) -> Result<Vec<Node<T>>, CompilerMsg> {
     parse_list_sep(ctx, Symbol::Comma, end)
 }
 
 pub fn parse_list_nosep<T: Parsable>(
     ctx: &mut ParserCtx,
     end: Symbol,
-) -> Result<Vec<Node<T>>, ParserMsg> {
+) -> Result<Vec<Node<T>>, CompilerMsg> {
     let mut vals = Vec::new();
     loop {
         let next = ctx.expect_peek()?;

@@ -1,17 +1,33 @@
-use crate::{compiler::arch::riscv64::*, ir::VarID};
+use crate::{
+    compiler::arch::riscv64::*,
+    ir::{VarID, VarInst},
+};
 
 #[derive(Copy, Clone)]
 pub enum RV64Instruction {
     Ecall,
-    Li { dest: RegRef, imm: i64 },
-    Mv { dest: RegRef, src: RegRef },
-    La { dest: RegRef, src: VarID },
-    Ld { dest: RegRef, offset: i64, base: RegRef },
+    Li {
+        dest: RegRef,
+        imm: i64,
+    },
+    Mv {
+        dest: RegRef,
+        src: RegRef,
+    },
+    La {
+        dest: RegRef,
+        src: VarInst,
+    },
+    Ld {
+        dest: RegRef,
+        offset: i64,
+        base: RegRef,
+    },
 }
 
 #[derive(Copy, Clone)]
 pub enum RegRef {
-    Var(VarID),
+    Var(VarInst),
     Reg(Reg),
 }
 

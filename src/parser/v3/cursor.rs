@@ -1,7 +1,7 @@
-use crate::ir::FilePos;
-
-use super::error::ParserMsg;
-use super::token::{CharCursor, Keyword, Symbol, Token, TokenInstance};
+use super::{
+    token::{CharCursor, Keyword, Symbol, Token, TokenInstance},
+    CompilerMsg, FilePos,
+};
 
 pub struct TokenCursor<'a> {
     cursor: CharCursor<'a>,
@@ -12,11 +12,7 @@ pub struct TokenCursor<'a> {
 
 impl<'a> TokenCursor<'a> {
     pub fn next(&mut self) -> Option<TokenInstance> {
-        self.prev_end = self
-            .next
-            .as_ref()
-            .map(|i| i.span.end)
-            .unwrap_or(FilePos::start());
+        self.prev_end = self.cursor.prev_pos();
         let next = TokenInstance::parse(&mut self.cursor);
         self.next_start = next
             .as_ref()
@@ -24,19 +20,19 @@ impl<'a> TokenCursor<'a> {
             .unwrap_or(FilePos::start());
         std::mem::replace(&mut self.next, next)
     }
-    pub fn expect_next(&mut self) -> Result<TokenInstance, ParserMsg> {
-        self.peek().ok_or(ParserMsg::unexpected_end())?;
+    pub fn expect_next(&mut self) -> Result<TokenInstance, CompilerMsg> {
+        self.peek().ok_or(CompilerMsg::unexpected_end())?;
         Ok(self.next().unwrap())
     }
-    pub fn expect_token(&mut self, t: Token) -> Result<(), ParserMsg> {
+    pub fn expect_token(&mut self, t: Token) -> Result<(), CompilerMsg> {
         let next = self.expect_next()?;
         if t == next.token {
             Ok(())
         } else {
-            Err(ParserMsg::unexpected_token(&next, &format!("{t:?}")))
+            Err(CompilerMsg::unexpected_token(&next, &format!("{t:?}")))
         }
     }
-    pub fn expect_sym(&mut self, symbol: Symbol) -> Result<(), ParserMsg> {
+    pub fn expect_sym(&mut self, symbol: Symbol) -> Result<(), CompilerMsg> {
         self.expect_token(Token::Symbol(symbol))
     }
     pub fn next_on_new_line(&mut self) -> bool {
@@ -64,14 +60,14 @@ impl<'a> TokenCursor<'a> {
             self.next();
         }
     }
-    pub fn expect_kw(&mut self, kw: Keyword) -> Result<(), ParserMsg> {
+    pub fn expect_kw(&mut self, kw: Keyword) -> Result<(), CompilerMsg> {
         self.expect_token(Token::Keyword(kw))
     }
     pub fn peek(&self) -> Option<&TokenInstance> {
         self.next.as_ref()
     }
-    pub fn expect_peek(&mut self) -> Result<&TokenInstance, ParserMsg> {
-        self.peek().ok_or(ParserMsg::unexpected_end())
+    pub fn expect_peek(&mut self) -> Result<&TokenInstance, CompilerMsg> {
+        self.peek().ok_or(CompilerMsg::unexpected_end())
     }
     pub fn chars(&mut self) -> &mut CharCursor<'a> {
         &mut self.cursor

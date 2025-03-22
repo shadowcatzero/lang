@@ -7,8 +7,7 @@ use std::ops::Deref;
 pub use cursor::*;
 pub use keyword::*;
 pub use symbol::*;
-
-use crate::ir::FileSpan;
+use super::FileSpan;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
