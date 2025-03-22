@@ -49,8 +49,8 @@ fn run_file(file: &str, gdb: bool) {
                 let output = namespace.validate();
                 output.write_for(&mut stdout(), file);
                 if output.errs.is_empty() {
-                    let program = IRLProgram::create(&namespace);
-                    let bin = compiler::compile(program.expect("morir"));
+                    let program = IRLProgram::create(&namespace).expect("morir");
+                    let bin = compiler::compile(program);
                     println!("compiled");
                     save_run(&bin, gdb);
                 }

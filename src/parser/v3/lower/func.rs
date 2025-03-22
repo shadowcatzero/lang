@@ -73,7 +73,7 @@ impl PFunction {
         if let Some(src) = self.body.lower(&mut ctx) {
             instructions.push(IRUInstruction::Ret { src }, src.span);
         }
-        IRUFunction::new(def.name.clone(), args, instructions)
+        IRUFunction::new(def.name.clone(), args, def.ret, instructions)
     }
 }
 

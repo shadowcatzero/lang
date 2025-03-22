@@ -1,4 +1,4 @@
-use super::{PAsmArg, FnLowerCtx, PIdent, Node, PInstruction};
+use super::{FnLowerCtx, Node, PAsmArg, PIdent, PInstruction};
 use crate::{
     compiler::arch::riscv64::*,
     ir::{
@@ -40,6 +40,16 @@ impl RV64Instruction {
                 let base = RegRef::from_arg(base, ctx)?;
                 Self::Ld { dest, offset, base }
             }
+            "sd" => {
+                let [src, offset, base] = args else {
+                    ctx.err("sd requires 3 arguments".to_string());
+                    return None;
+                };
+                let src = RegRef::from_arg(src, ctx)?;
+                let offset = i64_from_arg(offset, ctx)?;
+                let base = RegRef::from_arg(base, ctx)?;
+                Self::Sd { src, offset, base }
+            }
             "mv" => {
                 let [dest, src] = args else {
                     ctx.err("la requires 2 arguments".to_string());
@@ -48,6 +58,16 @@ impl RV64Instruction {
                 let dest = RegRef::from_arg(dest, ctx)?;
                 let src = RegRef::from_arg(src, ctx)?;
                 Self::Mv { dest, src }
+            }
+            "add" => {
+                let [dest, src1, src2] = args else {
+                    ctx.err("add requires 3 arguments".to_string());
+                    return None;
+                };
+                let dest = RegRef::from_arg(dest, ctx)?;
+                let src1 = RegRef::from_arg(src1, ctx)?;
+                let src2 = RegRef::from_arg(src2, ctx)?;
+                Self::Add { dest, src1, src2 }
             }
             w => {
                 ctx.err_at(inst.op.span, format!("Unknown instruction '{}'", w));

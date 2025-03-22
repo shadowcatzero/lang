@@ -1,7 +1,4 @@
-use crate::{
-    compiler::arch::riscv64::*,
-    ir::{VarID, VarInst},
-};
+use crate::{compiler::arch::riscv64::*, ir::VarInst};
 
 #[derive(Copy, Clone)]
 pub enum RV64Instruction {
@@ -22,6 +19,16 @@ pub enum RV64Instruction {
         dest: RegRef,
         offset: i64,
         base: RegRef,
+    },
+    Sd {
+        src: RegRef,
+        offset: i64,
+        base: RegRef,
+    },
+    Add {
+        dest: RegRef,
+        src1: RegRef,
+        src2: RegRef,
     },
 }
 
@@ -48,6 +55,8 @@ impl std::fmt::Debug for RV64Instruction {
             Self::Mv { dest, src } => write!(f, "mv {dest:?}, {src:?}"),
             Self::La { dest, src } => write!(f, "la {dest:?}, {src:?}"),
             Self::Ld { dest, offset, base } => write!(f, "ld {dest:?}, {offset}({base:?})"),
+            Self::Sd { src, offset, base } => write!(f, "sd {src:?}, {offset}({base:?})"),
+            Self::Add { dest, src1, src2 } => write!(f, "add {dest:?}, {src1:?}, {src2:?}"),
         }
     }
 }

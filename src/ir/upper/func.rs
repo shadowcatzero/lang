@@ -1,11 +1,12 @@
 use std::fmt::Write;
 
-use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, VarID};
+use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID};
 use crate::{common::FileSpan, compiler::arch::riscv64::Reg, util::Padder};
 
 pub struct IRUFunction {
     pub name: String,
     pub args: Vec<VarID>,
+    pub ret: Type,
     pub instructions: Vec<IRUInstrInst>,
 }
 
@@ -49,9 +50,10 @@ pub struct IRInstructions {
 }
 
 impl IRUFunction {
-    pub fn new(name: String, args: Vec<VarID>, instructions: IRInstructions) -> Self {
+    pub fn new(name: String, args: Vec<VarID>, ret: Type, instructions: IRInstructions) -> Self {
         Self {
             name,
+            ret,
             args,
             instructions: instructions.vec,
         }

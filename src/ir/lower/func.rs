@@ -9,6 +9,7 @@ pub struct IRLFunction {
     pub instructions: Vec<IRLInstruction>,
     pub stack: HashMap<VarID, Size>,
     pub args: Vec<(VarID, Size)>,
+    pub ret_size: Size,
     pub makes_call: bool,
 }
 
@@ -34,7 +35,7 @@ pub enum IRLInstruction {
         len: Len,
     },
     Call {
-        dest: VarID,
+        dest: Option<(VarID, Size)>,
         f: Symbol,
         args: Vec<(VarID, Size)>,
     },

@@ -106,8 +106,14 @@ impl IRLProgram {
                         makes_call = true;
                         let fid = &p.fn_map[&f.id];
                         let sym = builder.func(fid);
+                        let ret_size = p.size_of_var(dest.id).expect("unsized type");
+                        let dest = if ret_size > 0 {
+                            Some((dest.id, ret_size))
+                        } else {
+                            None
+                        };
                         instrs.push(IRLInstruction::Call {
-                            dest: dest.id,
+                            dest,
                             f: sym,
                             args: args
                                 .iter()
@@ -135,6 +141,7 @@ impl IRLProgram {
                         .iter()
                         .map(|a| (*a, p.size_of_var(*a).expect("unsized type")))
                         .collect(),
+                    ret_size: p.size_of_type(&f.ret).expect("unsized type"),
                     stack,
                 },
             );

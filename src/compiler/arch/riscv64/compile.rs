@@ -100,29 +100,38 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
         let mut v = Vec::new();
         let mut stack = HashMap::new();
         let mut stack_len = 0;
-        let has_stack = !f.stack.is_empty() || !f.args.is_empty() || f.makes_call;
         let mut stack_ra = None;
+        let mut stack_rva = None;
+        if f.makes_call {
+            // return addr
+            stack_ra = Some(stack_len);
+            stack_len += 8;
+        }
+        for (id, s) in &f.stack {
+            stack.insert(id, stack_len);
+            stack_len += align(s);
+        }
+        for (id, s) in f.args.iter().rev() {
+            stack.insert(id, stack_len);
+            stack_len += align(s);
+        }
+        if f.ret_size > 0 {
+            stack_rva = Some(stack_len);
+            stack_len += align(&f.ret_size);
+        }
+        v.push(LI::Addi {
+            dest: sp,
+            src: sp,
+            imm: -stack_len,
+        });
+        let has_stack = stack_len > 0;
         if has_stack {
-            if f.makes_call {
-                // return addr
-                stack_ra = Some(stack_len);
-                stack_len += 8;
-            }
-            for (id, s) in &f.stack {
-                stack.insert(id, stack_len);
-                stack_len += align(s);
-            }
-            for (id, s) in f.args.iter().rev() {
-                stack.insert(id, stack_len);
-                stack_len += align(s);
-            }
-            v.push(LI::Addi {
-                dest: sp,
-                src: sp,
-                imm: -stack_len,
-            });
             if let Some(stack_ra) = stack_ra {
-                v.push(LI::Sd { src: ra, offset: stack_ra, base: sp });
+                v.push(LI::Sd {
+                    src: ra,
+                    offset: stack_ra,
+                    base: sp,
+                });
             }
         }
         for i in &f.instructions {
@@ -156,6 +165,19 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                 }
                 IRI::Call { dest, f, args } => {
                     let mut offset = 0;
+                    if let Some((dest, s)) = dest {
+                        offset -= align(s);
+                        v.push(LI::Addi {
+                            dest: t0,
+                            src: sp,
+                            imm: stack[&dest],
+                        });
+                        v.push(LI::Sd {
+                            src: t0,
+                            offset,
+                            base: sp,
+                        })
+                    }
                     for (arg, s) in args {
                         let bs = align(s);
                         offset -= bs;
@@ -191,15 +213,39 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                                 offset: offset as i32,
                                 base: r(base),
                             }),
+                            AI::Sd { src, base, offset } => v.push(LI::Sd {
+                                src: r(src),
+                                offset: offset as i32,
+                                base: r(base),
+                            }),
+                            AI::Add { dest, src1, src2 } => v.push(LI::Add {
+                                dest: r(dest),
+                                src1: r(src1),
+                                src2: r(src2),
+                            }),
                         }
                     }
                 }
-                IRI::Ret { src } => todo!(),
+                IRI::Ret { src } => {
+                    let Some(rva) = stack_rva else {
+                        panic!("no return value address on stack!")
+                    };
+                    v.push(LI::Ld {
+                        dest: t0,
+                        offset: rva,
+                        base: sp,
+                    });
+                    mov_mem(&mut v, sp, stack[src], t0, 0, t1, align(&f.ret_size) as u32);
+                }
             }
         }
         if has_stack {
             if let Some(stack_ra) = stack_ra {
-                v.push(LI::Ld { dest: ra, offset: stack_ra, base: sp });
+                v.push(LI::Ld {
+                    dest: ra,
+                    offset: stack_ra,
+                    base: sp,
+                });
             }
             v.push(LI::Addi {
                 dest: sp,
@@ -210,5 +256,5 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
         v.push(LI::Ret);
         fns.push((v, *sym));
     }
-    create_program(fns, data, Some(program.entry()))
+    create_program(fns, data, Some(program.entry()), &program)
 }

@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use crate::ir::Symbol;
+use crate::ir::{IRLProgram, Symbol};
 
 pub fn create_program<I: Instr>(
     fns: Vec<(Vec<I>, Symbol)>,
     ro_data: Vec<(Vec<u8>, Symbol)>,
     start: Option<Symbol>,
+    program: &IRLProgram,
 ) -> (Vec<u8>, Option<Addr>) {
     let mut data = Vec::new();
     let mut sym_table = SymTable::new(fns.len() + ro_data.len());
@@ -35,6 +36,16 @@ pub fn create_program<I: Instr>(
                 data[pos..pos + replace.len()].copy_from_slice(&replace);
             }
         }
+    }
+    for (s, f) in program.fns() {
+        println!(
+            "{}: {:?}",
+            f.name,
+            sym_table.get(*s).map(|a| {
+                let pos = a.0 + 0x1000 + 0x40 + 0x38;
+                format!("0x{:x}", pos)
+            })
+        );
     }
     assert!(missing.is_empty());
     (

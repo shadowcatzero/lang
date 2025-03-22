@@ -1,9 +1,11 @@
 fn start() {
-   print("Helld!\n");
-   print("Hello World!!!!!\n");
+   println("Helld!");
+   println("Hello World!!!!!");
    thinger();
-   print("what\n");
-   exit(39);
+   println("what");
+   print(tester());
+   arger("a", "b", "c");
+   exit(add(35, 4));
 }
 
 fn thinger() {
@@ -12,6 +14,11 @@ fn thinger() {
 
 fn unused() {
    print("el unused\n");
+}
+
+fn println(msg: slice<8>) {
+    print(msg);
+    print("\n");
 }
 
 fn print(msg: slice<8>) {
@@ -24,10 +31,31 @@ fn print(msg: slice<8>) {
    }
 }
 
+fn add(a: 64, b: 64) -> 64 {
+   let c: 64 = 0;
+   asm (t0 = a, t1 = b, a0 = c) {
+      ld t0, 0, t0
+      ld t1, 0, t1
+      add t0, t0, t1
+      sd t0, 0, a0
+   };
+   c
+}
+
+fn arger(a: slice<8>, b: slice<8>, c: slice<8>) {
+    print(a);
+    print(b);
+    println(c);
+}
+
 fn exit(status: 64) {
    asm (a0 = status) {
       ld a0, 0, a0
       li a7, 93
       ecall
    };
+}
+
+fn tester() -> slice<8> {
+    "hola\n"
 }
