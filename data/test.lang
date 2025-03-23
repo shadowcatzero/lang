@@ -5,7 +5,7 @@ fn start() {
    println("what");
    print(tester());
    arger("a", "b", "c");
-   exit(add(35, 4));
+   exit(sub(add(35, 5), 1));
 }
 
 fn thinger() {
@@ -37,6 +37,17 @@ fn add(a: 64, b: 64) -> 64 {
       ld t0, 0, t0
       ld t1, 0, t1
       add t0, t0, t1
+      sd t0, 0, a0
+   };
+   c
+}
+
+fn sub(a: 64, b: 64) -> 64 {
+   let c: 64 = 0;
+   asm (t0 = a, t1 = b, a0 = c) {
+      ld t0, 0, t0
+      ld t1, 0, t1
+      sub t0, t0, t1
       sd t0, 0, a0
    };
    c

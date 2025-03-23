@@ -15,20 +15,43 @@ pub enum RV64Instruction {
         dest: RegRef,
         src: VarInst,
     },
-    Ld {
+    Load {
+        width: Width,
         dest: RegRef,
         offset: i64,
         base: RegRef,
     },
-    Sd {
+    Store {
+        width: Width,
         src: RegRef,
         offset: i64,
         base: RegRef,
     },
-    Add {
+    Op {
+        op: Op,
         dest: RegRef,
         src1: RegRef,
         src2: RegRef,
+    },
+    OpF7 {
+        op: Op,
+        funct: Funct7,
+        dest: RegRef,
+        src1: RegRef,
+        src2: RegRef,
+    },
+    OpImm {
+        op: Op,
+        dest: RegRef,
+        src: RegRef,
+        imm: i64,
+    },
+    OpImmF7 {
+        op: Op,
+        funct: Funct7,
+        dest: RegRef,
+        src: RegRef,
+        imm: i64,
     },
 }
 
@@ -54,9 +77,41 @@ impl std::fmt::Debug for RV64Instruction {
             Self::Li { dest, imm } => write!(f, "li {dest:?}, {imm:?}"),
             Self::Mv { dest, src } => write!(f, "mv {dest:?}, {src:?}"),
             Self::La { dest, src } => write!(f, "la {dest:?}, {src:?}"),
-            Self::Ld { dest, offset, base } => write!(f, "ld {dest:?}, {offset}({base:?})"),
-            Self::Sd { src, offset, base } => write!(f, "sd {src:?}, {offset}({base:?})"),
-            Self::Add { dest, src1, src2 } => write!(f, "add {dest:?}, {src1:?}, {src2:?}"),
+            Self::Load {
+                width,
+                dest,
+                offset,
+                base,
+            } => write!(f, "l{} {dest:?}, {offset}({base:?})", width.str()),
+            Self::Store {
+                width,
+                src,
+                offset,
+                base,
+            } => write!(f, "s{} {src:?}, {offset}({base:?})", width.str()),
+            Self::Op {
+                op,
+                dest,
+                src1,
+                src2,
+            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", op.str()),
+            Self::OpF7 {
+                op,
+                funct,
+                dest,
+                src1,
+                src2,
+            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", op.fstr(*funct)),
+            Self::OpImm { op, dest, src, imm } => {
+                write!(f, "{}i {dest:?}, {src:?}, {imm}", op.str())
+            }
+            Self::OpImmF7 {
+                op,
+                funct,
+                dest,
+                src,
+                imm,
+            } => write!(f, "{}i {dest:?}, {src:?}, {imm}", op.fstr(*funct)),
         }
     }
 }

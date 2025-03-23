@@ -10,9 +10,9 @@ pub const fn mask(h: u8, l: u8) -> u32 {
     base_mask(h - l) << l
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Bits32<const H: u8, const L: u8>(u32);
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BitsI32<const H: u8, const L: u8>(u32);
 
 impl<const H: u8, const L: u8> Bits32<H, L> {

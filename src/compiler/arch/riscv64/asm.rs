@@ -1,30 +1,74 @@
-use crate::{compiler::program::{Addr, Instr, SymTable}, ir::Symbol};
+use crate::{
+    compiler::program::{Addr, Instr, SymTable},
+    ir::Symbol,
+};
 
 use super::*;
 
 #[derive(Debug, Clone)]
 pub enum LinkerInstruction {
-    Add { dest: Reg, src1: Reg, src2: Reg },
-    Addi { dest: Reg, src: Reg, imm: i32 },
-    Andi { dest: Reg, src: Reg, imm: i32 },
-    Slli { dest: Reg, src: Reg, imm: i32 },
-    Srli { dest: Reg, src: Reg, imm: i32 },
-    Sd { src: Reg, offset: i32, base: Reg },
-    Sw { src: Reg, offset: i32, base: Reg },
-    Sh { src: Reg, offset: i32, base: Reg },
-    Sb { src: Reg, offset: i32, base: Reg },
-    Ld { dest: Reg, offset: i32, base: Reg },
-    Lw { dest: Reg, offset: i32, base: Reg },
-    Lh { dest: Reg, offset: i32, base: Reg },
-    Lb { dest: Reg, offset: i32, base: Reg },
-    Mv { dest: Reg, src: Reg },
-    La { dest: Reg, src: Symbol },
-    Jal { dest: Reg, offset: i32 },
+    Op {
+        op: Op,
+        dest: Reg,
+        src1: Reg,
+        src2: Reg,
+    },
+    OpF7 {
+        op: Op,
+        funct: Funct7,
+        dest: Reg,
+        src1: Reg,
+        src2: Reg,
+    },
+    OpImm {
+        op: Op,
+        dest: Reg,
+        src: Reg,
+        imm: i32,
+    },
+    OpImmF7 {
+        op: Op,
+        funct: Funct7,
+        dest: Reg,
+        src: Reg,
+        imm: i32,
+    },
+    Store {
+        width: Width,
+        src: Reg,
+        offset: i32,
+        base: Reg,
+    },
+    Load {
+        width: Width,
+        dest: Reg,
+        offset: i32,
+        base: Reg,
+    },
+    Mv {
+        dest: Reg,
+        src: Reg,
+    },
+    La {
+        dest: Reg,
+        src: Symbol,
+    },
+    Jal {
+        dest: Reg,
+        offset: i32,
+    },
     Call(Symbol),
     J(Symbol),
     Ret,
     Ecall,
-    Li { dest: Reg, imm: i64 },
+    Li {
+        dest: Reg,
+        imm: i64,
+    },
+}
+
+pub const fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
+    opi(Op::Add, dest, src, imm)
 }
 
 impl Instr for LinkerInstruction {
@@ -36,19 +80,39 @@ impl Instr for LinkerInstruction {
         missing: bool,
     ) -> Option<Symbol> {
         let last = match self {
-            Self::Add { dest, src1, src2 } => add(*dest, *src1, *src2),
-            Self::Addi { dest, src, imm } => addi(*dest, *src, BitsI32::new(*imm)),
-            Self::Andi { dest, src, imm } => andi(*dest, *src, BitsI32::new(*imm)),
-            Self::Slli { dest, src, imm } => slli(*dest, *src, BitsI32::new(*imm)),
-            Self::Srli { dest, src, imm } => srli(*dest, *src, BitsI32::new(*imm)),
-            Self::Sd { src, offset, base } => sd(*src, BitsI32::new(*offset), *base),
-            Self::Sw { src, offset, base } => sw(*src, BitsI32::new(*offset), *base),
-            Self::Sh { src, offset, base } => sh(*src, BitsI32::new(*offset), *base),
-            Self::Sb { src, offset, base } => sb(*src, BitsI32::new(*offset), *base),
-            Self::Ld { dest, offset, base } => ld(*dest, BitsI32::new(*offset), *base),
-            Self::Lw { dest, offset, base } => lw(*dest, BitsI32::new(*offset), *base),
-            Self::Lh { dest, offset, base } => lh(*dest, BitsI32::new(*offset), *base),
-            Self::Lb { dest, offset, base } => lb(*dest, BitsI32::new(*offset), *base),
+            Self::Op {
+                op,
+                dest,
+                src1,
+                src2,
+            } => opr(*op, *dest, *src1, *src2),
+            Self::OpF7 {
+                op,
+                funct,
+                dest,
+                src1,
+                src2,
+            } => oprf7(*op, *funct, *dest, *src1, *src2),
+            Self::OpImm { op, dest, src, imm } => opi(*op, *dest, *src, BitsI32::new(*imm)),
+            Self::OpImmF7 {
+                op,
+                funct,
+                dest,
+                src,
+                imm,
+            } => opif7(*op, *funct, *dest, *src, BitsI32::new(*imm)),
+            Self::Store {
+                width,
+                src,
+                offset,
+                base,
+            } => store(*width, *src, BitsI32::new(*offset), *base),
+            Self::Load {
+                width,
+                dest,
+                offset,
+                base,
+            } => load(*width, *dest, BitsI32::new(*offset), *base),
             Self::Mv { dest, src } => addi(*dest, *src, BitsI32::new(0)),
             Self::La { dest, src } => {
                 if let Some(addr) = sym_map.get(*src) {
@@ -85,5 +149,32 @@ impl Instr for LinkerInstruction {
         };
         data.extend(last.to_le_bytes());
         None
+    }
+}
+
+impl LinkerInstruction {
+    pub fn addi(dest: Reg, src: Reg, imm: i32) -> Self {
+        Self::OpImm {
+            op: Op::Add,
+            dest,
+            src,
+            imm,
+        }
+    }
+    pub fn sd(src: Reg, offset: i32, base: Reg) -> Self {
+        Self::Store {
+            width: Width::D,
+            src,
+            offset,
+            base,
+        }
+    }
+    pub fn ld(dest: Reg, offset: i32, base: Reg) -> Self {
+        Self::Load {
+            width: Width::D,
+            dest,
+            offset,
+            base,
+        }
     }
 }

@@ -14,46 +14,31 @@ pub const fn auipc(dest: Reg, imm: BitsI32<31, 12>) -> I {
     u_type(imm.to_u(), dest, AUIPC)
 }
 
-pub const fn ld(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    i_type(offset.to_u(), base, width::D, dest, LOAD)
-}
-pub const fn lw(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    i_type(offset.to_u(), base, width::W, dest, LOAD)
-}
-pub const fn lh(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    i_type(offset.to_u(), base, width::H, dest, LOAD)
-}
-pub const fn lb(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    i_type(offset.to_u(), base, width::B, dest, LOAD)
+pub const fn load(width: Width, dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
+    i_type(offset.to_u(), base, width.code(), dest, LOAD)
 }
 
-pub const fn sd(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    s_type(src, base, width::D, offset.to_u(), STORE)
-}
-pub const fn sb(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    s_type(src, base, width::B, offset.to_u(), STORE)
-}
-pub const fn sh(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    s_type(src, base, width::H, offset.to_u(), STORE)
-}
-pub const fn sw(src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
-    s_type(src, base, width::W, offset.to_u(), STORE)
+pub const fn store(width: Width, src: Reg, offset: BitsI32<11, 0>, base: Reg) -> I {
+    s_type(src, base, width.code(), offset.to_u(), STORE)
 }
 
-pub const fn add(dest: Reg, src1: Reg, src2: Reg) -> I {
-    r_type(Bits32::new(0), src2, src1, ADD, dest, OP)
+pub const fn opr(op: Op, dest: Reg, src1: Reg, src2: Reg) -> I {
+    r_type(Bits32::new(0), src2, src1, op.code(), dest, OP)
 }
-pub const fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> I {
-    i_type(imm.to_u(), src, ADD, dest, IMM_OP)
+pub const fn oprf7(op: Op, funct: Funct7, dest: Reg, src1: Reg, src2: Reg) -> I {
+    r_type(funct, src2, src1, op.code(), dest, OP)
 }
-pub const fn andi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> I {
-    i_type(imm.to_u(), src, AND, dest, IMM_OP)
+pub const fn opi(op: Op, dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> I {
+    i_type(imm.to_u(), src, op.code(), dest, IMM_OP)
 }
-pub const fn slli(dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
-    i_type(Bits32::new(imm.to_u().val()), src, SLL, dest, IMM_OP)
-}
-pub const fn srli(dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
-    i_type(Bits32::new(imm.to_u().val()), src, SR, dest, IMM_OP)
+pub const fn opif7(op: Op, funct: Funct7, dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
+    i_type(
+        Bits32::new(imm.to_u().val() + (funct.val() << 5)),
+        src,
+        op.code(),
+        dest,
+        IMM_OP,
+    )
 }
 pub const fn jal(dest: Reg, offset: BitsI32<20, 1>) -> I {
     j_type(offset.to_u(), dest, JAL)

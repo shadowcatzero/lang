@@ -24,69 +24,26 @@ fn mov_mem(
     mut len: Len,
 ) {
     let mut off = 0;
-    while len >= 8 {
-        v.extend([
-            LI::Ld {
-                dest: temp,
-                offset: src_offset + off,
-                base: src,
-            },
-            LI::Sd {
-                src: temp,
-                offset: dest_offset + off,
-                base: dest,
-            },
-        ]);
-        len -= 8;
-        off += 8;
-    }
-    while len >= 4 {
-        v.extend([
-            LI::Lw {
-                dest: temp,
-                offset: src_offset + off,
-                base: src,
-            },
-            LI::Sw {
-                src: temp,
-                offset: dest_offset + off,
-                base: dest,
-            },
-        ]);
-        len -= 4;
-        off += 4;
-    }
-    while len >= 2 {
-        v.extend([
-            LI::Lh {
-                dest: temp,
-                offset: src_offset + off,
-                base: src,
-            },
-            LI::Sh {
-                src: temp,
-                offset: dest_offset + off,
-                base: dest,
-            },
-        ]);
-        len -= 2;
-        off += 2;
-    }
-    while len >= 1 {
-        v.extend([
-            LI::Lb {
-                dest: temp,
-                offset: src_offset + off,
-                base: src,
-            },
-            LI::Sb {
-                src: temp,
-                offset: dest_offset + off,
-                base: dest,
-            },
-        ]);
-        len -= 1;
-        off += 1;
+    for width in Width::MAIN.iter().rev() {
+        let wl = width.len();
+        while len >= wl {
+            v.extend([
+                LI::Load {
+                    width: *width,
+                    dest: temp,
+                    offset: src_offset + off,
+                    base: src,
+                },
+                LI::Store {
+                    width: *width,
+                    src: temp,
+                    offset: dest_offset + off,
+                    base: dest,
+                },
+            ]);
+            len -= wl;
+            off += wl as i32;
+        }
     }
 }
 
@@ -119,19 +76,11 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
             stack_rva = Some(stack_len);
             stack_len += align(&f.ret_size);
         }
-        v.push(LI::Addi {
-            dest: sp,
-            src: sp,
-            imm: -stack_len,
-        });
+        v.push(LI::addi(sp, sp, -stack_len));
         let has_stack = stack_len > 0;
         if has_stack {
             if let Some(stack_ra) = stack_ra {
-                v.push(LI::Sd {
-                    src: ra,
-                    offset: stack_ra,
-                    base: sp,
-                });
+                v.push(LI::sd(ra, stack_ra, sp));
             }
         }
         for i in &f.instructions {
@@ -144,11 +93,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                             dest: t0,
                             src: *src,
                         },
-                        LI::Sd {
-                            src: t0,
-                            offset: stack[dest] + *offset as i32,
-                            base: sp,
-                        },
+                        LI::sd(t0, stack[dest] + *offset as i32, sp),
                     ]);
                 }
                 IRI::LoadData {
@@ -167,16 +112,8 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                     let mut offset = 0;
                     if let Some((dest, s)) = dest {
                         offset -= align(s);
-                        v.push(LI::Addi {
-                            dest: t0,
-                            src: sp,
-                            imm: stack[&dest],
-                        });
-                        v.push(LI::Sd {
-                            src: t0,
-                            offset,
-                            base: sp,
-                        })
+                        v.push(LI::addi(t0, sp, stack[&dest]));
+                        v.push(LI::sd(t0, offset, sp))
                     }
                     for (arg, s) in args {
                         let bs = align(s);
@@ -187,11 +124,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                 }
                 IRI::AsmBlock { args, instructions } => {
                     for (reg, var) in args {
-                        v.push(LI::Addi {
-                            dest: *reg,
-                            imm: stack[var],
-                            src: sp,
-                        });
+                        v.push(LI::addi(*reg, sp, stack[var]));
                     }
                     fn r(rr: RegRef) -> Reg {
                         match rr {
@@ -208,20 +141,70 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                                 src: r(src),
                             }),
                             AI::La { dest, src } => todo!(),
-                            AI::Ld { dest, base, offset } => v.push(LI::Ld {
+                            AI::Load {
+                                width,
+                                dest,
+                                base,
+                                offset,
+                            } => v.push(LI::Load {
+                                width,
                                 dest: r(dest),
                                 offset: offset as i32,
                                 base: r(base),
                             }),
-                            AI::Sd { src, base, offset } => v.push(LI::Sd {
+                            AI::Store {
+                                width,
+                                src,
+                                base,
+                                offset,
+                            } => v.push(LI::Store {
+                                width,
                                 src: r(src),
                                 offset: offset as i32,
                                 base: r(base),
                             }),
-                            AI::Add { dest, src1, src2 } => v.push(LI::Add {
+                            AI::Op {
+                                op,
+                                dest,
+                                src1,
+                                src2,
+                            } => v.push(LI::Op {
+                                op,
                                 dest: r(dest),
                                 src1: r(src1),
                                 src2: r(src2),
+                            }),
+                            AI::OpF7 {
+                                op,
+                                funct,
+                                dest,
+                                src1,
+                                src2,
+                            } => v.push(LI::OpF7 {
+                                op,
+                                funct,
+                                dest: r(dest),
+                                src1: r(src1),
+                                src2: r(src2),
+                            }),
+                            AI::OpImm { op, dest, src, imm } => v.push(LI::OpImm {
+                                op,
+                                dest: r(dest),
+                                src: r(src),
+                                imm: imm as i32,
+                            }),
+                            AI::OpImmF7 {
+                                op,
+                                funct,
+                                dest,
+                                src,
+                                imm,
+                            } => v.push(LI::OpImmF7 {
+                                op,
+                                funct,
+                                dest: r(dest),
+                                src: r(src),
+                                imm: imm as i32,
                             }),
                         }
                     }
@@ -230,28 +213,16 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                     let Some(rva) = stack_rva else {
                         panic!("no return value address on stack!")
                     };
-                    v.push(LI::Ld {
-                        dest: t0,
-                        offset: rva,
-                        base: sp,
-                    });
+                    v.push(LI::ld(t0, rva, sp));
                     mov_mem(&mut v, sp, stack[src], t0, 0, t1, align(&f.ret_size) as u32);
                 }
             }
         }
         if has_stack {
             if let Some(stack_ra) = stack_ra {
-                v.push(LI::Ld {
-                    dest: ra,
-                    offset: stack_ra,
-                    base: sp,
-                });
+                v.push(LI::ld(ra, stack_ra, sp));
             }
-            v.push(LI::Addi {
-                dest: sp,
-                src: sp,
-                imm: stack_len,
-            });
+            v.push(LI::addi(sp, sp, stack_len));
         }
         v.push(LI::Ret);
         fns.push((v, *sym));

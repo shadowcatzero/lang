@@ -1,6 +1,6 @@
 use crate::util::Bits32;
 
-use super::Reg;
+use super::{Funct3, Reg};
 
 pub struct RawInstruction(u32);
 
@@ -14,8 +14,6 @@ impl RawInstruction {
         self.0.to_be_bytes().into_iter()
     }
 }
-
-pub type Funct3 = Bits32<2, 0>;
 
 pub const fn r_type(
     funct7: Bits32<6, 0>,
