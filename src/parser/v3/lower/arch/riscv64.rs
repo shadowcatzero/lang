@@ -18,7 +18,7 @@ impl RV64Instruction {
             };
             let dest = RegRef::from_arg(dest, ctx)?;
             let src = RegRef::from_arg(src, ctx)?;
-            let imm = i64_from_arg(imm, ctx)?;
+            let imm = i32_from_arg(imm, ctx)?;
             Some(Self::OpImm { op, dest, src, imm })
         };
         let op = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
@@ -44,7 +44,7 @@ impl RV64Instruction {
             };
             let dest = RegRef::from_arg(dest, ctx)?;
             let src = RegRef::from_arg(src, ctx)?;
-            let imm = i64_from_arg(imm, ctx)?;
+            let imm = i32_from_arg(imm, ctx)?;
             Some(Self::OpImmF7 {
                 op,
                 funct,
@@ -59,7 +59,7 @@ impl RV64Instruction {
                 return None;
             };
             let src = RegRef::from_arg(src, ctx)?;
-            let offset = i64_from_arg(offset, ctx)?;
+            let offset = i32_from_arg(offset, ctx)?;
             let base = RegRef::from_arg(base, ctx)?;
             Some(Self::Store {
                 width,
@@ -74,7 +74,7 @@ impl RV64Instruction {
                 return None;
             };
             let dest = RegRef::from_arg(dest, ctx)?;
-            let offset = i64_from_arg(offset, ctx)?;
+            let offset = i32_from_arg(offset, ctx)?;
             let base = RegRef::from_arg(base, ctx)?;
             Some(Self::Load {
                 width,
@@ -91,7 +91,7 @@ impl RV64Instruction {
                     return None;
                 };
                 let dest = RegRef::from_arg(dest, ctx)?;
-                let imm = i64_from_arg(imm, ctx)?;
+                let imm = i32_from_arg(imm, ctx)?;
                 Self::Li { dest, imm }
             }
             "la" => {
@@ -199,13 +199,13 @@ impl Reg {
     }
 }
 
-fn i64_from_arg(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<i64> {
+fn i32_from_arg(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<i32> {
     let PAsmArg::Value(node) = node.inner.as_ref()? else {
-        ctx.err_at(node.span, "Expected an i64, found reference".to_string());
+        ctx.err_at(node.span, "Expected an i32, found reference".to_string());
         return None;
     };
     let word = node.inner.as_ref()?;
-    match word.parse::<i64>() {
+    match word.parse::<i32>() {
         Ok(x) => Some(x),
         Err(_) => {
             ctx.err_at(node.span, format!("Expected an i64, found {}", word));

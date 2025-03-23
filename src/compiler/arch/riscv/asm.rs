@@ -5,59 +5,59 @@ use crate::{
 
 use super::*;
 
-#[derive(Debug, Clone)]
-pub enum LinkerInstruction {
+#[derive(Clone, Copy)]
+pub enum LinkerInstruction<R = Reg, S = Symbol> {
     Op {
         op: Funct3,
         funct: Funct7,
-        dest: Reg,
-        src1: Reg,
-        src2: Reg,
+        dest: R,
+        src1: R,
+        src2: R,
     },
     OpImm {
         op: Funct3,
-        dest: Reg,
-        src: Reg,
+        dest: R,
+        src: R,
         imm: i32,
     },
     OpImmF7 {
         op: Funct3,
         funct: Funct7,
-        dest: Reg,
-        src: Reg,
+        dest: R,
+        src: R,
         imm: i32,
     },
     Store {
         width: Funct3,
-        src: Reg,
+        src: R,
         offset: i32,
-        base: Reg,
+        base: R,
     },
     Load {
         width: Funct3,
-        dest: Reg,
+        dest: R,
         offset: i32,
-        base: Reg,
+        base: R,
     },
     Mv {
-        dest: Reg,
-        src: Reg,
+        dest: R,
+        src: R,
     },
     La {
-        dest: Reg,
-        src: Symbol,
+        dest: R,
+        src: S,
     },
     Jal {
-        dest: Reg,
+        dest: R,
         offset: i32,
     },
-    Call(Symbol),
-    J(Symbol),
+    Call(S),
+    J(S),
     Ret,
     Ecall,
     Li {
-        dest: Reg,
-        imm: i64,
+        dest: R,
+        imm: i32,
     },
 }
 
@@ -133,7 +133,7 @@ impl Instr for LinkerInstruction {
             }
             Self::Ret => ret(),
             Self::Ecall => ecall(),
-            Self::Li { dest, imm } => addi(*dest, zero, BitsI32::new(*imm as i32)),
+            Self::Li { dest, imm } => addi(*dest, zero, BitsI32::new(*imm)),
         };
         data.extend(last.to_le_bytes());
         None
@@ -163,6 +163,50 @@ impl LinkerInstruction {
             dest,
             offset,
             base,
+        }
+    }
+}
+
+impl<R: std::fmt::Debug, S: std::fmt::Debug> std::fmt::Debug for LinkerInstruction<R, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ecall => write!(f, "ecall"),
+            Self::Li { dest, imm } => write!(f, "li {dest:?}, {imm:?}"),
+            Self::Mv { dest, src } => write!(f, "mv {dest:?}, {src:?}"),
+            Self::La { dest, src } => write!(f, "la {dest:?}, {src:?}"),
+            Self::Load {
+                width,
+                dest,
+                offset,
+                base,
+            } => write!(f, "l{} {dest:?}, {offset}({base:?})", width::str(*width)),
+            Self::Store {
+                width,
+                src,
+                offset,
+                base,
+            } => write!(f, "s{} {src:?}, {offset}({base:?})", width::str(*width)),
+            Self::Op {
+                op,
+                funct,
+                dest,
+                src1,
+                src2,
+            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", opstr(*op, *funct)),
+            Self::OpImm { op, dest, src, imm } => {
+                write!(f, "{}i {dest:?}, {src:?}, {imm}", opstr(*op, op32i::FUNCT7))
+            }
+            Self::OpImmF7 {
+                op,
+                funct,
+                dest,
+                src,
+                imm,
+            } => write!(f, "{}i {dest:?}, {src:?}, {imm}", opstr(*op, *funct)),
+            Self::Jal { dest, offset } => write!(f, "jal {dest:?}, {offset:?}"),
+            Self::Call(s) => write!(f, "call {s:?}"),
+            Self::J(s) => write!(f, "j {s:?}"),
+            Self::Ret => write!(f, "ret"),
         }
     }
 }

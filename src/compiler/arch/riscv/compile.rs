@@ -195,6 +195,10 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                                 src: r(src),
                                 imm: imm as i32,
                             }),
+                            AI::Ret => v.push(LI::Ret),
+                            AI::Call(s) => todo!(),
+                            AI::Jal { dest, offset } => todo!(),
+                            AI::J(s) => todo!(),
                         }
                     }
                 }
