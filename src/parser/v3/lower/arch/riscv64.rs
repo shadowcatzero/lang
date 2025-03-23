@@ -70,7 +70,7 @@ impl RV64Instruction {
         };
         let load = |ctx: &mut FnLowerCtx<'_, '_>, width: Funct3| -> Option<Self> {
             let [dest, offset, base] = args else {
-                ctx.err("ld requires 3 arguments".to_string());
+                ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
             };
             let dest = RegRef::from_arg(dest, ctx)?;
@@ -84,7 +84,7 @@ impl RV64Instruction {
             })
         };
         Some(match opstr {
-            "ecall" => Self::Ecall,
+            "ecall" => Self::ECall,
             "li" => {
                 let [dest, imm] = args else {
                     ctx.err("li requires 2 arguments".to_string());

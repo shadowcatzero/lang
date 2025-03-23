@@ -1,6 +1,6 @@
 use crate::{compiler::arch::riscv::Reg, util::Bits32};
 
-use super::{opr, Funct3, Funct7, RawInstruction};
+use super::*;
 
 pub mod op32i {
     use super::*;
@@ -63,6 +63,34 @@ pub mod width {
     }
 }
 
-pub fn opr32i(op: Funct3, dest: Reg, src1: Reg, src2: Reg) -> RawInstruction {
-    opr(op, Bits32::new(0), dest, src1, src2)
+pub const fn ecall() -> RawInstruction {
+    i_type(Bits32::new(0), zero, Bits32::new(0), zero, SYSTEM)
+}
+pub const fn ebreak() -> RawInstruction {
+    i_type(Bits32::new(1), zero, Bits32::new(0), zero, SYSTEM)
+}
+pub const fn auipc(dest: Reg, imm: BitsI32<31, 12>) -> RawInstruction {
+    u_type(imm.to_u(), dest, AUIPC)
+}
+
+pub const fn load(width: Funct3, dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> RawInstruction {
+    i_type(offset.to_u(), base, width, dest, LOAD)
+}
+
+pub const fn store(width: Funct3, src: Reg, offset: BitsI32<11, 0>, base: Reg) -> RawInstruction {
+    s_type(src, base, width, offset.to_u(), STORE)
+}
+
+pub const fn jal(dest: Reg, offset: BitsI32<20, 1>) -> RawInstruction {
+    j_type(offset.to_u(), dest, JAL)
+}
+pub const fn jalr(dest: Reg, offset: BitsI32<11, 0>, base: Reg) -> RawInstruction {
+    i_type(offset.to_u(), base, Bits32::new(0), dest, JALR)
+}
+
+pub const fn j(offset: BitsI32<20, 1>) -> RawInstruction {
+    jal(zero, offset)
+}
+pub const fn ret() -> RawInstruction {
+    jalr(zero, BitsI32::new(0), ra)
 }

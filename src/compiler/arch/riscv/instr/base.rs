@@ -5,8 +5,6 @@ use crate::{
 
 pub struct RawInstruction(u32);
 
-use RawInstruction as I;
-
 impl RawInstruction {
     pub fn to_le_bytes(&self) -> impl IntoIterator<Item = u8> {
         self.0.to_le_bytes().into_iter()
@@ -27,6 +25,8 @@ pub const JALR: u32 = 0b1100111;
 
 pub type Funct3 = Bits32<2, 0>;
 pub type Funct7 = Bits32<6, 0>;
+
+use RawInstruction as I;
 
 pub const fn r_type(
     funct7: Bits32<6, 0>,
@@ -77,16 +77,16 @@ pub const fn j_type(imm: Bits32<20, 1>, rd: Reg, opcode: u32) -> I {
 }
 
 pub fn opr(op: Funct3, funct: Funct7, dest: Reg, src1: Reg, src2: Reg) -> I {
-    r_type(funct, src2, src1, op.into(), dest, OP)
+    r_type(funct, src2, src1, op, dest, OP)
 }
 pub fn opi(op: Funct3, dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
-    i_type(imm.to_u(), src, op.into(), dest, IMM_OP)
+    i_type(imm.to_u(), src, op, dest, IMM_OP)
 }
 pub fn opif7(op: Funct3, funct: Funct7, dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
     i_type(
         Bits32::new(imm.to_u().val() + (funct.val() << 5)),
         src,
-        op.into(),
+        op,
         dest,
         IMM_OP,
     )

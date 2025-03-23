@@ -54,7 +54,8 @@ pub enum LinkerInstruction<R = Reg, S = Symbol> {
     Call(S),
     J(S),
     Ret,
-    Ecall,
+    ECall,
+    EBreak,
     Li {
         dest: R,
         imm: i32,
@@ -132,7 +133,8 @@ impl Instr for LinkerInstruction {
                 }
             }
             Self::Ret => ret(),
-            Self::Ecall => ecall(),
+            Self::ECall => ecall(),
+            Self::EBreak => ebreak(),
             Self::Li { dest, imm } => addi(*dest, zero, BitsI32::new(*imm)),
         };
         data.extend(last.to_le_bytes());
@@ -170,7 +172,8 @@ impl LinkerInstruction {
 impl<R: std::fmt::Debug, S: std::fmt::Debug> std::fmt::Debug for LinkerInstruction<R, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Ecall => write!(f, "ecall"),
+            Self::ECall => write!(f, "ecall"),
+            Self::EBreak => write!(f, "ebreak"),
             Self::Li { dest, imm } => write!(f, "li {dest:?}, {imm:?}"),
             Self::Mv { dest, src } => write!(f, "mv {dest:?}, {src:?}"),
             Self::La { dest, src } => write!(f, "la {dest:?}, {src:?}"),

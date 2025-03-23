@@ -134,7 +134,8 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                     }
                     for i in instructions {
                         match *i {
-                            AI::Ecall => v.push(LI::Ecall),
+                            AI::ECall => v.push(LI::ECall),
+                            AI::EBreak => v.push(LI::EBreak),
                             AI::Li { dest, imm } => v.push(LI::Li { dest: r(dest), imm }),
                             AI::Mv { dest, src } => v.push(LI::Mv {
                                 dest: r(dest),
@@ -149,7 +150,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                             } => v.push(LI::Load {
                                 width,
                                 dest: r(dest),
-                                offset: offset as i32,
+                                offset,
                                 base: r(base),
                             }),
                             AI::Store {
@@ -160,7 +161,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                             } => v.push(LI::Store {
                                 width,
                                 src: r(src),
-                                offset: offset as i32,
+                                offset,
                                 base: r(base),
                             }),
                             AI::Op {
@@ -180,7 +181,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                                 op,
                                 dest: r(dest),
                                 src: r(src),
-                                imm: imm as i32,
+                                imm,
                             }),
                             AI::OpImmF7 {
                                 op,
@@ -193,7 +194,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                                 funct,
                                 dest: r(dest),
                                 src: r(src),
-                                imm: imm as i32,
+                                imm,
                             }),
                             AI::Ret => v.push(LI::Ret),
                             AI::Call(s) => todo!(),

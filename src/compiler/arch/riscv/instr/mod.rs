@@ -1,3 +1,5 @@
+use super::*;
+
 mod base;
 mod rv32i;
 mod rv32m;
