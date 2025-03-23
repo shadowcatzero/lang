@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID};
-use crate::{common::FileSpan, compiler::arch::riscv64::Reg, util::Padder};
+use crate::{common::FileSpan, compiler::arch::riscv::Reg, util::Padder};
 
 pub struct IRUFunction {
     pub name: String,

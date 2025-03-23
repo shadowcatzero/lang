@@ -1,6 +1,6 @@
 use super::{FnLowerCtx, Node, PAsmArg, PIdent, PInstruction};
 use crate::{
-    compiler::arch::riscv64::*,
+    compiler::arch::riscv::*,
     ir::{
         arch::riscv64::{RV64Instruction, RegRef},
         VarInst,
@@ -11,22 +11,7 @@ impl RV64Instruction {
     pub fn parse(inst: &PInstruction, ctx: &mut FnLowerCtx) -> Option<Self> {
         let args = &inst.args[..];
         let opstr = &**inst.op.inner.as_ref()?;
-        let op = |ctx: &mut FnLowerCtx<'_, '_>, op: Op| -> Option<Self> {
-            let [dest, src1, src2] = args else {
-                ctx.err(format!("{opstr} requires 3 arguments"));
-                return None;
-            };
-            let dest = RegRef::from_arg(dest, ctx)?;
-            let src1 = RegRef::from_arg(src1, ctx)?;
-            let src2 = RegRef::from_arg(src2, ctx)?;
-            Some(Self::Op {
-                op,
-                dest,
-                src1,
-                src2,
-            })
-        };
-        let opi = |ctx: &mut FnLowerCtx<'_, '_>, op: Op| -> Option<Self> {
+        let opi = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3| -> Option<Self> {
             let [dest, src, imm] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -36,7 +21,7 @@ impl RV64Instruction {
             let imm = i64_from_arg(imm, ctx)?;
             Some(Self::OpImm { op, dest, src, imm })
         };
-        let opf7 = |ctx: &mut FnLowerCtx<'_, '_>, op: Op, funct: Funct7| -> Option<Self> {
+        let op = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
             let [dest, src1, src2] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -44,7 +29,7 @@ impl RV64Instruction {
             let dest = RegRef::from_arg(dest, ctx)?;
             let src1 = RegRef::from_arg(src1, ctx)?;
             let src2 = RegRef::from_arg(src2, ctx)?;
-            Some(Self::OpF7 {
+            Some(Self::Op {
                 op,
                 funct,
                 dest,
@@ -52,7 +37,7 @@ impl RV64Instruction {
                 src2,
             })
         };
-        let opif7 = |ctx: &mut FnLowerCtx<'_, '_>, op: Op, funct: Funct7| -> Option<Self> {
+        let opif7 = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
             let [dest, src, imm] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -68,7 +53,7 @@ impl RV64Instruction {
                 imm,
             })
         };
-        let store = |ctx: &mut FnLowerCtx<'_, '_>, width: Width| -> Option<Self> {
+        let store = |ctx: &mut FnLowerCtx<'_, '_>, width: Funct3| -> Option<Self> {
             let [src, offset, base] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -83,7 +68,7 @@ impl RV64Instruction {
                 base,
             })
         };
-        let load = |ctx: &mut FnLowerCtx<'_, '_>, width: Width| -> Option<Self> {
+        let load = |ctx: &mut FnLowerCtx<'_, '_>, width: Funct3| -> Option<Self> {
             let [dest, offset, base] = args else {
                 ctx.err("ld requires 3 arguments".to_string());
                 return None;
@@ -128,40 +113,49 @@ impl RV64Instruction {
                 Self::Mv { dest, src }
             }
 
-            "lb" => load(ctx, Width::B)?,
-            "lh" => load(ctx, Width::H)?,
-            "lw" => load(ctx, Width::W)?,
-            "ld" => load(ctx, Width::D)?,
-            "lbu" => load(ctx, Width::BU)?,
-            "lhu" => load(ctx, Width::HU)?,
-            "lwu" => load(ctx, Width::WU)?,
+            "lb" => load(ctx, width::B)?,
+            "lh" => load(ctx, width::H)?,
+            "lw" => load(ctx, width::W)?,
+            "ld" => load(ctx, width::D)?,
+            "lbu" => load(ctx, width::BU)?,
+            "lhu" => load(ctx, width::HU)?,
+            "lwu" => load(ctx, width::WU)?,
 
-            "sb" => store(ctx, Width::B)?,
-            "sh" => store(ctx, Width::H)?,
-            "sw" => store(ctx, Width::W)?,
-            "sd" => store(ctx, Width::D)?,
+            "sb" => store(ctx, width::B)?,
+            "sh" => store(ctx, width::H)?,
+            "sw" => store(ctx, width::W)?,
+            "sd" => store(ctx, width::D)?,
 
-            "addi" => opi(ctx, Op::Add)?,
-            "slti" => opi(ctx, Op::Slt)?,
-            "sltiu" => opi(ctx, Op::Sltu)?,
-            "xori" => opi(ctx, Op::Xor)?,
-            "ori" => opi(ctx, Op::Or)?,
-            "andi" => opi(ctx, Op::And)?,
+            "addi" => opi(ctx, op32i::ADD)?,
+            "slti" => opi(ctx, op32i::SLT)?,
+            "sltiu" => opi(ctx, op32i::SLTU)?,
+            "xori" => opi(ctx, op32i::XOR)?,
+            "ori" => opi(ctx, op32i::OR)?,
+            "andi" => opi(ctx, op32i::AND)?,
 
-            "slli" => opif7(ctx, Op::Sl, funct7::LOGICAL)?,
-            "srli" => opif7(ctx, Op::Sr, funct7::LOGICAL)?,
-            "srla" => opif7(ctx, Op::Sr, funct7::ARITHMETIC)?,
+            "slli" => opif7(ctx, op32i::SL, op32i::LOGICAL)?,
+            "srli" => opif7(ctx, op32i::SR, op32i::LOGICAL)?,
+            "srla" => opif7(ctx, op32i::SR, op32i::ARITHMETIC)?,
 
-            "add" => opf7(ctx, Op::Add, funct7::ADD)?,
-            "sub" => opf7(ctx, Op::Add, funct7::SUB)?,
-            "sll" => op(ctx, Op::Sl)?,
-            "slt" => op(ctx, Op::Slt)?,
-            "sltu" => op(ctx, Op::Sltu)?,
-            "xor" => op(ctx, Op::Xor)?,
-            "srl" => opf7(ctx, Op::Sr, funct7::LOGICAL)?,
-            "sra" => opf7(ctx, Op::Sr, funct7::ARITHMETIC)?,
-            "or" => op(ctx, Op::Or)?,
-            "and" => op(ctx, Op::And)?,
+            "add" => op(ctx, op32i::ADD, op32i::F7ADD)?,
+            "sub" => op(ctx, op32i::ADD, op32i::F7SUB)?,
+            "sll" => op(ctx, op32i::SL, op32i::FUNCT7)?,
+            "slt" => op(ctx, op32i::SLT, op32i::FUNCT7)?,
+            "sltu" => op(ctx, op32i::SLTU, op32i::FUNCT7)?,
+            "xor" => op(ctx, op32i::XOR, op32i::FUNCT7)?,
+            "srl" => op(ctx, op32i::SR, op32i::LOGICAL)?,
+            "sra" => op(ctx, op32i::SR, op32i::ARITHMETIC)?,
+            "or" => op(ctx, op32i::OR, op32i::FUNCT7)?,
+            "and" => op(ctx, op32i::AND, op32i::FUNCT7)?,
+
+            "mul" => op(ctx, op32m::MUL, op32m::FUNCT7)?,
+            "mulh" => op(ctx, op32m::MULH, op32m::FUNCT7)?,
+            "mulhsu" => op(ctx, op32m::MULHSU, op32m::FUNCT7)?,
+            "mulhu" => op(ctx, op32m::MULHU, op32m::FUNCT7)?,
+            "div" => op(ctx, op32m::DIV, op32m::FUNCT7)?,
+            "divu" => op(ctx, op32m::DIVU, op32m::FUNCT7)?,
+            "rem" => op(ctx, op32m::REM, op32m::FUNCT7)?,
+            "remu" => op(ctx, op32m::REMU, op32m::FUNCT7)?,
 
             w => {
                 ctx.err_at(inst.op.span, format!("Unknown instruction '{}'", w));

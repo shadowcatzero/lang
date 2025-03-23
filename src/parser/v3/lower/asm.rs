@@ -1,5 +1,5 @@
 use crate::{
-    compiler::arch::riscv64::Reg,
+    compiler::arch::riscv::Reg,
     ir::{arch::riscv64::RV64Instruction, IRUInstruction, VarInst},
 };
 

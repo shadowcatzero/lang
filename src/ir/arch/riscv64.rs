@@ -1,4 +1,4 @@
-use crate::{compiler::arch::riscv64::*, ir::VarInst};
+use crate::{compiler::arch::riscv::*, ir::VarInst};
 
 #[derive(Copy, Clone)]
 pub enum RV64Instruction {
@@ -16,38 +16,32 @@ pub enum RV64Instruction {
         src: VarInst,
     },
     Load {
-        width: Width,
+        width: Funct3,
         dest: RegRef,
         offset: i64,
         base: RegRef,
     },
     Store {
-        width: Width,
+        width: Funct3,
         src: RegRef,
         offset: i64,
         base: RegRef,
     },
     Op {
-        op: Op,
-        dest: RegRef,
-        src1: RegRef,
-        src2: RegRef,
-    },
-    OpF7 {
-        op: Op,
+        op: Funct3,
         funct: Funct7,
         dest: RegRef,
         src1: RegRef,
         src2: RegRef,
     },
     OpImm {
-        op: Op,
+        op: Funct3,
         dest: RegRef,
         src: RegRef,
         imm: i64,
     },
     OpImmF7 {
-        op: Op,
+        op: Funct3,
         funct: Funct7,
         dest: RegRef,
         src: RegRef,
@@ -82,28 +76,22 @@ impl std::fmt::Debug for RV64Instruction {
                 dest,
                 offset,
                 base,
-            } => write!(f, "l{} {dest:?}, {offset}({base:?})", width.str()),
+            } => write!(f, "l{} {dest:?}, {offset}({base:?})", width::str(*width)),
             Self::Store {
                 width,
                 src,
                 offset,
                 base,
-            } => write!(f, "s{} {src:?}, {offset}({base:?})", width.str()),
+            } => write!(f, "s{} {src:?}, {offset}({base:?})", width::str(*width)),
             Self::Op {
-                op,
-                dest,
-                src1,
-                src2,
-            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", op.str()),
-            Self::OpF7 {
                 op,
                 funct,
                 dest,
                 src1,
                 src2,
-            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", op.fstr(*funct)),
+            } => write!(f, "{} {dest:?}, {src1:?}, {src2:?}", opstr(*op, *funct)),
             Self::OpImm { op, dest, src, imm } => {
-                write!(f, "{}i {dest:?}, {src:?}, {imm}", op.str())
+                write!(f, "{}i {dest:?}, {src:?}, {imm}", opstr(*op, op32i::FUNCT7))
             }
             Self::OpImmF7 {
                 op,
@@ -111,7 +99,7 @@ impl std::fmt::Debug for RV64Instruction {
                 dest,
                 src,
                 imm,
-            } => write!(f, "{}i {dest:?}, {src:?}, {imm}", op.fstr(*funct)),
+            } => write!(f, "{}i {dest:?}, {src:?}, {imm}", opstr(*op, *funct)),
         }
     }
 }

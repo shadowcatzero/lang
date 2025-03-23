@@ -5,7 +5,7 @@ fn start() {
    println("what");
    print(tester());
    arger("a", "b", "c");
-   exit(sub(add(35, 5), 1));
+   exit(mul(sub(add(5, 9), 1), 3));
 }
 
 fn thinger() {
@@ -17,8 +17,8 @@ fn unused() {
 }
 
 fn println(msg: slice<8>) {
-    print(msg);
-    print("\n");
+   print(msg);
+   print("\n");
 }
 
 fn print(msg: slice<8>) {
@@ -42,6 +42,17 @@ fn add(a: 64, b: 64) -> 64 {
    c
 }
 
+fn mul(a: 64, b: 64) -> 64 {
+   let c: 64 = 0;
+   asm (t0 = a, t1 = b, a0 = c) {
+      ld t0, 0, t0
+      ld t1, 0, t1
+      mul t0, t0, t1
+      sd t0, 0, a0
+   };
+   c
+}
+
 fn sub(a: 64, b: 64) -> 64 {
    let c: 64 = 0;
    asm (t0 = a, t1 = b, a0 = c) {
@@ -54,9 +65,9 @@ fn sub(a: 64, b: 64) -> 64 {
 }
 
 fn arger(a: slice<8>, b: slice<8>, c: slice<8>) {
-    print(a);
-    print(b);
-    println(c);
+   print(a);
+   print(b);
+   println(c);
 }
 
 fn exit(status: 64) {
@@ -68,5 +79,5 @@ fn exit(status: 64) {
 }
 
 fn tester() -> slice<8> {
-    "hola\n"
+   "hola\n"
 }

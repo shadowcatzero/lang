@@ -8,39 +8,33 @@ use super::*;
 #[derive(Debug, Clone)]
 pub enum LinkerInstruction {
     Op {
-        op: Op,
-        dest: Reg,
-        src1: Reg,
-        src2: Reg,
-    },
-    OpF7 {
-        op: Op,
+        op: Funct3,
         funct: Funct7,
         dest: Reg,
         src1: Reg,
         src2: Reg,
     },
     OpImm {
-        op: Op,
+        op: Funct3,
         dest: Reg,
         src: Reg,
         imm: i32,
     },
     OpImmF7 {
-        op: Op,
+        op: Funct3,
         funct: Funct7,
         dest: Reg,
         src: Reg,
         imm: i32,
     },
     Store {
-        width: Width,
+        width: Funct3,
         src: Reg,
         offset: i32,
         base: Reg,
     },
     Load {
-        width: Width,
+        width: Funct3,
         dest: Reg,
         offset: i32,
         base: Reg,
@@ -67,8 +61,8 @@ pub enum LinkerInstruction {
     },
 }
 
-pub const fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
-    opi(Op::Add, dest, src, imm)
+pub fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
+    opi(op32i::ADD, dest, src, imm)
 }
 
 impl Instr for LinkerInstruction {
@@ -82,17 +76,11 @@ impl Instr for LinkerInstruction {
         let last = match self {
             Self::Op {
                 op,
-                dest,
-                src1,
-                src2,
-            } => opr(*op, *dest, *src1, *src2),
-            Self::OpF7 {
-                op,
                 funct,
                 dest,
                 src1,
                 src2,
-            } => oprf7(*op, *funct, *dest, *src1, *src2),
+            } => opr(*op, *funct, *dest, *src1, *src2),
             Self::OpImm { op, dest, src, imm } => opi(*op, *dest, *src, BitsI32::new(*imm)),
             Self::OpImmF7 {
                 op,
@@ -155,7 +143,7 @@ impl Instr for LinkerInstruction {
 impl LinkerInstruction {
     pub fn addi(dest: Reg, src: Reg, imm: i32) -> Self {
         Self::OpImm {
-            op: Op::Add,
+            op: op32i::ADD,
             dest,
             src,
             imm,
@@ -163,7 +151,7 @@ impl LinkerInstruction {
     }
     pub fn sd(src: Reg, offset: i32, base: Reg) -> Self {
         Self::Store {
-            width: Width::D,
+            width: width::D,
             src,
             offset,
             base,
@@ -171,7 +159,7 @@ impl LinkerInstruction {
     }
     pub fn ld(dest: Reg, offset: i32, base: Reg) -> Self {
         Self::Load {
-            width: Width::D,
+            width: width::D,
             dest,
             offset,
             base,

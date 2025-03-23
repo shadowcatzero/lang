@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    compiler::{arch::riscv64::Reg, create_program, Addr},
+    compiler::{arch::riscv::Reg, create_program, Addr},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
         IRLInstruction as IRI, IRLProgram, Len, Size,
@@ -24,18 +24,18 @@ fn mov_mem(
     mut len: Len,
 ) {
     let mut off = 0;
-    for width in Width::MAIN.iter().rev() {
-        let wl = width.len();
+    for width in width::MAIN.iter().rev().copied() {
+        let wl = width::len(width);
         while len >= wl {
             v.extend([
                 LI::Load {
-                    width: *width,
+                    width,
                     dest: temp,
                     offset: src_offset + off,
                     base: src,
                 },
                 LI::Store {
-                    width: *width,
+                    width,
                     src: temp,
                     offset: dest_offset + off,
                     base: dest,
@@ -165,22 +165,11 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                             }),
                             AI::Op {
                                 op,
-                                dest,
-                                src1,
-                                src2,
-                            } => v.push(LI::Op {
-                                op,
-                                dest: r(dest),
-                                src1: r(src1),
-                                src2: r(src2),
-                            }),
-                            AI::OpF7 {
-                                op,
                                 funct,
                                 dest,
                                 src1,
                                 src2,
-                            } => v.push(LI::OpF7 {
+                            } => v.push(LI::Op {
                                 op,
                                 funct,
                                 dest: r(dest),

@@ -1,5 +1,5 @@
 use super::*;
-use crate::compiler::arch::riscv64::Reg;
+use crate::compiler::arch::riscv::Reg;
 use arch::riscv64::RV64Instruction;
 use std::collections::HashMap;
 

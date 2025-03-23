@@ -47,43 +47,6 @@ pub const t4: Reg = Reg(29);
 pub const t5: Reg = Reg(30);
 pub const t6: Reg = Reg(31);
 
-// pub const ft0: Reg = Reg(0);
-// pub const ft1: Reg = Reg(1);
-// pub const ft2: Reg = Reg(2);
-// pub const ft3: Reg = Reg(3);
-// pub const ft4: Reg = Reg(4);
-// pub const ft5: Reg = Reg(5);
-// pub const ft6: Reg = Reg(6);
-// pub const ft7: Reg = Reg(7);
-//
-// pub const fs0: Reg = Reg(8);
-// pub const fs1: Reg = Reg(9);
-//
-// pub const fa0: Reg = Reg(10);
-// pub const fa1: Reg = Reg(11);
-// pub const fa2: Reg = Reg(12);
-// pub const fa3: Reg = Reg(13);
-// pub const fa4: Reg = Reg(14);
-// pub const fa5: Reg = Reg(15);
-// pub const fa6: Reg = Reg(16);
-// pub const fa7: Reg = Reg(17);
-//
-// pub const fs2: Reg = Reg(18);
-// pub const fs3: Reg = Reg(19);
-// pub const fs4: Reg = Reg(20);
-// pub const fs5: Reg = Reg(21);
-// pub const fs6: Reg = Reg(22);
-// pub const fs7: Reg = Reg(23);
-// pub const fs8: Reg = Reg(24);
-// pub const fs9: Reg = Reg(25);
-// pub const fs10: Reg = Reg(26);
-// pub const fs11: Reg = Reg(27);
-//
-// pub const ft8: Reg = Reg(28);
-// pub const ft9: Reg = Reg(29);
-// pub const ft10: Reg = Reg(30);
-// pub const ft11: Reg = Reg(31);
-
 impl Reg {
     #[inline]
     pub const fn val(&self) -> u32 {
@@ -177,3 +140,41 @@ impl std::fmt::Debug for Reg {
         )
     }
 }
+
+// pub const ft0: Reg = Reg(0);
+// pub const ft1: Reg = Reg(1);
+// pub const ft2: Reg = Reg(2);
+// pub const ft3: Reg = Reg(3);
+// pub const ft4: Reg = Reg(4);
+// pub const ft5: Reg = Reg(5);
+// pub const ft6: Reg = Reg(6);
+// pub const ft7: Reg = Reg(7);
+//
+// pub const fs0: Reg = Reg(8);
+// pub const fs1: Reg = Reg(9);
+//
+// pub const fa0: Reg = Reg(10);
+// pub const fa1: Reg = Reg(11);
+// pub const fa2: Reg = Reg(12);
+// pub const fa3: Reg = Reg(13);
+// pub const fa4: Reg = Reg(14);
+// pub const fa5: Reg = Reg(15);
+// pub const fa6: Reg = Reg(16);
+// pub const fa7: Reg = Reg(17);
+//
+// pub const fs2: Reg = Reg(18);
+// pub const fs3: Reg = Reg(19);
+// pub const fs4: Reg = Reg(20);
+// pub const fs5: Reg = Reg(21);
+// pub const fs6: Reg = Reg(22);
+// pub const fs7: Reg = Reg(23);
+// pub const fs8: Reg = Reg(24);
+// pub const fs9: Reg = Reg(25);
+// pub const fs10: Reg = Reg(26);
+// pub const fs11: Reg = Reg(27);
+//
+// pub const ft8: Reg = Reg(28);
+// pub const ft9: Reg = Reg(29);
+// pub const ft10: Reg = Reg(30);
+// pub const ft11: Reg = Reg(31);
+
