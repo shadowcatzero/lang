@@ -1,4 +1,4 @@
-use super::program::Addr;
+use super::{program::Addr, LinkedProgram};
 
 #[repr(C)]
 pub struct ELF64Header {
@@ -101,4 +101,10 @@ pub fn create(program: Vec<u8>, start_offset: Addr) -> Vec<u8> {
 
 unsafe fn as_u8_slice<T: Sized>(p: &T) -> &[u8] {
     core::slice::from_raw_parts((p as *const T) as *const u8, size_of::<T>())
+}
+
+impl LinkedProgram {
+    pub fn to_elf(self) -> Vec<u8> {
+        create(self.code, self.start.expect("no start found"))
+    }
 }

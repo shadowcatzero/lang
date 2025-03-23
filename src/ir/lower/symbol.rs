@@ -18,6 +18,7 @@ impl std::ops::Deref for WritableSymbol {
 pub struct SymbolSpace {
     ro_data: Vec<(Symbol, Vec<u8>)>,
     fns: Vec<(Symbol, IRLFunction)>,
+    labels: Vec<Option<String>>,
 }
 
 pub struct SymbolSpaceBuilder {
@@ -27,6 +28,7 @@ pub struct SymbolSpaceBuilder {
     data_map: HashMap<DataID, Symbol>,
     ro_data: Vec<(Symbol, Vec<u8>)>,
     fns: Vec<(Symbol, IRLFunction)>,
+    labels: Vec<Option<String>>,
 }
 
 impl SymbolSpace {
@@ -38,6 +40,7 @@ impl SymbolSpace {
             data_map: HashMap::new(),
             ro_data: Vec::new(),
             fns: Vec::new(),
+            labels: Vec::new(),
         };
         for e in entries {
             s.func(e);
@@ -50,23 +53,26 @@ impl SymbolSpace {
     pub fn fns(&self) -> &[(Symbol, IRLFunction)] {
         &self.fns
     }
+    pub fn labels(&self) -> &[Option<String>] {
+        &self.labels
+    }
 }
 
 impl SymbolSpaceBuilder {
     pub fn pop_fn(&mut self) -> Option<(WritableSymbol, FnID)> {
         self.unwritten_fns.pop()
     }
-    pub fn anon_ro_data(&mut self, data: &[u8]) -> Symbol {
+    pub fn anon_ro_data(&mut self, data: &[u8], label: Option<String>) -> Symbol {
         let sym = self.reserve();
-        self.write_ro_data(sym, data.to_vec())
+        self.write_ro_data(sym, data.to_vec(), label)
     }
-    pub fn ro_data(&mut self, id: &DataID, data: &[u8]) -> Symbol {
+    pub fn ro_data(&mut self, id: &DataID, data: &[u8], label: Option<String>) -> Symbol {
         match self.data_map.get(id) {
             Some(s) => *s,
             None => {
                 let sym = self.reserve();
                 self.data_map.insert(*id, *sym);
-                self.write_ro_data(sym, data.to_vec())
+                self.write_ro_data(sym, data.to_vec(), label)
             }
         }
     }
@@ -82,18 +88,31 @@ impl SymbolSpaceBuilder {
             }
         }
     }
-    pub fn write_ro_data(&mut self, sym: WritableSymbol, data: Vec<u8>) -> Symbol {
+    pub fn write_ro_data(
+        &mut self,
+        sym: WritableSymbol,
+        data: Vec<u8>,
+        name: Option<String>,
+    ) -> Symbol {
         let data = data.into();
         self.ro_data.push((*sym, data));
+        self.labels[sym.0 .0] = name;
         *sym
     }
-    pub fn write_fn(&mut self, sym: WritableSymbol, func: IRLFunction) -> Symbol {
+    pub fn write_fn(
+        &mut self,
+        sym: WritableSymbol,
+        func: IRLFunction,
+        name: Option<String>,
+    ) -> Symbol {
         self.fns.push((*sym, func));
+        self.labels[sym.0 .0] = name;
         *sym
     }
     pub fn reserve(&mut self) -> WritableSymbol {
         let val = self.symbols;
         self.symbols += 1;
+        self.labels.push(None);
         WritableSymbol(Symbol(val))
     }
     pub fn len(&self) -> usize {
@@ -104,6 +123,7 @@ impl SymbolSpaceBuilder {
             Some(SymbolSpace {
                 fns: self.fns,
                 ro_data: self.ro_data,
+                labels: self.labels,
             })
         } else {
             None

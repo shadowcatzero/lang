@@ -1,6 +1,5 @@
 use crate::{
-    compiler::program::{Addr, Instr, SymTable},
-    ir::Symbol,
+    compiler::program::{Addr, Instr, SymTable}, ir::Symbol, util::LabeledFmt
 };
 
 use super::*;
@@ -169,14 +168,29 @@ impl LinkerInstruction {
     }
 }
 
+// this is not even remotely worth it but technically it doesn't use the heap I think xdddddddddd
 impl<R: std::fmt::Debug, S: std::fmt::Debug> std::fmt::Debug for LinkerInstruction<R, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fmt_label(f, &|f, s| write!(f, "{s:?}"))
+    }
+}
+
+pub struct DebugInstr<'a, R, S, L: Fn(&mut std::fmt::Formatter<'_>, &S) -> std::fmt::Result> {
+    instr: &'a LinkerInstruction<R, S>,
+    label: &'a L,
+}
+
+impl<R: std::fmt::Debug, S: std::fmt::Debug> LabeledFmt<S> for LinkerInstruction<R, S> {
+    fn fmt_label(&self, f: &mut std::fmt::Formatter<'_>, label: &dyn crate::util::Labeler<S>) -> std::fmt::Result {
         match self {
             Self::ECall => write!(f, "ecall"),
             Self::EBreak => write!(f, "ebreak"),
             Self::Li { dest, imm } => write!(f, "li {dest:?}, {imm:?}"),
             Self::Mv { dest, src } => write!(f, "mv {dest:?}, {src:?}"),
-            Self::La { dest, src } => write!(f, "la {dest:?}, {src:?}"),
+            Self::La { dest, src } => {
+                write!(f, "la {dest:?}, @")?;
+                label(f, src)
+            },
             Self::Load {
                 width,
                 dest,
@@ -207,8 +221,14 @@ impl<R: std::fmt::Debug, S: std::fmt::Debug> std::fmt::Debug for LinkerInstructi
                 imm,
             } => write!(f, "{}i {dest:?}, {src:?}, {imm}", opstr(*op, *funct)),
             Self::Jal { dest, offset } => write!(f, "jal {dest:?}, {offset:?}"),
-            Self::Call(s) => write!(f, "call {s:?}"),
-            Self::J(s) => write!(f, "j {s:?}"),
+            Self::Call(s) => {
+                write!(f, "call ")?;
+                label(f, s)
+            }
+            Self::J(s) => {
+                write!(f, "j ")?;
+                label(f, s)
+            }
             Self::Ret => write!(f, "ret"),
         }
     }

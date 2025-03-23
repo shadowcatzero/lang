@@ -1,57 +1,63 @@
 use std::collections::HashMap;
 
-use crate::ir::{IRLProgram, Symbol};
+use crate::{
+    ir::Symbol,
+    util::{Labelable, LabeledFmt, Labeler},
+};
 
-pub fn create_program<I: Instr>(
-    fns: Vec<(Vec<I>, Symbol)>,
-    ro_data: Vec<(Vec<u8>, Symbol)>,
-    start: Option<Symbol>,
-    program: &IRLProgram,
-) -> (Vec<u8>, Option<Addr>) {
-    let mut data = Vec::new();
-    let mut sym_table = SymTable::new(fns.len() + ro_data.len());
-    let mut missing = HashMap::<Symbol, Vec<(Addr, I)>>::new();
-    for (val, id) in ro_data {
-        sym_table.insert(id, Addr(data.len() as u64));
-        data.extend(val);
-    }
-    data.resize(data.len() + (4 - data.len() % 4), 0);
-    for (fun, id) in fns {
-        sym_table.insert(id, Addr(data.len() as u64));
-        for i in fun {
-            let i_pos = Addr(data.len() as u64);
-            if let Some(sym) = i.push(&mut data, &sym_table, i_pos, false) {
-                if let Some(vec) = missing.get_mut(&sym) {
-                    vec.push((i_pos, i));
-                } else {
-                    missing.insert(sym, vec![(i_pos, i)]);
+use super::debug::DebugInfo;
+
+pub struct LinkedProgram {
+    pub code: Vec<u8>,
+    pub start: Option<Addr>,
+}
+
+pub struct UnlinkedProgram<I: Instr> {
+    pub fns: Vec<(Vec<I>, Symbol)>,
+    pub ro_data: Vec<(Vec<u8>, Symbol)>,
+    pub start: Option<Symbol>,
+    pub dbg: DebugInfo,
+}
+
+impl<I: Instr> UnlinkedProgram<I> {
+    pub fn link(self) -> LinkedProgram {
+        let mut data = Vec::new();
+        let mut sym_table = SymTable::new(self.fns.len() + self.ro_data.len());
+        let mut missing = HashMap::<Symbol, Vec<(Addr, I)>>::new();
+        for (val, id) in self.ro_data {
+            sym_table.insert(id, Addr(data.len() as u64));
+            data.extend(val);
+        }
+        data.resize(data.len() + (4 - data.len() % 4), 0);
+        for (fun, id) in self.fns {
+            sym_table.insert(id, Addr(data.len() as u64));
+            for i in fun {
+                let i_pos = Addr(data.len() as u64);
+                if let Some(sym) = i.push(&mut data, &sym_table, i_pos, false) {
+                    if let Some(vec) = missing.get_mut(&sym) {
+                        vec.push((i_pos, i));
+                    } else {
+                        missing.insert(sym, vec![(i_pos, i)]);
+                    }
+                }
+            }
+            if let Some(vec) = missing.remove(&id) {
+                for (addr, i) in vec {
+                    let mut replace = Vec::new();
+                    i.push(&mut replace, &sym_table, addr, true);
+                    let pos = addr.val() as usize;
+                    data[pos..pos + replace.len()].copy_from_slice(&replace);
                 }
             }
         }
-        if let Some(vec) = missing.remove(&id) {
-            for (addr, i) in vec {
-                let mut replace = Vec::new();
-                i.push(&mut replace, &sym_table, addr, true);
-                let pos = addr.val() as usize;
-                data[pos..pos + replace.len()].copy_from_slice(&replace);
-            }
+        assert!(missing.is_empty());
+        LinkedProgram {
+            code: data,
+            start: self
+                .start
+                .map(|s| sym_table.get(s).expect("start symbol doesn't exist")),
         }
     }
-    for (s, f) in program.fns() {
-        println!(
-            "{}: {:?}",
-            f.name,
-            sym_table.get(*s).map(|a| {
-                let pos = a.0 + 0x1000 + 0x40 + 0x38;
-                format!("0x{:x}", pos)
-            })
-        );
-    }
-    assert!(missing.is_empty());
-    (
-        data,
-        start.map(|s| sym_table.get(s).expect("start symbol doesn't exist")),
-    )
 }
 
 pub trait Instr {
@@ -81,5 +87,33 @@ impl SymTable {
             Addr::NONE => None,
             addr => Some(addr),
         }
+    }
+}
+
+impl<I: Instr + Labelable<Symbol> + LabeledFmt<Symbol>> std::fmt::Debug for UnlinkedProgram<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for ((v, s), irli) in self.fns.iter().zip(&self.dbg.ir_lower) {
+            writeln!(f, "{}:", self.dbg.sym_label(*s).unwrap())?;
+            let mut liter = irli.iter();
+            let mut cur = liter.next();
+            for (i, instr) in v.iter().enumerate() {
+                if let Some(c) = cur {
+                    if i == c.0 {
+                        writeln!(f, "   {}:", c.1)?;
+                        cur = liter.next();
+                    }
+                }
+                writeln!(
+                    f,
+                    "      {:?}",
+                    instr.labeled(&|f: &mut std::fmt::Formatter, s: &Symbol| write!(
+                        f,
+                        "{}",
+                        self.dbg.sym_label(*s).unwrap_or(&format!("{:?}", *s))
+                    ))
+                )?;
+            }
+        }
+        Ok(())
     }
 }

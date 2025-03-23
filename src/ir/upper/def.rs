@@ -29,6 +29,7 @@ pub struct VarDef {
 pub struct DataDef {
     pub ty: Type,
     pub origin: Origin,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Copy)]

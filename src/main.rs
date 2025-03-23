@@ -1,5 +1,6 @@
 #![feature(box_patterns)]
 #![feature(try_trait_v2)]
+#![feature(trait_alias)]
 
 use ir::{IRLProgram, IRUProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
@@ -21,15 +22,16 @@ use common::*;
 fn main() {
     let file = std::env::args_os().nth(1);
     let gdb = std::env::args().nth(2).is_some_and(|a| a == "--debug");
+    let asm = std::env::args().nth(2).is_some_and(|a| a == "--asm");
     if let Some(path) = file {
         let file = std::fs::read_to_string(path).expect("failed to read file");
-        run_file(&file, gdb);
+        run_file(&file, gdb, asm);
     } else {
         run_stdin();
     }
 }
 
-fn run_file(file: &str, gdb: bool) {
+fn run_file(file: &str, gdb: bool, asm: bool) {
     let mut ctx = ParserCtx::from(file);
     let res = PModule::parse_node(&mut ctx);
     if ctx.output.errs.is_empty() {
@@ -50,9 +52,14 @@ fn run_file(file: &str, gdb: bool) {
                 output.write_for(&mut stdout(), file);
                 if output.errs.is_empty() {
                     let program = IRLProgram::create(&namespace).expect("morir");
-                    let bin = compiler::compile(program);
-                    println!("compiled");
-                    save_run(&bin, gdb);
+                    let unlinked = compiler::compile(&program);
+                    if asm {
+                        println!("{:?}", unlinked);
+                    } else {
+                        let bin = unlinked.link().to_elf();
+                        println!("compiled");
+                        save_run(&bin, gdb);
+                    }
                 }
             }
         }

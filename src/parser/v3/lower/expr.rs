@@ -13,6 +13,7 @@ impl FnLowerable for PExpr {
                         DataDef {
                             ty: Type::Bits(8).arr(data.len() as u32),
                             origin: Origin::File(l.span),
+                            label: format!("string \"{}\"", s.replace("\n", "\\n"))
                         },
                         data,
                     );
@@ -26,6 +27,7 @@ impl FnLowerable for PExpr {
                         DataDef {
                             ty,
                             origin: Origin::File(l.span),
+                            label: format!("char '{c}'"),
                         },
                         c.to_string().as_bytes().to_vec(),
                     );
@@ -40,6 +42,7 @@ impl FnLowerable for PExpr {
                         DataDef {
                             ty,
                             origin: Origin::File(l.span),
+                            label: format!("num {n:?}")
                         },
                         n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
                     );

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    compiler::{arch::riscv::Reg, create_program, Addr},
+    compiler::{arch::riscv::Reg, debug::DebugInfo, UnlinkedProgram},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
         IRLInstruction as IRI, IRLProgram, Len, Size,
@@ -47,9 +47,10 @@ fn mov_mem(
     }
 }
 
-pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
+pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
     let mut fns = Vec::new();
     let mut data = Vec::new();
+    let mut dbg = DebugInfo::new(program.labels().to_vec());
     for (sym, d) in program.ro_data() {
         data.push((d.clone(), *sym));
     }
@@ -83,7 +84,9 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                 v.push(LI::sd(ra, stack_ra, sp));
             }
         }
+        let mut irli = Vec::new();
         for i in &f.instructions {
+            irli.push((v.len(), format!("{i:?}")));
             match i {
                 IRI::Mv { dest, src } => todo!(),
                 IRI::Ref { dest, src } => todo!(),
@@ -212,6 +215,7 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
                 }
             }
         }
+        dbg.push_fn(irli);
         if has_stack {
             if let Some(stack_ra) = stack_ra {
                 v.push(LI::ld(ra, stack_ra, sp));
@@ -221,5 +225,10 @@ pub fn compile(program: IRLProgram) -> (Vec<u8>, Option<Addr>) {
         v.push(LI::Ret);
         fns.push((v, *sym));
     }
-    create_program(fns, data, Some(program.entry()), &program)
+    UnlinkedProgram {
+        fns: fns.into_iter().map(|(v, s, ..)| (v, s)).collect(),
+        ro_data: data,
+        start: Some(program.entry()),
+        dbg,
+    }
 }

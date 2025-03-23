@@ -58,7 +58,8 @@ impl IRLProgram {
                             continue;
                         }
                         let data = &p.data[src.0];
-                        let sym = builder.ro_data(src, data);
+                        let ddef = p.get_data(*src);
+                        let sym = builder.ro_data(src, data, Some(ddef.label.clone()));
                         instrs.push(IRLInstruction::LoadData {
                             dest: dest.id,
                             offset: 0,
@@ -75,14 +76,14 @@ impl IRLProgram {
                         let Type::Array(ty, len) = &def.ty else {
                             return Err(format!("tried to load {} as slice", p.type_name(&def.ty)));
                         };
-                        let sym = builder.ro_data(src, data);
+                        let sym = builder.ro_data(src, data, Some(def.label.clone()));
                         instrs.push(IRLInstruction::LoadAddr {
                             dest: dest.id,
                             offset: 0,
                             src: sym,
                         });
 
-                        let sym = builder.anon_ro_data(&(*len as u64).to_le_bytes());
+                        let sym = builder.anon_ro_data(&(*len as u64).to_le_bytes(), Some(format!("len: {}", len)));
                         instrs.push(IRLInstruction::LoadData {
                             dest: dest.id,
                             offset: 8,
@@ -133,7 +134,6 @@ impl IRLProgram {
             builder.write_fn(
                 sym,
                 IRLFunction {
-                    name: f.name.clone(),
                     instructions: instrs,
                     makes_call,
                     args: f
@@ -144,14 +144,10 @@ impl IRLProgram {
                     ret_size: p.size_of_type(&f.ret).expect("unsized type"),
                     stack,
                 },
+                Some(f.name.clone()),
             );
         }
         let sym_space = builder.finish().expect("we failed the mission");
-        // println!("fns:");
-        // for (a, f) in sym_space.fns() {
-        //     println!("    {:?}: {}", a, f.name);
-        // }
-        // println!("datas: {}", sym_space.ro_data().len());
         Ok(Self { sym_space, entry })
     }
 

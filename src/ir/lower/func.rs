@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct IRLFunction {
-    pub name: String,
     pub instructions: Vec<IRLInstruction>,
     pub stack: HashMap<VarID, Size>,
     pub args: Vec<(VarID, Size)>,
