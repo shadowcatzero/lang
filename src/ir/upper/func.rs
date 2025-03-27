@@ -1,6 +1,8 @@
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
-use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID};
+use super::{
+    arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID,
+};
 use crate::{common::FileSpan, compiler::arch::riscv::Reg, util::Padder};
 
 pub struct IRUFunction {
@@ -31,6 +33,11 @@ pub enum IRUInstruction {
         dest: VarInst,
         src: FnID,
     },
+    Access {
+        dest: VarInst,
+        src: VarInst,
+        field: String,
+    },
     Call {
         dest: VarInst,
         f: VarInst,
@@ -42,6 +49,10 @@ pub enum IRUInstruction {
     },
     Ret {
         src: VarInst,
+    },
+    Construct {
+        dest: VarInst,
+        fields: HashMap<String, VarInst>,
     },
 }
 
@@ -84,6 +95,8 @@ impl std::fmt::Debug for IRUInstruction {
             } => write!(f, "{dest:?} <- {func:?}({args:?})"),
             Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}"),
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish(),
+            Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}"),
+            Self::Access { dest, src, field } => write!(f, "{dest:?} <- {src:?}.{field}"),
         }
     }
 }

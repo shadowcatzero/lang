@@ -37,7 +37,10 @@ impl PType {
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Type {
-        match namespace.get(&self.name).and_then(|ids| ids.ty) {
+        let Some(name) = self.name.as_ref() else {
+            return Type::Error;
+        };
+        match namespace.get(&name).and_then(|ids| ids.ty) {
             Some(id) => {
                 if self.args.is_empty() {
                     Type::Concrete(id)
@@ -51,10 +54,10 @@ impl PType {
                 }
             }
             None => {
-                if let Ok(num) = self.name.parse::<u32>() {
+                if let Ok(num) = name.parse::<u32>() {
                     Type::Bits(num)
                 } else {
-                    match self.name.as_str() {
+                    match name.as_str() {
                         "slice" => {
                             let inner = self.args[0].lower(namespace, output);
                             Type::Slice(Box::new(inner))

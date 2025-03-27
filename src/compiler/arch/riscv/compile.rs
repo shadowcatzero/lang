@@ -88,7 +88,23 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
         for i in &f.instructions {
             irli.push((v.len(), format!("{i:?}")));
             match i {
-                IRI::Mv { dest, src } => todo!(),
+                IRI::Mv {
+                    dest,
+                    dest_offset,
+                    src,
+                    src_offset,
+                } => {
+                    let s = align(&f.stack[src]) as u32;
+                    mov_mem(
+                        &mut v,
+                        sp,
+                        stack[src] + align(src_offset),
+                        sp,
+                        stack[dest] + align(dest_offset),
+                        t0,
+                        s,
+                    );
+                }
                 IRI::Ref { dest, src } => todo!(),
                 IRI::LoadAddr { dest, offset, src } => {
                     v.extend([

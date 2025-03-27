@@ -1,10 +1,11 @@
+mod arch;
 mod asm;
 mod block;
 mod def;
 mod expr;
 mod func;
 mod module;
-mod arch;
+mod struc;
 
 use super::*;
 

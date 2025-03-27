@@ -4,6 +4,9 @@ use super::{PModule, CompilerOutput};
 
 impl PModule {
     pub fn lower(&self, map: &mut NamespaceGuard, output: &mut CompilerOutput) {
+        for s in &self.structs {
+            s.lower(map, output);
+        }
         let mut fns = Vec::new();
         for f in &self.functions {
             if let Some(id) = f.lower_header(map, output) {

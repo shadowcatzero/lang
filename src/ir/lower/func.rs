@@ -16,7 +16,9 @@ pub struct IRLFunction {
 pub enum IRLInstruction {
     Mv {
         dest: VarID,
+        dest_offset: Size,
         src: VarID,
+        src_offset: Size,
     },
     Ref {
         dest: VarID,

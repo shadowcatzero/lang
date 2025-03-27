@@ -5,7 +5,7 @@ use std::{
 };
 
 #[derive(Clone)]
-pub struct PIdent(String);
+pub struct PIdent(pub String);
 
 impl Parsable for PIdent {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {

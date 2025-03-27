@@ -11,7 +11,7 @@ use super::{inst::VarInst, *};
 pub struct IRUProgram {
     pub fn_defs: Vec<FnDef>,
     pub var_defs: Vec<VarDef>,
-    pub type_defs: Vec<TypeDef>,
+    pub type_defs: Vec<StructDef>,
     pub data_defs: Vec<DataDef>,
     pub fns: Vec<Option<IRUFunction>>,
     pub data: Vec<Vec<u8>>,
@@ -59,7 +59,7 @@ impl IRUProgram {
     pub fn get_fn_var(&self, id: VarID) -> Option<&FnDef> {
         Some(&self.fn_defs[self.fn_map.get(&id)?.0])
     }
-    pub fn get_type(&self, id: TypeID) -> &TypeDef {
+    pub fn get_struct(&self, id: TypeID) -> &StructDef {
         &self.type_defs[id.0]
     }
     pub fn alias_fn(&mut self, name: &str, id: FnID) {
@@ -82,10 +82,7 @@ impl IRUProgram {
     pub fn size_of_type(&self, ty: &Type) -> Option<Size> {
         // TODO: target matters
         Some(match ty {
-            Type::Concrete(id) => {
-                let def = &self.type_defs[id.0];
-                todo!()
-            }
+            Type::Concrete(id) => self.type_defs[id.0].size,
             Type::Bits(b) => *b,
             Type::Generic { base, args } => todo!(),
             Type::Fn { args, ret } => todo!(),
@@ -131,7 +128,7 @@ impl IRUProgram {
 
         id
     }
-    pub fn def_type(&mut self, def: TypeDef) -> TypeID {
+    pub fn def_type(&mut self, def: StructDef) -> TypeID {
         let i = self.type_defs.len();
         let id = TypeID(i);
         self.insert(&def.name, Ident::Type(id));
@@ -148,10 +145,10 @@ impl IRUProgram {
         let mut str = String::new();
         match ty {
             Type::Concrete(t) => {
-                str += &self.get_type(*t).name;
+                str += &self.get_struct(*t).name;
             }
             Type::Generic { base, args } => {
-                str += &self.get_type(*base).name;
+                str += &self.get_struct(*base).name;
                 if let Some(arg) = args.first() {
                     str = str + "<" + &self.type_name(arg);
                 }

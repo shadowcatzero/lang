@@ -41,7 +41,9 @@ impl IRLProgram {
                         }
                         instrs.push(IRLInstruction::Mv {
                             dest: dest.id,
+                            dest_offset: 0,
                             src: src.id,
+                            src_offset: 0,
                         });
                     }
                     IRUInstruction::Ref { dest, src } => {
@@ -83,7 +85,10 @@ impl IRLProgram {
                             src: sym,
                         });
 
-                        let sym = builder.anon_ro_data(&(*len as u64).to_le_bytes(), Some(format!("len: {}", len)));
+                        let sym = builder.anon_ro_data(
+                            &(*len as u64).to_le_bytes(),
+                            Some(format!("len: {}", len)),
+                        );
                         instrs.push(IRLInstruction::LoadData {
                             dest: dest.id,
                             offset: 8,
@@ -129,6 +134,46 @@ impl IRLProgram {
                         })
                     }
                     IRUInstruction::Ret { src } => instrs.push(IRLInstruction::Ret { src: src.id }),
+                    IRUInstruction::Construct { dest, fields } => {
+                        if alloc_stack(dest.id) {
+                            continue;
+                        }
+                        let ty = &p.get_var(dest.id).ty;
+                        let Type::Concrete(id) = ty else {
+                            return Err(format!("Failed to contruct type {}", p.type_name(ty)));
+                        };
+                        let struc = p.get_struct(*id);
+                        for (name, var) in fields {
+                            instrs.push(IRLInstruction::Mv {
+                                dest: dest.id,
+                                src: var.id,
+                                dest_offset: struc.fields[name].offset,
+                                src_offset: 0,
+                            })
+                        }
+                    }
+                    IRUInstruction::Access { dest, src, field } => {
+                        if alloc_stack(dest.id) {
+                            continue;
+                        }
+                        let ty = &p.get_var(src.id).ty;
+                        let Type::Concrete(id) = ty else {
+                            return Err(format!(
+                                "Failed to access field of struct {}",
+                                p.type_name(ty)
+                            ));
+                        };
+                        let struc = p.get_struct(*id);
+                        let Some(field) = struc.fields.get(field) else {
+                            return Err(format!("No field {field} in struct {}", p.type_name(ty)));
+                        };
+                        instrs.push(IRLInstruction::Mv {
+                            dest: dest.id,
+                            src: src.id,
+                            src_offset: field.offset,
+                            dest_offset: 0,
+                        })
+                    }
                 };
             }
             builder.write_fn(

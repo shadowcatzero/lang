@@ -1,7 +1,10 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    op::{PInfixOp, UnaryOp}, util::parse_list, Keyword, Node, NodeParsable, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral, Parsable, ParseResult, ParserCtx, Symbol, CompilerMsg
+    op::{PInfixOp, UnaryOp},
+    util::parse_list,
+    CompilerMsg, Keyword, Node, NodeParsable, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral,
+    Parsable, ParseResult, ParserCtx, Symbol,
 };
 
 type BoxNode = Node<Box<PExpr>>;
@@ -53,12 +56,21 @@ impl Parsable for PExpr {
                     Self::UnaryOp(op, n)
                 }
             });
-        } else if let Some(val) = Node::maybe_parse(ctx) {
+        } else if let Some(val) = ctx.maybe_parse() {
             Self::Lit(val)
         } else {
             let res = ctx.parse();
             if res.node.is_some() {
-                Self::Ident(res.node)
+                // TODO: this is extremely limiting
+                // maybe parse generically and then during lowering figure out what's a function vs
+                // struct vs etc like mentioned in main.rs
+                if let Some(next) = ctx.peek()
+                    && next.is_symbol(Symbol::OpenCurly)
+                {
+                    Self::Construct(ctx.parse_with(res.node)?)
+                } else {
+                    Self::Ident(res.node)
+                }
             } else {
                 let next = ctx.expect_peek()?;
                 return ParseResult::Err(CompilerMsg::unexpected_token(next, "an expression"));

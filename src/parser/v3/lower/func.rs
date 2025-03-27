@@ -2,7 +2,7 @@ use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction}
 use crate::{
     ir::{
         FnDef, FnID, IRInstructions, IRUFunction, IRUInstruction, Idents, NamespaceGuard, Origin,
-        Type, VarDef, VarID, VarInst,
+        Type, VarDef, VarInst,
     },
     parser,
 };

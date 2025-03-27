@@ -23,6 +23,12 @@ impl<T> Node<T> {
             span: self.span,
         }
     }
+    pub fn map<T2, F: Fn(T) -> T2>(self, f: F) -> Node<T2> {
+        Node {
+            inner: self.inner.map(f),
+            span: self.span,
+        }
+    }
 }
 
 impl<T> Deref for Node<T> {

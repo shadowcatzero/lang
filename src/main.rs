@@ -1,6 +1,9 @@
 #![feature(box_patterns)]
 #![feature(try_trait_v2)]
 #![feature(trait_alias)]
+#![feature(let_chains)]
+// dawg what
+#![feature(str_as_str)]
 
 use ir::{IRLProgram, IRUProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
@@ -17,10 +20,10 @@ mod compiler;
 mod ir;
 mod parser;
 mod util;
-use common::*;
 
 fn main() {
     let file = std::env::args_os().nth(1);
+    // TODO: professional arg parsing
     let gdb = std::env::args().nth(2).is_some_and(|a| a == "--debug");
     let asm = std::env::args().nth(2).is_some_and(|a| a == "--asm");
     if let Some(path) = file {

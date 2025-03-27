@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use super::{
-    MaybeParsable, Node, PExpr, PIdent, PType, Parsable, ParseResult, ParserCtx, Symbol,
-    Token, CompilerMsg
+    CompilerMsg, MaybeParsable, Node, PExpr, PIdent, PType, Parsable, ParseResult, ParserCtx,
+    Symbol, Token,
 };
 
 pub struct PVarDef {
@@ -18,27 +18,30 @@ pub struct PFieldDef {
 impl Parsable for PVarDef {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let name = ctx.parse()?;
-        if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
+        ParseResult::Ok(if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
             ctx.next();
-            ctx.parse().map(|ty| Self { name, ty: Some(ty) })
+            Self {
+                name,
+                ty: Some(ctx.parse()?),
+            }
         } else {
-            ParseResult::Ok(Self { name, ty: None })
-        }
+            Self { name, ty: None }
+        })
     }
 }
 
 impl Parsable for PFieldDef {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let name = ctx.parse()?;
-        if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
+        ParseResult::Ok(if ctx.peek().is_some_and(|n| n.is_symbol(Symbol::Colon)) {
             ctx.next();
-            ctx.parse().map(|ty| Self {
+            Self {
                 name,
-                val: Some(ty),
-            })
+                val: Some(ctx.parse()?),
+            }
         } else {
-            ParseResult::Ok(Self { name, val: None })
-        }
+            Self { name, val: None }
+        })
     }
 }
 

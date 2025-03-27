@@ -1,4 +1,4 @@
-use super::{IRUInstruction, IRUProgram, Len, TypeID};
+use super::{IRUProgram, Len, TypeID};
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
@@ -30,14 +30,7 @@ pub fn resolve_types(ns: &IRUProgram) {
     for (i, f) in ns.iter_fns() {
         for inst in &f.instructions {
             match &inst.i {
-                IRUInstruction::Mv { dest, src } => todo!(),
-                IRUInstruction::Ref { dest, src } => todo!(),
-                IRUInstruction::LoadData { dest, src } => todo!(),
-                IRUInstruction::LoadSlice { dest, src } => todo!(),
-                IRUInstruction::LoadFn { dest, src } => todo!(),
-                IRUInstruction::Call { dest, f, args } => todo!(),
-                IRUInstruction::AsmBlock { instructions, args } => todo!(),
-                IRUInstruction::Ret { src } => todo!(),
+                _ => todo!(),
             }
         }
     }

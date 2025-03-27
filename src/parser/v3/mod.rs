@@ -14,3 +14,6 @@ pub use node::*;
 pub use nodes::*;
 pub use parse::*;
 pub use token::*;
+
+// idea: create generic "map" and "tuple" types which are used for function calls, tuples, struct
+// creation, etc. instead of specializing at the parsing level

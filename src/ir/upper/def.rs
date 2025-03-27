@@ -1,7 +1,7 @@
-use crate::common::FileSpan;
+use crate::{common::FileSpan, ir::{Len, Size}};
 
 use super::Type;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Clone)]
 pub struct FnDef {
@@ -12,9 +12,16 @@ pub struct FnDef {
 }
 
 #[derive(Clone)]
-pub struct TypeDef {
+pub struct StructField {
+    pub ty: Type,
+    pub offset: Len,
+}
+
+#[derive(Clone)]
+pub struct StructDef {
     pub name: String,
-    pub args: usize,
+    pub fields: HashMap<String, StructField>,
+    pub size: Size,
     pub origin: Origin,
 }
 

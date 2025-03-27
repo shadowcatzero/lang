@@ -1,5 +1,8 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
-use crate::ir::{DataDef, IRUInstruction, Origin, Type, VarInst};
+use crate::{
+    ir::{DataDef, IRUInstruction, Origin, Type, VarInst},
+    parser::PInfixOp,
+};
 
 impl FnLowerable for PExpr {
     type Output = VarInst;
@@ -13,7 +16,7 @@ impl FnLowerable for PExpr {
                         DataDef {
                             ty: Type::Bits(8).arr(data.len() as u32),
                             origin: Origin::File(l.span),
-                            label: format!("string \"{}\"", s.replace("\n", "\\n"))
+                            label: format!("string \"{}\"", s.replace("\n", "\\n")),
                         },
                         data,
                     );
@@ -42,7 +45,7 @@ impl FnLowerable for PExpr {
                         DataDef {
                             ty,
                             origin: Origin::File(l.span),
-                            label: format!("num {n:?}")
+                            label: format!("num {n:?}"),
                         },
                         n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
                     );
@@ -56,15 +59,39 @@ impl FnLowerable for PExpr {
             PExpr::Ident(i) => ctx.get_var(i)?,
             PExpr::BinaryOp(op, e1, e2) => {
                 let res1 = e1.lower(ctx)?;
-                let res2 = e2.lower(ctx)?;
-                op.traitt();
-                todo!();
+                if *op == PInfixOp::Access {
+                    let sty = &ctx.map.get_var(res1.id).ty;
+                    let Type::Concrete(tid) = sty else {
+                        ctx.err(format!("Type {:?} has no fields", ctx.map.type_name(sty)));
+                        return None;
+                    };
+                    let struc = ctx.map.get_struct(*tid);
+                    let Some(box PExpr::Ident(ident)) = &e2.inner else {
+                        ctx.err(format!("Field accesses must be identifiers",));
+                        return None;
+                    };
+                    let fname = &ident.as_ref()?.0;
+                    let Some(field) = struc.fields.get(fname) else {
+                        ctx.err(format!("Field '{fname}' not in struct"));
+                        return None;
+                    };
+                    let temp = ctx.temp(field.ty.clone());
+                    ctx.push(IRUInstruction::Access {
+                        dest: temp,
+                        src: res1,
+                        field: fname.to_string(),
+                    });
+                    temp
+                } else {
+                    let res2 = e2.lower(ctx)?;
+                    todo!()
+                }
             }
             PExpr::UnaryOp(op, e) => {
                 let res = e.lower(ctx)?;
                 match op {
                     UnaryOp::Ref => {
-                        let temp = ctx.temp(ctx.map.get_var(res.id).ty.clone());
+                        let temp = ctx.temp(ctx.map.get_var(res.id).ty.clone().rf());
                         ctx.push(IRUInstruction::Ref {
                             dest: temp,
                             src: res,
@@ -120,7 +147,7 @@ impl FnLowerable for PExpr {
                 temp
             }
             PExpr::Group(e) => e.lower(ctx)?,
-            PExpr::Construct(c) => todo!(),
+            PExpr::Construct(c) => c.lower(ctx)?,
         })
     }
 }

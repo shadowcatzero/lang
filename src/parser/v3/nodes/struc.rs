@@ -1,8 +1,10 @@
 use std::fmt::Debug;
 
+use crate::parser::ParsableWith;
+
 use super::{
-    util::parse_list, Keyword, Node, PExpr, PFieldDef, PIdent, PType, PVarDef, Parsable,
-    ParseResult, ParserCtx, CompilerMsg, Symbol,
+    util::parse_list, CompilerMsg, Keyword, Node, PExpr, PFieldDef, PIdent, PType, PVarDef,
+    Parsable, ParseResult, ParserCtx, Symbol,
 };
 
 #[derive(Debug)]
@@ -13,7 +15,7 @@ pub struct PStruct {
 
 #[derive(Debug)]
 pub struct PConstruct {
-    pub name: Node<PIdent>,
+    pub name: Node<PType>,
     pub fields: PConstructFields,
 }
 
@@ -57,11 +59,20 @@ impl Parsable for PStruct {
     }
 }
 
-impl Parsable for PConstruct {
-    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
-        ctx.expect_kw(Keyword::Struct)?;
-        let name = ctx.parse()?;
+impl ParsableWith for PConstruct {
+    type Data = Node<PIdent>;
+    fn parse(ctx: &mut ParserCtx, name_node: Self::Data) -> ParseResult<Self> {
         let next = ctx.expect_peek()?;
+        // TODO: this is not correct span; type should also span generics, which aren't even in
+        // here yet
+        let span = name_node.span;
+        let name = Node::new(
+            PType {
+                name: name_node,
+                args: Vec::new(),
+            },
+            span,
+        );
         let fields = if next.is_symbol(Symbol::Semicolon) {
             ctx.next();
             PConstructFields::None
