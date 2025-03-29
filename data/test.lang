@@ -7,7 +7,20 @@ fn start() {
    println("Helld!");
    println("Hello World!!!!!");
    thinger();
-   println("what");
+   let x = 3;
+   if not(not(lt(x, 5))) {
+       println("tada!");
+   };
+   println("before:");
+   x = 0;
+   loop {
+      if not(lt(x, 5)) {
+         break;
+      };
+      println("RAAAAA");
+      x = add(x, 1);
+   };
+   println("after");
    print(tester());
    let test = Test {
       a: 10,
@@ -72,6 +85,27 @@ fn sub(a: 64, b: 64) -> 64 {
       ld t0, 0, t0
       ld t1, 0, t1
       sub t0, t0, t1
+      sd t0, 0, a0
+   };
+   c
+}
+
+fn lt(a: 64, b: 64) -> 64 {
+   let c: 64 = 0;
+   asm (t0 = a, t1 = b, a0 = c) {
+      ld t0, 0, t0
+      ld t1, 0, t1
+      slt t0, t0, t1
+      sd t0, 0, a0
+   };
+   c
+}
+
+fn not(a: 64) -> 64 {
+   let c: 64 = 0;
+   asm (t0 = a, a0 = c) {
+      ld t0, 0, t0
+      xori t0, t0, 1
       sd t0, 0, a0
    };
    c

@@ -18,6 +18,7 @@ impl std::ops::Deref for WritableSymbol {
 pub struct SymbolSpace {
     ro_data: Vec<(Symbol, Vec<u8>)>,
     fns: Vec<(Symbol, IRLFunction)>,
+    len: usize,
     labels: Vec<Option<String>>,
 }
 
@@ -32,21 +33,6 @@ pub struct SymbolSpaceBuilder {
 }
 
 impl SymbolSpace {
-    pub fn with_entries(entries: &[FnID]) -> SymbolSpaceBuilder {
-        let mut s = SymbolSpaceBuilder {
-            symbols: 0,
-            unwritten_fns: Vec::new(),
-            fn_map: HashMap::new(),
-            data_map: HashMap::new(),
-            ro_data: Vec::new(),
-            fns: Vec::new(),
-            labels: Vec::new(),
-        };
-        for e in entries {
-            s.func(e);
-        }
-        s
-    }
     pub fn ro_data(&self) -> &[(Symbol, Vec<u8>)] {
         &self.ro_data
     }
@@ -56,9 +42,30 @@ impl SymbolSpace {
     pub fn labels(&self) -> &[Option<String>] {
         &self.labels
     }
+    pub fn len(&self) -> usize {
+        self.len
+    }
 }
 
 impl SymbolSpaceBuilder {
+    pub fn new() -> Self {
+        Self {
+            symbols: 0,
+            unwritten_fns: Vec::new(),
+            fn_map: HashMap::new(),
+            data_map: HashMap::new(),
+            ro_data: Vec::new(),
+            fns: Vec::new(),
+            labels: Vec::new(),
+        }
+    }
+    pub fn with_entries(entries: &[FnID]) -> SymbolSpaceBuilder {
+        let mut s = Self::new();
+        for e in entries {
+            s.func(e);
+        }
+        s
+    }
     pub fn pop_fn(&mut self) -> Option<(WritableSymbol, FnID)> {
         self.unwritten_fns.pop()
     }
@@ -94,7 +101,6 @@ impl SymbolSpaceBuilder {
         data: Vec<u8>,
         name: Option<String>,
     ) -> Symbol {
-        let data = data.into();
         self.ro_data.push((*sym, data));
         self.labels[sym.0 .0] = name;
         *sym
@@ -116,11 +122,12 @@ impl SymbolSpaceBuilder {
         WritableSymbol(Symbol(val))
     }
     pub fn len(&self) -> usize {
-        self.fns.len() + self.ro_data.len()
+        self.symbols
     }
     pub fn finish(self) -> Option<SymbolSpace> {
         if self.unwritten_fns.is_empty() {
             Some(SymbolSpace {
+                len: self.symbols,
                 fns: self.fns,
                 ro_data: self.ro_data,
                 labels: self.labels,

@@ -5,11 +5,13 @@ use super::{FnLowerCtx, FnLowerable, PBlock, PStatement};
 impl FnLowerable for PBlock {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
-        let ctx = &mut ctx.sub();
+        ctx.program.push();
         for statement in &self.statements {
             statement.lower(ctx);
         }
-        self.result.as_ref()?.lower(ctx)
+        let res = self.result.as_ref().map(|r| r.lower(ctx)).flatten();
+        ctx.program.pop();
+        res
     }
 }
 
@@ -18,10 +20,10 @@ impl FnLowerable for PStatement {
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         match self {
             super::PStatement::Let(def, e) => {
-                let def = def.lower(ctx.map, ctx.output)?;
+                let def = def.lower(ctx.program, ctx.output)?;
                 let res = e.lower(ctx);
                 if let Some(res) = res {
-                    ctx.map.name_var(&def, res.id);
+                    ctx.program.name_var(&def, res.id);
                 }
                 None
             }

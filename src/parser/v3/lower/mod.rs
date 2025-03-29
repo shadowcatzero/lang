@@ -19,7 +19,11 @@ pub trait FnLowerable {
 impl<T: FnLowerable> FnLowerable for Node<T> {
     type Output = T::Output;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<T::Output> {
-        self.as_ref()?.lower(&mut ctx.span(self.span))
+        let old_span = ctx.span;
+        ctx.span = self.span;
+        let res = self.as_ref()?.lower(ctx);
+        ctx.span = old_span;
+        res
     }
 }
 

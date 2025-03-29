@@ -19,6 +19,9 @@ pub enum PExpr {
     Group(BoxNode),
     AsmBlock(Node<PAsmBlock>),
     Construct(Node<PConstruct>),
+    If(BoxNode, BoxNode),
+    Loop(BoxNode),
+    Break,
 }
 
 impl Parsable for PExpr {
@@ -42,6 +45,18 @@ impl Parsable for PExpr {
             Self::Group(res.node.bx())
         } else if next.is_symbol(Symbol::OpenCurly) {
             Self::Block(PBlock::parse_node(ctx)?)
+        } else if next.is_keyword(Keyword::If) {
+            ctx.next();
+            let cond = ctx.parse()?.bx();
+            let body = ctx.parse()?.bx();
+            Self::If(cond, body)
+        } else if next.is_keyword(Keyword::Loop) {
+            ctx.next();
+            let body = ctx.parse()?.bx();
+            Self::Loop(body)
+        } else if next.is_keyword(Keyword::Break) {
+            ctx.next();
+            Self::Break
         } else if next.is_keyword(Keyword::Asm) {
             ctx.next();
             Self::AsmBlock(ctx.parse()?)
@@ -143,14 +158,13 @@ impl Debug for PExpr {
                 }
                 f.write_char(')')?;
             }
-            PExpr::UnaryOp(op, e) => {
-                write!(f, "(")?;
-                write!(f, "{}", op.str())?;
-                write!(f, "{:?})", *e)?;
-            }
+            PExpr::UnaryOp(op, e) => write!(f, "({}{:?})", op.str(), e)?,
             PExpr::Group(inner) => inner.fmt(f)?,
             PExpr::AsmBlock(inner) => inner.fmt(f)?,
             PExpr::Construct(inner) => inner.fmt(f)?,
+            PExpr::If(cond, res) => write!(f, "if {cond:?} then {res:?}")?,
+            PExpr::Loop(res) => write!(f, "loop -> {res:?}")?,
+            PExpr::Break => write!(f, "break")?,
         }
         Ok(())
     }

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     fmt::Debug,
-    ops::{Deref, DerefMut},
 };
 
 use crate::common::FileSpan;
@@ -34,9 +33,11 @@ impl IRUProgram {
             stack: vec![HashMap::new()],
         }
     }
-    pub fn push(&mut self) -> NamespaceGuard {
+    pub fn push(&mut self) {
         self.stack.push(HashMap::new());
-        NamespaceGuard(self)
+    }
+    pub fn pop(&mut self) {
+        self.stack.pop();
     }
     pub fn get(&self, name: &str) -> Option<Idents> {
         for map in self.stack.iter().rev() {
@@ -202,27 +203,6 @@ impl IRUProgram {
             .iter()
             .enumerate()
             .flat_map(|(i, f)| Some((FnID(i), f.as_ref()?)))
-    }
-}
-
-pub struct NamespaceGuard<'a>(&'a mut IRUProgram);
-
-impl Drop for NamespaceGuard<'_> {
-    fn drop(&mut self) {
-        self.0.stack.pop();
-    }
-}
-
-impl Deref for NamespaceGuard<'_> {
-    type Target = IRUProgram;
-    fn deref(&self) -> &Self::Target {
-        self.0
-    }
-}
-
-impl DerefMut for NamespaceGuard<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0
     }
 }
 

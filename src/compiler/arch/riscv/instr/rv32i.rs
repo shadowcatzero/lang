@@ -63,6 +63,28 @@ pub mod width {
     }
 }
 
+pub mod branch {
+    use super::*;
+    pub const EQ: Funct3 = Funct3::new(0b000);
+    pub const NE: Funct3 = Funct3::new(0b001);
+    pub const LT: Funct3 = Funct3::new(0b100);
+    pub const GE: Funct3 = Funct3::new(0b101);
+    pub const LTU: Funct3 = Funct3::new(0b110);
+    pub const GEU: Funct3 = Funct3::new(0b111);
+
+    pub fn str(f: Funct3) -> &'static str {
+        match f {
+            EQ => "eq",
+            NE => "ne",
+            LT => "lt",
+            GE => "ge",
+            LTU => "ltu",
+            GEU => "geu",
+            _ => "?",
+        }
+    }
+}
+
 pub const fn ecall() -> RawInstruction {
     i_type(Bits32::new(0), zero, Bits32::new(0), zero, SYSTEM)
 }
@@ -93,4 +115,8 @@ pub const fn j(offset: BitsI32<20, 1>) -> RawInstruction {
 }
 pub const fn ret() -> RawInstruction {
     jalr(zero, BitsI32::new(0), ra)
+}
+
+pub const fn branch(typ: Funct3, left: Reg, right: Reg, offset: BitsI32<12, 1>) -> RawInstruction {
+    b_type(right, left, typ, offset.to_u(), BRANCH)
 }

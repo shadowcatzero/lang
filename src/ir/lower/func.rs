@@ -47,4 +47,12 @@ pub enum IRLInstruction {
     Ret {
         src: VarID,
     },
+    // TODO I feel like this should be turned into control flow instructions, maybe...
+    // not sure but LLVM has them so might be right play; seems optimal for optimization
+    Jump(Symbol),
+    Branch {
+        to: Symbol,
+        cond: VarID,
+    },
+    Mark(Symbol),
 }

@@ -1,5 +1,7 @@
 use crate::{
-    compiler::program::{Addr, Instr, SymTable}, ir::Symbol, util::LabeledFmt
+    compiler::program::{Addr, Instr, SymTable},
+    ir::Symbol,
+    util::LabeledFmt,
 };
 
 use super::*;
@@ -52,6 +54,12 @@ pub enum LinkerInstruction<R = Reg, S = Symbol> {
     },
     Call(S),
     J(S),
+    Branch {
+        to: S,
+        typ: Funct3,
+        left: R,
+        right: R,
+    },
     Ret,
     ECall,
     EBreak,
@@ -66,10 +74,10 @@ pub fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
 }
 
 impl Instr for LinkerInstruction {
-    fn push(
+    fn push_to(
         &self,
         data: &mut Vec<u8>,
-        sym_map: &SymTable,
+        sym_map: &mut SymTable,
         pos: Addr,
         missing: bool,
     ) -> Option<Symbol> {
@@ -135,6 +143,20 @@ impl Instr for LinkerInstruction {
             Self::ECall => ecall(),
             Self::EBreak => ebreak(),
             Self::Li { dest, imm } => addi(*dest, zero, BitsI32::new(*imm)),
+            Self::Branch {
+                to,
+                typ,
+                left,
+                right,
+            } => {
+                if let Some(addr) = sym_map.get(*to) {
+                    let offset = addr.val() as i32 - pos.val() as i32;
+                    branch(*typ, *left, *right, BitsI32::new(offset))
+                } else {
+                    data.extend_from_slice(&[0; 4]);
+                    return Some(*to);
+                }
+            }
         };
         data.extend(last.to_le_bytes());
         None
@@ -181,7 +203,11 @@ pub struct DebugInstr<'a, R, S, L: Fn(&mut std::fmt::Formatter<'_>, &S) -> std::
 }
 
 impl<R: std::fmt::Debug, S: std::fmt::Debug> LabeledFmt<S> for LinkerInstruction<R, S> {
-    fn fmt_label(&self, f: &mut std::fmt::Formatter<'_>, label: &dyn crate::util::Labeler<S>) -> std::fmt::Result {
+    fn fmt_label(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+        label: &dyn crate::util::Labeler<S>,
+    ) -> std::fmt::Result {
         match self {
             Self::ECall => write!(f, "ecall"),
             Self::EBreak => write!(f, "ebreak"),
@@ -190,7 +216,7 @@ impl<R: std::fmt::Debug, S: std::fmt::Debug> LabeledFmt<S> for LinkerInstruction
             Self::La { dest, src } => {
                 write!(f, "la {dest:?}, @")?;
                 label(f, src)
-            },
+            }
             Self::Load {
                 width,
                 dest,
@@ -229,6 +255,12 @@ impl<R: std::fmt::Debug, S: std::fmt::Debug> LabeledFmt<S> for LinkerInstruction
                 write!(f, "j ")?;
                 label(f, s)
             }
+            Self::Branch {
+                to,
+                typ,
+                left,
+                right,
+            } => write!(f, "b{} {left:?} {right:?} {to:?}", branch::str(*typ)),
             Self::Ret => write!(f, "ret"),
         }
     }

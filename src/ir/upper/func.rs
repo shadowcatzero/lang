@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Write};
 use super::{
     arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID,
 };
-use crate::{common::FileSpan, compiler::arch::riscv::Reg, util::Padder};
+use crate::{compiler::arch::riscv::Reg, util::Padder};
 
 pub struct IRUFunction {
     pub name: String,
@@ -54,50 +54,64 @@ pub enum IRUInstruction {
         dest: VarInst,
         fields: HashMap<String, VarInst>,
     },
-}
-
-pub struct IRInstructions {
-    vec: Vec<IRUInstrInst>,
-}
-
-impl IRUFunction {
-    pub fn new(name: String, args: Vec<VarID>, ret: Type, instructions: IRInstructions) -> Self {
-        Self {
-            name,
-            ret,
-            args,
-            instructions: instructions.vec,
-        }
-    }
-}
-
-impl IRInstructions {
-    pub fn new() -> Self {
-        Self { vec: Vec::new() }
-    }
-    pub fn push(&mut self, i: IRUInstruction, span: FileSpan) {
-        self.vec.push(IRUInstrInst { i, span });
-    }
+    If {
+        cond: VarInst,
+        body: Vec<IRUInstrInst>,
+    },
+    Loop {
+        body: Vec<IRUInstrInst>,
+    },
+    Break,
 }
 
 impl std::fmt::Debug for IRUInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Mv { dest, src } => write!(f, "{dest:?} <- {src:?}"),
-            Self::Ref { dest, src } => write!(f, "{dest:?} <- &{src:?}"),
-            Self::LoadData { dest, src } => write!(f, "{dest:?} <- {src:?}"),
-            Self::LoadFn { dest, src } => write!(f, "{dest:?} <- {src:?}"),
-            Self::LoadSlice { dest, src } => write!(f, "{dest:?} <- &[{src:?}]"),
+            Self::Mv { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::Ref { dest, src } => write!(f, "{dest:?} <- &{src:?}")?,
+            Self::LoadData { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::LoadFn { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::LoadSlice { dest, src } => write!(f, "{dest:?} <- &[{src:?}]")?,
             Self::Call {
                 dest,
                 f: func,
                 args,
-            } => write!(f, "{dest:?} <- {func:?}({args:?})"),
-            Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}"),
-            Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish(),
-            Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}"),
-            Self::Access { dest, src, field } => write!(f, "{dest:?} <- {src:?}.{field}"),
+            } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
+            Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
+            Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
+            Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
+            Self::Access { dest, src, field } => write!(f, "{dest:?} <- {src:?}.{field}")?,
+            Self::If { cond, body } => {
+                write!(f, "if {cond:?}:")?;
+                if !body.is_empty() {
+                    f.write_str("{\n    ")?;
+                    let mut padder = Padder::new(f);
+                    for i in body {
+                        // they don't expose wrap_buf :grief:
+                        padder.write_str(&format!("{i:?};\n"))?;
+                    }
+                    f.write_char('}')?;
+                } else {
+                    f.write_str("{}")?;
+                }
+            }
+            Self::Loop { body } => {
+                write!(f, "loop:")?;
+                if !body.is_empty() {
+                    f.write_str("{\n    ")?;
+                    let mut padder = Padder::new(f);
+                    for i in body {
+                        // they don't expose wrap_buf :grief:
+                        padder.write_str(&format!("{i:?};\n"))?;
+                    }
+                    f.write_char('}')?;
+                } else {
+                    f.write_str("{}")?;
+                }
+            }
+            Self::Break => write!(f, "break")?,
         }
+        Ok(())
     }
 }
 

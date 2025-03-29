@@ -41,8 +41,8 @@ fn run_file(file: &str, gdb: bool, asm: bool) {
         // println!("Parsed:");
         // println!("{:#?}", res.node);
         if let Some(module) = res.node.as_ref() {
-            let mut namespace = IRUProgram::new();
-            module.lower(&mut namespace.push(), &mut ctx.output);
+            let mut program = IRUProgram::new();
+            module.lower(&mut program, &mut ctx.output);
             if ctx.output.errs.is_empty() {
                 // println!("vars:");
                 // for (id, def) in namespace.iter_vars() {
@@ -51,10 +51,10 @@ fn run_file(file: &str, gdb: bool, asm: bool) {
                 // for (id, f) in namespace.iter_fns() {
                 //     println!("{id:?} = {:#?}", f.unwrap());
                 // }
-                let output = namespace.validate();
+                let output = program.validate();
                 output.write_for(&mut stdout(), file);
                 if output.errs.is_empty() {
-                    let program = IRLProgram::create(&namespace).expect("morir");
+                    let program = IRLProgram::create(&program).expect("morir");
                     let unlinked = compiler::compile(&program);
                     if asm {
                         println!("{:?}", unlinked);

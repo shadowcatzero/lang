@@ -11,7 +11,8 @@ impl RV64Instruction {
     pub fn parse(inst: &PInstruction, ctx: &mut FnLowerCtx) -> Option<Self> {
         let args = &inst.args[..];
         let opstr = &**inst.op.inner.as_ref()?;
-        let opi = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3| -> Option<Self> {
+        // TODO: surely this can be abstracted...
+        let opi = |ctx: &mut FnLowerCtx<'_>, op: Funct3| -> Option<Self> {
             let [dest, src, imm] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -21,7 +22,7 @@ impl RV64Instruction {
             let imm = i32_from_arg(imm, ctx)?;
             Some(Self::OpImm { op, dest, src, imm })
         };
-        let op = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
+        let op = |ctx: &mut FnLowerCtx<'_>, op: Funct3, funct: Funct7| -> Option<Self> {
             let [dest, src1, src2] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -37,7 +38,7 @@ impl RV64Instruction {
                 src2,
             })
         };
-        let opif7 = |ctx: &mut FnLowerCtx<'_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
+        let opif7 = |ctx: &mut FnLowerCtx<'_>, op: Funct3, funct: Funct7| -> Option<Self> {
             let [dest, src, imm] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -53,7 +54,7 @@ impl RV64Instruction {
                 imm,
             })
         };
-        let store = |ctx: &mut FnLowerCtx<'_, '_>, width: Funct3| -> Option<Self> {
+        let store = |ctx: &mut FnLowerCtx<'_>, width: Funct3| -> Option<Self> {
             let [src, offset, base] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -68,7 +69,7 @@ impl RV64Instruction {
                 base,
             })
         };
-        let load = |ctx: &mut FnLowerCtx<'_, '_>, width: Funct3| -> Option<Self> {
+        let load = |ctx: &mut FnLowerCtx<'_>, width: Funct3| -> Option<Self> {
             let [dest, offset, base] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;

@@ -37,7 +37,7 @@ impl MaybeParsable for PLiteral {
                 if !first.is_ascii_digit() {
                     return Ok(None);
                 }
-                let (whole, ty) = parse_whole_num(&text);
+                let (whole, ty) = parse_whole_num(text);
                 let mut num = PNumber {
                     whole,
                     decimal: None,

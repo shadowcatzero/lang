@@ -22,6 +22,7 @@ pub const IMM_OP: u32 = 0b0010011;
 pub const OP: u32 = 0b0110011;
 pub const JAL: u32 = 0b1101111;
 pub const JALR: u32 = 0b1100111;
+pub const BRANCH: u32 = 0b1100011;
 
 pub type Funct3 = Bits32<2, 0>;
 pub type Funct7 = Bits32<6, 0>;
@@ -59,7 +60,7 @@ pub const fn b_type(rs2: Reg, rs1: Reg, funct3: Funct3, imm: Bits32<12, 1>, opco
         + (imm.bits(10, 5) << 25)
         + (rs2.val() << 20)
         + (rs1.val() << 15)
-        + (funct3.val() << 8)
+        + (funct3.val() << 12)
         + (imm.bits(4, 1) << 8)
         + (imm.bit(11) << 7)
         + opcode)

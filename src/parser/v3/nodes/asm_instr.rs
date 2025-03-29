@@ -1,4 +1,4 @@
-use super::{Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol, CompilerMsg};
+use super::{CompilerMsg, Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol};
 
 pub struct PInstruction {
     pub op: Node<PIdent>,
@@ -36,7 +36,19 @@ impl Parsable for PAsmArg {
             return ParseResult::Ok(Self::Value(ident));
         }
 
-        let next = ctx.expect_peek()?;
+        let mut next = ctx.expect_peek()?;
+        if next.is_symbol(Symbol::Minus) {
+            ctx.next();
+            if let Some(mut ident) = ctx.maybe_parse::<PIdent>() {
+                // TODO: this is so messed up
+                if let Some(i) = ident.as_mut() {
+                    i.0.insert(0, '-')
+                }
+                return ParseResult::Ok(Self::Value(ident));
+            }
+            next = ctx.expect_peek()?;
+        }
+
         if !next.is_symbol(Symbol::OpenCurly) {
             return ParseResult::Err(CompilerMsg::unexpected_token(
                 next,

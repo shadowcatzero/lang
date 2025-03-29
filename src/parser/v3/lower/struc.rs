@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     common::{CompilerMsg, CompilerOutput, FileSpan},
-    ir::{IRUInstruction, NamespaceGuard, Origin, StructDef, StructField, VarInst},
+    ir::{IRUInstruction, IRUProgram, Origin, StructDef, StructField, VarInst},
     parser::{Node, PConstruct, PConstructFields, PStruct, PStructFields},
 };
 
@@ -11,7 +11,7 @@ use super::{FnLowerCtx, FnLowerable};
 impl FnLowerable for PConstruct {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
-        let ty = self.name.lower(ctx.map, ctx.output);
+        let ty = self.name.lower(ctx.program, ctx.output);
         let fields = match &self.fields {
             PConstructFields::Named(nodes) => nodes
                 .iter()
@@ -41,7 +41,7 @@ impl FnLowerable for PConstruct {
 impl PStruct {
     pub fn lower(
         &self,
-        map: &mut NamespaceGuard,
+        p: &mut IRUProgram,
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Option<()> {
@@ -53,10 +53,10 @@ impl PStruct {
                     let def = n.as_ref()?;
                     let name = def.name.as_ref()?.to_string();
                     let tynode = def.ty.as_ref()?;
-                    let ty = tynode.lower(map, output);
-                    let size = map.size_of_type(&ty).unwrap_or_else(|| {
+                    let ty = tynode.lower(p, output);
+                    let size = p.size_of_type(&ty).unwrap_or_else(|| {
                         output.err(CompilerMsg {
-                            msg: format!("Size of type '{}' unknown", map.type_name(&ty)),
+                            msg: format!("Size of type '{}' unknown", p.type_name(&ty)),
                             spans: vec![tynode.span],
                         });
                         0
@@ -70,8 +70,8 @@ impl PStruct {
                 .iter()
                 .enumerate()
                 .flat_map(|(i, n)| {
-                    let ty = n.as_ref()?.lower(map, output, span);
-                    let size = map.size_of_type(&ty)?;
+                    let ty = n.as_ref()?.lower(p, output, span);
+                    let size = p.size_of_type(&ty)?;
                     let res = Some((format!("{i}"), StructField { ty, offset }));
                     offset += size;
                     res
@@ -79,7 +79,7 @@ impl PStruct {
                 .collect(),
             PStructFields::None => HashMap::new(),
         };
-        map.def_type(StructDef {
+        p.def_type(StructDef {
             name: self.name.as_ref()?.to_string(),
             origin: Origin::File(span),
             size: offset,
@@ -90,7 +90,7 @@ impl PStruct {
 }
 
 impl Node<PStruct> {
-    pub fn lower(&self, map: &mut NamespaceGuard, output: &mut CompilerOutput) {
-        self.as_ref().map(|i| i.lower(map, output, self.span));
+    pub fn lower(&self, p: &mut IRUProgram, output: &mut CompilerOutput) {
+        self.as_ref().map(|i| i.lower(p, output, self.span));
     }
 }

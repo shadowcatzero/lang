@@ -1,17 +1,17 @@
-use crate::ir::{NamespaceGuard, Origin, Type, VarDef};
+use crate::ir::{IRUProgram, Origin, Type, VarDef};
 
 use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType, PVarDef};
 
 impl Node<PVarDef> {
     pub fn lower(
         &self,
-        namespace: &mut NamespaceGuard,
+        program: &mut IRUProgram,
         output: &mut CompilerOutput,
     ) -> Option<VarDef> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?.to_string();
         let ty = match &s.ty {
-            Some(ty) => ty.lower(namespace, output),
+            Some(ty) => ty.lower(program, output),
             None => Type::Infer,
         };
         Some(VarDef {
@@ -23,7 +23,7 @@ impl Node<PVarDef> {
 }
 
 impl Node<PType> {
-    pub fn lower(&self, namespace: &mut NamespaceGuard, output: &mut CompilerOutput) -> Type {
+    pub fn lower(&self, namespace: &mut IRUProgram, output: &mut CompilerOutput) -> Type {
         self.as_ref()
             .map(|t| t.lower(namespace, output, self.span))
             .unwrap_or(Type::Error)
@@ -33,7 +33,7 @@ impl Node<PType> {
 impl PType {
     pub fn lower(
         &self,
-        namespace: &mut NamespaceGuard,
+        namespace: &mut IRUProgram,
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Type {

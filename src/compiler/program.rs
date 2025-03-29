@@ -13,40 +13,54 @@ pub struct LinkedProgram {
 }
 
 pub struct UnlinkedProgram<I: Instr> {
-    pub fns: Vec<(Vec<I>, Symbol)>,
+    pub fns: Vec<UnlinkedFunction<I>>,
     pub ro_data: Vec<(Vec<u8>, Symbol)>,
+    pub sym_count: usize,
     pub start: Option<Symbol>,
     pub dbg: DebugInfo,
+}
+
+pub struct UnlinkedFunction<I: Instr> {
+    pub instrs: Vec<I>,
+    pub sym: Symbol,
+    pub locations: HashMap<usize, Symbol>,
 }
 
 impl<I: Instr> UnlinkedProgram<I> {
     pub fn link(self) -> LinkedProgram {
         let mut data = Vec::new();
-        let mut sym_table = SymTable::new(self.fns.len() + self.ro_data.len());
+        let mut sym_table = SymTable::new(self.sym_count);
         let mut missing = HashMap::<Symbol, Vec<(Addr, I)>>::new();
         for (val, id) in self.ro_data {
             sym_table.insert(id, Addr(data.len() as u64));
             data.extend(val);
         }
         data.resize(data.len() + (4 - data.len() % 4), 0);
-        for (fun, id) in self.fns {
-            sym_table.insert(id, Addr(data.len() as u64));
-            for i in fun {
+        for f in self.fns {
+            let mut added = vec![f.sym];
+            sym_table.insert(f.sym, Addr(data.len() as u64));
+            for (i, instr) in f.instrs.into_iter().enumerate() {
                 let i_pos = Addr(data.len() as u64);
-                if let Some(sym) = i.push(&mut data, &sym_table, i_pos, false) {
+                if let Some(sym) = f.locations.get(&i) {
+                    sym_table.insert(*sym, i_pos);
+                    added.push(*sym);
+                }
+                if let Some(sym) = instr.push_to(&mut data, &mut sym_table, i_pos, false) {
                     if let Some(vec) = missing.get_mut(&sym) {
-                        vec.push((i_pos, i));
+                        vec.push((i_pos, instr));
                     } else {
-                        missing.insert(sym, vec![(i_pos, i)]);
+                        missing.insert(sym, vec![(i_pos, instr)]);
                     }
                 }
             }
-            if let Some(vec) = missing.remove(&id) {
-                for (addr, i) in vec {
-                    let mut replace = Vec::new();
-                    i.push(&mut replace, &sym_table, addr, true);
-                    let pos = addr.val() as usize;
-                    data[pos..pos + replace.len()].copy_from_slice(&replace);
+            for add in added {
+                if let Some(vec) = missing.remove(&add) {
+                    for (addr, i) in vec {
+                        let mut replace = Vec::new();
+                        i.push_to(&mut replace, &mut sym_table, addr, true);
+                        let pos = addr.val() as usize;
+                        data[pos..pos + replace.len()].copy_from_slice(&replace);
+                    }
                 }
             }
         }
@@ -61,8 +75,13 @@ impl<I: Instr> UnlinkedProgram<I> {
 }
 
 pub trait Instr {
-    fn push(&self, data: &mut Vec<u8>, syms: &SymTable, pos: Addr, missing: bool)
-        -> Option<Symbol>;
+    fn push_to(
+        &self,
+        data: &mut Vec<u8>,
+        syms: &mut SymTable,
+        pos: Addr,
+        missing: bool,
+    ) -> Option<Symbol>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -92,16 +111,16 @@ impl SymTable {
 
 impl<I: Instr + Labelable<Symbol> + LabeledFmt<Symbol>> std::fmt::Debug for UnlinkedProgram<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for ((v, s), irli) in self.fns.iter().zip(&self.dbg.ir_lower) {
-            writeln!(f, "{}:", self.dbg.sym_label(*s).unwrap())?;
+        for (fun, irli) in self.fns.iter().zip(&self.dbg.ir_lower) {
+            writeln!(f, "{}:", self.dbg.sym_label(fun.sym).unwrap())?;
             let mut liter = irli.iter();
             let mut cur = liter.next();
-            for (i, instr) in v.iter().enumerate() {
-                if let Some(c) = cur {
-                    if i == c.0 {
-                        writeln!(f, "   {}:", c.1)?;
-                        cur = liter.next();
-                    }
+            for (i, instr) in fun.instrs.iter().enumerate() {
+                while let Some(c) = cur
+                    && i == c.0
+                {
+                    writeln!(f, "   {}:", c.1)?;
+                    cur = liter.next();
                 }
                 writeln!(
                     f,

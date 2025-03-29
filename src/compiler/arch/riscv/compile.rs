@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    compiler::{arch::riscv::Reg, debug::DebugInfo, UnlinkedProgram},
+    compiler::{arch::riscv::Reg, debug::DebugInfo, UnlinkedFunction, UnlinkedProgram},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
         IRLInstruction as IRI, IRLProgram, Len, Size,
@@ -84,6 +84,7 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                 v.push(LI::sd(ra, stack_ra, sp));
             }
         }
+        let mut locations = HashMap::new();
         let mut irli = Vec::new();
         for i in &f.instructions {
             irli.push((v.len(), format!("{i:?}")));
@@ -147,7 +148,7 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                     }
                     fn r(rr: RegRef) -> Reg {
                         match rr {
-                            RegRef::Var(var_ident) => todo!(),
+                            RegRef::Var(..) => todo!(),
                             RegRef::Reg(reg) => reg,
                         }
                     }
@@ -160,7 +161,7 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                                 dest: r(dest),
                                 src: r(src),
                             }),
-                            AI::La { dest, src } => todo!(),
+                            AI::La { .. } => todo!(),
                             AI::Load {
                                 width,
                                 dest,
@@ -216,9 +217,10 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                                 imm,
                             }),
                             AI::Ret => v.push(LI::Ret),
-                            AI::Call(s) => todo!(),
-                            AI::Jal { dest, offset } => todo!(),
-                            AI::J(s) => todo!(),
+                            AI::Call(..) => todo!(),
+                            AI::Jal { .. } => todo!(),
+                            AI::J(..) => todo!(),
+                            AI::Branch { .. } => todo!(),
                         }
                     }
                 }
@@ -228,6 +230,21 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                     };
                     v.push(LI::ld(t0, rva, sp));
                     mov_mem(&mut v, sp, stack[src], t0, 0, t1, align(&f.ret_size) as u32);
+                }
+                IRI::Jump(location) => {
+                    v.push(LI::J(*location));
+                }
+                IRI::Branch { to, cond } => {
+                    v.push(LI::ld(t0, stack[cond], sp));
+                    v.push(LI::Branch {
+                        to: *to,
+                        typ: branch::EQ,
+                        left: t0,
+                        right: zero,
+                    })
+                }
+                IRI::Mark(location) => {
+                    locations.insert(v.len(), *location);
                 }
             }
         }
@@ -239,12 +256,17 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
             v.push(LI::addi(sp, sp, stack_len));
         }
         v.push(LI::Ret);
-        fns.push((v, *sym));
+        fns.push(UnlinkedFunction {
+            instrs: v,
+            sym: *sym,
+            locations,
+        });
     }
     UnlinkedProgram {
-        fns: fns.into_iter().map(|(v, s, ..)| (v, s)).collect(),
+        fns,
         ro_data: data,
         start: Some(program.entry()),
         dbg,
+        sym_count: program.len(),
     }
 }
