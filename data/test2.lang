@@ -1,0 +1,13 @@
+fn start() {
+    let x = asm(out = t0) {
+        li t0, 40
+    };
+    exit(x);
+}
+
+fn exit(status: 64) {
+   asm (a0 = status) {
+      li a7, 93
+      ecall
+   };
+}

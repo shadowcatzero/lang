@@ -3,11 +3,7 @@ use crate::ir::{IRUProgram, Origin, Type, VarDef};
 use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType, PVarDef};
 
 impl Node<PVarDef> {
-    pub fn lower(
-        &self,
-        program: &mut IRUProgram,
-        output: &mut CompilerOutput,
-    ) -> Option<VarDef> {
+    pub fn lower(&self, program: &mut IRUProgram, output: &mut CompilerOutput) -> Option<VarDef> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?.to_string();
         let ty = match &s.ty {
@@ -17,7 +13,7 @@ impl Node<PVarDef> {
         Some(VarDef {
             name,
             ty,
-            origin: Origin::File(self.span),
+            origin: self.span,
         })
     }
 }

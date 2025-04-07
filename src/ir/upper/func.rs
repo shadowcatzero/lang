@@ -45,7 +45,7 @@ pub enum IRUInstruction {
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,
-        args: Vec<(Reg, VarInst)>,
+        args: Vec<AsmBlockArg>,
     },
     Ret {
         src: VarInst,
@@ -64,6 +64,19 @@ pub enum IRUInstruction {
     Break,
 }
 
+#[derive(Debug)]
+pub struct AsmBlockArg {
+    pub var: VarInst,
+    pub reg: Reg,
+    pub ty: AsmBlockArgType,
+}
+
+#[derive(Debug)]
+pub enum AsmBlockArgType {
+    In,
+    Out,
+}
+
 impl std::fmt::Debug for IRUInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -77,7 +90,9 @@ impl std::fmt::Debug for IRUInstruction {
                 f: func,
                 args,
             } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
-            Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
+            Self::AsmBlock { args, instructions } => {
+                write!(f, "asm {args:?} {instructions:#?}")?
+            }
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
             Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
             Self::Access { dest, src, field } => write!(f, "{dest:?} <- {src:?}.{field}")?,

@@ -39,11 +39,7 @@ pub struct DataDef {
     pub label: String,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Origin {
-    Builtin,
-    File(FileSpan),
-}
+pub type Origin = FileSpan;
 
 impl FnDef {
     pub fn ty(&self) -> Type {

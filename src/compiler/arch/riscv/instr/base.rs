@@ -80,8 +80,8 @@ pub const fn j_type(imm: Bits32<20, 1>, rd: Reg, opcode: u32) -> I {
 pub fn opr(op: Funct3, funct: Funct7, dest: Reg, src1: Reg, src2: Reg) -> I {
     r_type(funct, src2, src1, op, dest, OP)
 }
-pub fn opi(op: Funct3, dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
-    i_type(imm.to_u(), src, op, dest, IMM_OP)
+pub fn opi(op: Funct3, dest: Reg, src: Reg, imm: Bits32<11, 0>) -> RawInstruction {
+    i_type(imm, src, op, dest, IMM_OP)
 }
 pub fn opif7(op: Funct3, funct: Funct7, dest: Reg, src: Reg, imm: BitsI32<4, 0>) -> I {
     i_type(

@@ -42,7 +42,8 @@ pub enum IRLInstruction {
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,
-        args: Vec<(Reg, VarID)>,
+        inputs: Vec<(Reg, VarID)>,
+        outputs: Vec<(Reg, VarID)>,
     },
     Ret {
         src: VarID,
@@ -56,3 +57,4 @@ pub enum IRLInstruction {
     },
     Mark(Symbol),
 }
+

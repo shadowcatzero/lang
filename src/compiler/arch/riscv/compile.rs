@@ -106,7 +106,10 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                         s,
                     );
                 }
-                IRI::Ref { dest, src } => todo!(),
+                IRI::Ref { dest, src } => {
+                    v.push(LI::addi(t0, sp, stack[src]));
+                    v.push(LI::sd(t0, stack[dest], sp));
+                }
                 IRI::LoadAddr { dest, offset, src } => {
                     v.extend([
                         LI::La {
@@ -142,9 +145,13 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                     }
                     v.push(LI::Call(*f));
                 }
-                IRI::AsmBlock { args, instructions } => {
-                    for (reg, var) in args {
-                        v.push(LI::addi(*reg, sp, stack[var]));
+                IRI::AsmBlock {
+                    inputs,
+                    outputs,
+                    instructions,
+                } => {
+                    for (reg, var) in inputs {
+                        v.push(LI::ld(*reg, stack[var], sp));
                     }
                     fn r(rr: RegRef) -> Reg {
                         match rr {
@@ -222,6 +229,9 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                             AI::J(..) => todo!(),
                             AI::Branch { .. } => todo!(),
                         }
+                    }
+                    for (reg, var) in outputs {
+                        v.push(LI::sd(*reg, stack[var], sp));
                     }
                 }
                 IRI::Ret { src } => {

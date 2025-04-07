@@ -1,16 +1,18 @@
 use super::{
-    util::parse_list, PIdent, Node, Parsable, ParseResult, PInstruction, ParserCtx, Symbol,
+    util::parse_list, Node, PExpr, PIdent, PInstruction, Parsable, ParseResult, ParserCtx, Symbol,
 };
 
 pub struct PAsmBlock {
     pub instructions: Vec<Node<PInstruction>>,
-    pub args: Vec<Node<PAsmBlockArg>>,
+    pub args: Vec<Node<PUAsmBlockArg>>,
 }
 
-pub struct PAsmBlockArg {
-    pub reg: Node<PIdent>,
-    pub var: Node<PIdent>,
+pub enum PAsmBlockArg<R, V> {
+    In { reg: R, var: V },
+    Out { reg: R },
 }
+
+pub type PUAsmBlockArg = PAsmBlockArg<Node<PIdent>, Node<PExpr>>;
 
 impl Parsable for PAsmBlock {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
@@ -34,12 +36,18 @@ impl Parsable for PAsmBlock {
     }
 }
 
-impl Parsable for PAsmBlockArg {
+impl Parsable for PUAsmBlockArg {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
-        let reg = ctx.parse()?;
-        ctx.expect_sym(Symbol::Equals)?;
-        let var = ctx.parse()?;
-        ParseResult::Ok(Self { reg, var })
+        let reg = ctx.parse::<PIdent>()?;
+        ParseResult::Ok(if reg.inner.as_ref().is_some_and(|s| s.0 == "out") {
+            ctx.expect_sym(Symbol::Equals)?;
+            let reg = ctx.parse()?;
+            Self::Out { reg }
+        } else {
+            ctx.expect_sym(Symbol::Equals)?;
+            let var = ctx.parse()?;
+            Self::In { reg, var }
+        })
     }
 }
 

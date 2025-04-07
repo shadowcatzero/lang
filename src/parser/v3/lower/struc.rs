@@ -81,7 +81,7 @@ impl PStruct {
         };
         p.def_type(StructDef {
             name: self.name.as_ref()?.to_string(),
-            origin: Origin::File(span),
+            origin: span,
             size: offset,
             fields,
         });

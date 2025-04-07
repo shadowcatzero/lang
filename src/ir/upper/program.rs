@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use crate::common::FileSpan;
 
@@ -98,10 +95,10 @@ impl IRUProgram {
     pub fn size_of_var(&self, var: VarID) -> Option<Size> {
         self.size_of_type(&self.var_defs[var.0].ty)
     }
-    pub fn temp_var(&mut self, origin: FileSpan, ty: Type) -> VarInst {
+    pub fn temp_var(&mut self, origin: Origin, ty: Type) -> VarInst {
         let v = self.def_var(VarDef {
             name: format!("temp{}", self.temp),
-            origin: super::Origin::File(origin),
+            origin,
             ty,
         });
         self.temp += 1;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{IRUFunction, IRUInstrInst, Size, SymbolSpace};
+use crate::ir::{AsmBlockArgType, IRUFunction, IRUInstrInst, Size, SymbolSpace};
 
 use super::{
     IRLFunction, IRLInstruction, IRUInstruction, IRUProgram, Len, Symbol, SymbolSpaceBuilder, Type,
@@ -161,9 +161,21 @@ impl<'a> IRLFunctionBuilder<'a> {
                 });
             }
             IRUInstruction::AsmBlock { instructions, args } => {
+                let mut inputs = Vec::new();
+                let mut outputs = Vec::new();
+                for a in args {
+                    match a.ty {
+                        AsmBlockArgType::In => inputs.push((a.reg, a.var.id)),
+                        AsmBlockArgType::Out => {
+                            self.alloc_stack(a.var.id)?;
+                            outputs.push((a.reg, a.var.id));
+                        }
+                    }
+                }
                 self.instrs.push(IRLInstruction::AsmBlock {
                     instructions: instructions.clone(),
-                    args: args.iter().cloned().map(|(r, v)| (r, v.id)).collect(),
+                    inputs,
+                    outputs,
                 })
             }
             IRUInstruction::Ret { src } => self.instrs.push(IRLInstruction::Ret { src: src.id }),

@@ -1,7 +1,7 @@
 use crate::{
     compiler::program::{Addr, Instr, SymTable},
     ir::Symbol,
-    util::LabeledFmt,
+    util::{Bits32, LabeledFmt},
 };
 
 use super::*;
@@ -70,7 +70,11 @@ pub enum LinkerInstruction<R = Reg, S = Symbol> {
 }
 
 pub fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
-    opi(op32i::ADD, dest, src, imm)
+    opi(op32i::ADD, dest, src, imm.to_u())
+}
+
+pub fn ori(dest: Reg, src: Reg, imm: Bits32<11, 0>) -> RawInstruction {
+    opi(op32i::OR, dest, src, imm)
 }
 
 impl Instr for LinkerInstruction {
@@ -89,7 +93,7 @@ impl Instr for LinkerInstruction {
                 src1,
                 src2,
             } => opr(*op, *funct, *dest, *src1, *src2),
-            Self::OpImm { op, dest, src, imm } => opi(*op, *dest, *src, BitsI32::new(*imm)),
+            Self::OpImm { op, dest, src, imm } => opi(*op, *dest, *src, BitsI32::new(*imm).to_u()),
             Self::OpImmF7 {
                 op,
                 funct,
@@ -113,8 +117,17 @@ impl Instr for LinkerInstruction {
             Self::La { dest, src } => {
                 if let Some(addr) = sym_map.get(*src) {
                     let offset = addr.val() as i32 - pos.val() as i32;
-                    data.extend(auipc(*dest, BitsI32::new(0)).to_le_bytes());
-                    addi(*dest, *dest, BitsI32::new(offset))
+                    let sign = offset.signum();
+                    let mut lower = offset % 0x1000;
+                    let mut upper = offset - lower;
+                    if (((lower >> 11) & 1) == 1) ^ (sign == -1) {
+                        let add = sign << 12;
+                        upper += add;
+                        lower = offset - upper;
+                    }
+                    assert!(upper + (lower << 20 >> 20) == offset);
+                    data.extend(auipc(*dest, BitsI32::new(upper)).to_le_bytes());
+                    addi(*dest, *dest, BitsI32::new(lower))
                 } else {
                     data.extend_from_slice(&[0; 2 * 4]);
                     return Some(*src);

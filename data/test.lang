@@ -1,10 +1,12 @@
 struct Test {
-    a: 64,
-    b: 64,
+   a: 64,
+   b: 64,
 }
 
 fn start() {
    println("Helld!");
+   print_hex(rem(10, 7));
+   println("");
    println("Hello World!!!!!");
    thinger();
    let x = 3;
@@ -14,7 +16,7 @@ fn start() {
    println("before:");
    x = 0;
    loop {
-      if not(lt(x, 5)) {
+      if not(lt(x, 10)) {
          break;
       };
       println("RAAAAA");
@@ -28,7 +30,11 @@ fn start() {
    };
    arger("a", "b", "c");
    let z = sub(test.a, 10);
-   exit(add(mul(sub(add(5, test.b), 1), 3), z));
+   // exit(add(mul(sub(add(5, test.b), 1), 3), z));
+   print("test: 0x");
+   print_hex(31);
+   println("");
+   exit(0);
 }
 
 fn structer(test: Test) {
@@ -48,7 +54,7 @@ fn println(msg: slice<8>) {
 }
 
 fn print(msg: slice<8>) {
-   asm (a1 = msg) {
+   asm (a1 = &msg) {
       ld a2, 8, a1
       ld a1, 0, a1
       li a0, 1
@@ -57,58 +63,89 @@ fn print(msg: slice<8>) {
    }
 }
 
+fn print_hex(x: 64) {
+   let i = 32;
+   loop {
+      i = sub(i, 4);
+      let c = and(shr(x, i), 15);
+      if gt(c, 9) {
+         c = add(c, 7);
+      };
+      c = add(c, 48);
+      asm (a1 = &c) {
+         li a2, 1
+         li a0, 1
+         li a7, 64
+         ecall
+      };
+      if lt(i, 1) {
+         break;
+      };
+   }
+}
+
 fn add(a: 64, b: 64) -> 64 {
-   let c: 64 = 0;
-   asm (t0 = a, t1 = b, a0 = c) {
-      ld t0, 0, t0
-      ld t1, 0, t1
+   asm (t0 = a, t1 = b, out = t0) {
       add t0, t0, t1
-      sd t0, 0, a0
-   };
-   c
+   }
 }
 
 fn mul(a: 64, b: 64) -> 64 {
-   let c: 64 = 0;
-   asm (t0 = a, t1 = b, a0 = c) {
-      ld t0, 0, t0
-      ld t1, 0, t1
+   asm (t0 = a, t1 = b, out = t0) {
       mul t0, t0, t1
-      sd t0, 0, a0
-   };
-   c
+   }
+}
+
+fn div(a: 64, b: 64) -> 64 {
+   asm (t0 = a, t1 = b, out = t0) {
+      div t0, t0, t1
+   }
 }
 
 fn sub(a: 64, b: 64) -> 64 {
-   let c: 64 = 0;
-   asm (t0 = a, t1 = b, a0 = c) {
-      ld t0, 0, t0
-      ld t1, 0, t1
+   asm (t0 = a, t1 = b, out = t0) {
       sub t0, t0, t1
-      sd t0, 0, a0
-   };
-   c
+   }
+}
+
+fn rem(a: 64, b: 64) -> 64 {
+   asm (t0 = a, t1 = b, out = t0) {
+      rem t0, t0, t1
+   }
+}
+
+fn shr(a: 64, b: 64) -> 64 {
+   asm (t0 = a, t1 = b, out = t0) {
+      srl t0, t0, t1
+   }
+}
+
+fn shl(a: 64, b: 64) -> 64 {
+   asm (t0 = a, t1 = b, out = t0) {
+      sll t0, t0, t1
+   }
 }
 
 fn lt(a: 64, b: 64) -> 64 {
-   let c: 64 = 0;
-   asm (t0 = a, t1 = b, a0 = c) {
-      ld t0, 0, t0
-      ld t1, 0, t1
+   asm (t0 = a, t1 = b, out = t0) {
       slt t0, t0, t1
-      sd t0, 0, a0
-   };
-   c
+   }
+}
+
+fn gt(a: 64, b: 64) -> 64 {
+    lt(b, a)
+}
+
+fn and(a: 64, b: 64) -> 64 {
+   asm (t0 = a, t1 = b, out = t0) {
+      and t0, t0, t1
+   }
 }
 
 fn not(a: 64) -> 64 {
-   let c: 64 = 0;
-   asm (t0 = a, a0 = c) {
-      ld t0, 0, t0
+   asm (t0 = a, out = t0) {
       xori t0, t0, 1
-      sd t0, 0, a0
-   };
-   c
+   }
 }
 
 fn arger(a: slice<8>, b: slice<8>, c: slice<8>) {
@@ -119,7 +156,6 @@ fn arger(a: slice<8>, b: slice<8>, c: slice<8>) {
 
 fn exit(status: 64) {
    asm (a0 = status) {
-      ld a0, 0, a0
       li a7, 93
       ecall
    };

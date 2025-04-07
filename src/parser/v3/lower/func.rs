@@ -31,7 +31,7 @@ impl PFunction {
             .map(|a| {
                 a.lower(map, output).unwrap_or(VarDef {
                     name: "{error}".to_string(),
-                    origin: Origin::File(a.span),
+                    origin: a.span,
                     ty: Type::Error,
                 })
             })
@@ -42,7 +42,7 @@ impl PFunction {
         };
         Some(map.def_fn(FnDef {
             name: name.to_string(),
-            origin: Origin::File(self.header.span),
+            origin: self.header.span,
             args,
             ret,
         }))

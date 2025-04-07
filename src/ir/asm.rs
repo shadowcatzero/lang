@@ -1,3 +1,5 @@
+use crate::compiler::arch::riscv::Reg;
+
 use super::VarID;
 
 #[derive(Clone)]
@@ -11,3 +13,4 @@ pub enum RegRef {
     Var(VarID),
     Reg(String),
 }
+

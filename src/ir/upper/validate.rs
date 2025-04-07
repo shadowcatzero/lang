@@ -1,12 +1,19 @@
 // TODO: move this into ir, not parser
 use super::{IRUInstrInst, IRUInstruction, IRUProgram, Type};
-use crate::common::{CompilerMsg, CompilerOutput};
+use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 
 impl IRUProgram {
     pub fn validate(&self) -> CompilerOutput {
         let mut output = CompilerOutput::new();
         for (f, fd) in self.fns.iter().flatten().zip(&self.fn_defs) {
-            self.validate_fn(&f.instructions, &fd.ret, &mut output, false);
+            self.validate_fn(
+                &f.instructions,
+                fd.origin,
+                &fd.ret,
+                &mut output,
+                true,
+                false,
+            );
         }
         output
     }
@@ -14,10 +21,13 @@ impl IRUProgram {
     pub fn validate_fn(
         &self,
         instructions: &[IRUInstrInst],
+        origin: FileSpan,
         ret: &Type,
         output: &mut CompilerOutput,
+        needs_ret: bool,
         breakable: bool,
     ) {
+        let mut no_ret = true;
         for i in instructions {
             match &i.i {
                 IRUInstruction::Mv { dest, src } => {
@@ -25,7 +35,9 @@ impl IRUProgram {
                     let src = self.get_var(src.id);
                     output.check_assign(self, &src.ty, &dest.ty, i.span);
                 }
-                IRUInstruction::Ref { dest, src } => todo!(),
+                IRUInstruction::Ref { dest, src } => {
+                    // TODO
+                }
                 IRUInstruction::LoadData { dest, src } => {
                     let dest = self.get_var(dest.id);
                     let src = self.get_data(*src);
@@ -64,6 +76,7 @@ impl IRUProgram {
                 IRUInstruction::Ret { src } => {
                     let srcty = &self.get_var(src.id).ty;
                     output.check_assign(self, srcty, ret, src.span);
+                    no_ret = false;
                 }
                 IRUInstruction::Construct { dest, fields } => {
                     let dest_def = self.get_var(dest.id);
@@ -120,10 +133,10 @@ impl IRUProgram {
                 IRUInstruction::If { cond, body } => {
                     let cond = self.get_var(cond.id);
                     output.check_assign(self, &cond.ty, &Type::Bits(64), i.span);
-                    self.validate_fn(body, ret, output, breakable);
+                    self.validate_fn(body, origin, ret, output, false, breakable);
                 }
                 IRUInstruction::Loop { body } => {
-                    self.validate_fn(body, ret, output, true);
+                    self.validate_fn(body, origin, ret, output, false, true);
                 }
                 IRUInstruction::Break => {
                     if !breakable {
@@ -135,6 +148,15 @@ impl IRUProgram {
                     // TODO
                 }
             }
+        }
+        if needs_ret && no_ret && *ret != Type::Unit {
+            output.err(CompilerMsg {
+                msg: format!(
+                    "Function implicitly returns () at the end, must return {}",
+                    self.type_name(ret)
+                ),
+                spans: vec![origin],
+            });
         }
     }
 }
