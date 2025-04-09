@@ -61,9 +61,6 @@ pub enum IRLInstruction {
 
 impl IRLInstruction {
     pub fn is_ret(&self) -> bool {
-        match self {
-            Self::Ret { .. } => true,
-            _ => false,
-        }
+        matches!(self, Self::Ret { .. })
     }
 }
