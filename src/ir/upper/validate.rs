@@ -80,8 +80,8 @@ impl IRUProgram {
                 }
                 IRUInstruction::Construct { dest, fields } => {
                     let dest_def = self.get_var(dest.id);
-                    let tyid = match dest_def.ty {
-                        Type::Concrete(id) => id,
+                    let tyid = match &dest_def.ty {
+                        Type::Struct { id, args } => *id,
                         _ => {
                             output.err(CompilerMsg {
                                 msg: "uhh type is not struct".to_string(),
@@ -91,44 +91,17 @@ impl IRUProgram {
                         }
                     };
                     let def = self.get_struct(tyid);
-                    for (name, field) in &def.fields {
-                        if let Some(var) = fields.get(name) {
+                    for (id, field) in def.iter_fields() {
+                        if let Some(var) = fields.get(&id) {
                             let ety = &self.get_var(var.id).ty;
                             output.check_assign(self, &field.ty, ety, var.span);
                         } else {
                             output.err(CompilerMsg {
-                                msg: format!("field '{name}' missing from struct"),
+                                msg: format!("field '{}' missing from struct", field.name),
                                 spans: vec![dest.span],
                             });
                         }
                     }
-                    for name in fields.keys() {
-                        if !def.fields.contains_key(name) {
-                            output.err(CompilerMsg {
-                                msg: format!("field '{name}' not in struct"),
-                                spans: vec![dest.span],
-                            });
-                        }
-                    }
-                }
-                IRUInstruction::Access { dest, src, field } => {
-                    let dest_def = self.get_var(dest.id);
-                    let src_def = self.get_var(src.id);
-                    let tyid = match src_def.ty {
-                        Type::Concrete(id) => id,
-                        _ => {
-                            output.err(CompilerMsg {
-                                msg: "uhh type is not struct".to_string(),
-                                spans: vec![dest.span],
-                            });
-                            continue;
-                        }
-                    };
-                    let def = self.get_struct(tyid);
-                    let field = def.fields.get(field).expect(
-                        "already validated during parse lowering... probably shouldn't be?",
-                    );
-                    output.check_assign(self, &field.ty, &dest_def.ty, i.span);
                 }
                 IRUInstruction::If { cond, body } => {
                     let cond = self.get_var(cond.id);
@@ -142,6 +115,15 @@ impl IRUProgram {
                     if !breakable {
                         output.err(CompilerMsg {
                             msg: "Can't break here (outside of loop)".to_string(),
+                            spans: vec![i.span],
+                        });
+                    }
+                    // TODO
+                }
+                IRUInstruction::Continue => {
+                    if !breakable {
+                        output.err(CompilerMsg {
+                            msg: "Can't continue here (outside of loop)".to_string(),
                             spans: vec![i.span],
                         });
                     }

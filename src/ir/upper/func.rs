@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt::Write};
 use super::{
     arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID,
 };
-use crate::{compiler::arch::riscv::Reg, util::Padder};
+use crate::{compiler::arch::riscv::Reg, ir::FieldID, util::Padder};
 
 pub struct IRUFunction {
     pub name: String,
@@ -33,11 +33,6 @@ pub enum IRUInstruction {
         dest: VarInst,
         src: FnID,
     },
-    Access {
-        dest: VarInst,
-        src: VarInst,
-        field: String,
-    },
     Call {
         dest: VarInst,
         f: VarInst,
@@ -52,7 +47,7 @@ pub enum IRUInstruction {
     },
     Construct {
         dest: VarInst,
-        fields: HashMap<String, VarInst>,
+        fields: HashMap<FieldID, VarInst>,
     },
     If {
         cond: VarInst,
@@ -62,6 +57,7 @@ pub enum IRUInstruction {
         body: Vec<IRUInstrInst>,
     },
     Break,
+    Continue,
 }
 
 #[derive(Debug)]
@@ -95,7 +91,6 @@ impl std::fmt::Debug for IRUInstruction {
             }
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
             Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
-            Self::Access { dest, src, field } => write!(f, "{dest:?} <- {src:?}.{field}")?,
             Self::If { cond, body } => {
                 write!(f, "if {cond:?}:")?;
                 if !body.is_empty() {
@@ -125,6 +120,7 @@ impl std::fmt::Debug for IRUInstruction {
                 }
             }
             Self::Break => write!(f, "break")?,
+            Self::Continue => write!(f, "continue")?,
         }
         Ok(())
     }

@@ -78,6 +78,10 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
             stack_len += align(&f.ret_size);
         }
         v.push(LI::addi(sp, sp, -stack_len));
+        for (id, var) in &f.subvar_map {
+            // TODO: ALIGN DOES NOT MAKE SENSE HERE!!! need to choose to decide in lower or asm
+            stack.insert(id, stack[&var.id] + align(&var.offset));
+        }
         let has_stack = stack_len > 0;
         if has_stack {
             if let Some(stack_ra) = stack_ra {
@@ -86,6 +90,15 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
         }
         let mut locations = HashMap::new();
         let mut irli = Vec::new();
+        let mut ret = Vec::new();
+        if has_stack {
+            if let Some(stack_ra) = stack_ra {
+                ret.push(LI::ld(ra, stack_ra, sp));
+            }
+            ret.push(LI::addi(sp, sp, stack_len));
+        }
+        ret.push(LI::Ret);
+
         for i in &f.instructions {
             irli.push((v.len(), format!("{i:?}")));
             match i {
@@ -235,11 +248,14 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
                     }
                 }
                 IRI::Ret { src } => {
-                    let Some(rva) = stack_rva else {
-                        panic!("no return value address on stack!")
-                    };
-                    v.push(LI::ld(t0, rva, sp));
-                    mov_mem(&mut v, sp, stack[src], t0, 0, t1, align(&f.ret_size) as u32);
+                    if let Some(src) = src {
+                        let Some(rva) = stack_rva else {
+                            panic!("no return value address on stack!")
+                        };
+                        v.push(LI::ld(t0, rva, sp));
+                        mov_mem(&mut v, sp, stack[src], t0, 0, t1, align(&f.ret_size) as u32);
+                    }
+                    v.extend(&ret);
                 }
                 IRI::Jump(location) => {
                     v.push(LI::J(*location));
@@ -259,13 +275,6 @@ pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
             }
         }
         dbg.push_fn(irli);
-        if has_stack {
-            if let Some(stack_ra) = stack_ra {
-                v.push(LI::ld(ra, stack_ra, sp));
-            }
-            v.push(LI::addi(sp, sp, stack_len));
-        }
-        v.push(LI::Ret);
         fns.push(UnlinkedFunction {
             instrs: v,
             sym: *sym,

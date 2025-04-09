@@ -1,8 +1,8 @@
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
     ir::{
-        FnDef, FnID, IRUFunction, IRUInstrInst, IRUInstruction, IRUProgram, Idents, Origin, Type,
-        VarDef, VarInst,
+        FnDef, FnID, IRUFunction, IRUInstrInst, IRUInstruction, IRUProgram, Idents, Type, VarDef,
+        VarInst, FieldRef,
     },
     parser,
 };
@@ -32,6 +32,7 @@ impl PFunction {
                 a.lower(map, output).unwrap_or(VarDef {
                     name: "{error}".to_string(),
                     origin: a.span,
+                    parent: None,
                     ty: Type::Error,
                 })
             })
@@ -116,6 +117,9 @@ impl FnLowerCtx<'_> {
     }
     pub fn temp(&mut self, ty: Type) -> VarInst {
         self.program.temp_var(self.span, ty)
+    }
+    pub fn temp_subvar(&mut self, ty: Type, parent: FieldRef) -> VarInst {
+        self.program.temp_subvar(self.span, ty, parent)
     }
     pub fn push(&mut self, i: IRUInstruction) {
         self.instructions.push(IRUInstrInst { i, span: self.span });

@@ -1,8 +1,8 @@
-use super::{PExpr, Keyword, Node, Parsable, ParseResult, ParserCtx, Symbol, Token, PVarDef};
+use super::{Keyword, Node, PExpr, PVarDef, Parsable, ParseResult, ParserCtx, Symbol, Token};
 
 pub enum PStatement {
     Let(Node<PVarDef>, Node<PExpr>),
-    Return(Node<PExpr>),
+    Return(Option<Node<PExpr>>),
     Expr(Node<PExpr>),
 }
 
@@ -18,7 +18,11 @@ impl Parsable for PStatement {
             }
             Token::Keyword(Keyword::Return) => {
                 ctx.next();
-                ctx.parse().map(Self::Return)
+                if ctx.peek().is_some_and(|t| t.is_symbol(Symbol::Semicolon)) {
+                    ParseResult::Ok(Self::Return(None))
+                } else {
+                    ctx.parse().map(|res| Self::Return(Some(res)))
+                }
             }
             _ => ctx.parse().map(Self::Expr),
         }

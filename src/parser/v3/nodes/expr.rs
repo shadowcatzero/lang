@@ -22,6 +22,7 @@ pub enum PExpr {
     If(BoxNode, BoxNode),
     Loop(BoxNode),
     Break,
+    Continue,
 }
 
 impl Parsable for PExpr {
@@ -57,6 +58,9 @@ impl Parsable for PExpr {
         } else if next.is_keyword(Keyword::Break) {
             ctx.next();
             Self::Break
+        } else if next.is_keyword(Keyword::Continue) {
+            ctx.next();
+            Self::Continue
         } else if next.is_keyword(Keyword::Asm) {
             ctx.next();
             Self::AsmBlock(ctx.parse()?)
@@ -165,6 +169,7 @@ impl Debug for PExpr {
             PExpr::If(cond, res) => write!(f, "if {cond:?} then {res:?}")?,
             PExpr::Loop(res) => write!(f, "loop -> {res:?}")?,
             PExpr::Break => write!(f, "break")?,
+            PExpr::Continue => write!(f, "continue")?,
         }
         Ok(())
     }

@@ -1,10 +1,9 @@
-use super::{IRUProgram, Len, TypeID};
+use super::{IRUProgram, Len, StructID};
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
-    Concrete(TypeID),
     Bits(u32),
-    Generic { base: TypeID, args: Vec<Type> },
+    Struct { id: StructID, args: Vec<Type> },
     Fn { args: Vec<Type>, ret: Box<Type> },
     Ref(Box<Type>),
     Slice(Box<Type>),
@@ -26,6 +25,7 @@ impl Type {
     }
 }
 
+// should impl instead
 pub fn resolve_types(ns: &IRUProgram) {
     for (i, f) in ns.iter_fns() {
         for inst in &f.instructions {

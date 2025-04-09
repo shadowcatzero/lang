@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub struct IRLFunction {
     pub instructions: Vec<IRLInstruction>,
     pub stack: HashMap<VarID, Size>,
+    pub subvar_map: HashMap<VarID, VarOffset>,
     pub args: Vec<(VarID, Size)>,
     pub ret_size: Size,
     pub makes_call: bool,
@@ -46,7 +47,7 @@ pub enum IRLInstruction {
         outputs: Vec<(Reg, VarID)>,
     },
     Ret {
-        src: VarID,
+        src: Option<VarID>,
     },
     // TODO I feel like this should be turned into control flow instructions, maybe...
     // not sure but LLVM has them so might be right play; seems optimal for optimization
@@ -58,3 +59,11 @@ pub enum IRLInstruction {
     Mark(Symbol),
 }
 
+impl IRLInstruction {
+    pub fn is_ret(&self) -> bool {
+        match self {
+            Self::Ret { .. } => true,
+            _ => false,
+        }
+    }
+}

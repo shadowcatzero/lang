@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     ir::Symbol,
-    util::{Labelable, LabeledFmt, Labeler},
+    util::{Labelable, LabeledFmt},
 };
 
 use super::debug::DebugInfo;
@@ -26,7 +26,7 @@ pub struct UnlinkedFunction<I: Instr> {
     pub locations: HashMap<usize, Symbol>,
 }
 
-impl<I: Instr> UnlinkedProgram<I> {
+impl<I: Instr + std::fmt::Debug> UnlinkedProgram<I> {
     pub fn link(self) -> LinkedProgram {
         let mut data = Vec::new();
         let mut sym_table = SymTable::new(self.sym_count);

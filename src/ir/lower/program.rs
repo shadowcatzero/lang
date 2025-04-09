@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, IRUFunction, IRUInstrInst, Size, SymbolSpace};
+use crate::ir::{AsmBlockArgType, IRUFunction, IRUInstrInst, Size, SymbolSpace, VarOffset};
 
 use super::{
     IRLFunction, IRLInstruction, IRUInstruction, IRUProgram, Len, Symbol, SymbolSpaceBuilder, Type,
@@ -31,6 +31,9 @@ impl IRLProgram {
             for i in &f.instructions {
                 fbuilder.insert_instr(i);
             }
+            if fbuilder.instrs.last().is_none_or(|i| !i.is_ret()) {
+                fbuilder.instrs.push(IRLInstruction::Ret { src: None });
+            }
             let res = fbuilder.finish(f);
             ssbuilder.write_fn(sym, res, Some(f.name.clone()));
         }
@@ -48,8 +51,15 @@ pub struct IRLFunctionBuilder<'a> {
     builder: &'a mut SymbolSpaceBuilder,
     instrs: Vec<IRLInstruction>,
     stack: HashMap<VarID, Size>,
+    subvar_map: HashMap<VarID, VarOffset>,
     makes_call: bool,
-    outer: Option<Symbol>,
+    loopp: Option<LoopCtx>,
+}
+
+#[derive(Clone, Copy)]
+pub struct LoopCtx {
+    top: Symbol,
+    bot: Symbol,
 }
 
 impl<'a> IRLFunctionBuilder<'a> {
@@ -57,27 +67,36 @@ impl<'a> IRLFunctionBuilder<'a> {
         Self {
             instrs: Vec::new(),
             stack: HashMap::new(),
+            subvar_map: HashMap::new(),
             makes_call: false,
             program,
             builder,
-            outer: None,
+            loopp: None,
         }
     }
     pub fn alloc_stack(&mut self, i: VarID) -> Option<()> {
-        let size = *self
+        if self.program.size_of_var(i).expect("unsized type") == 0 {
+            return None;
+        };
+        self.map_subvar(i);
+        let var = self.program.var_offset(i).expect("var offset");
+        *self
             .stack
-            .entry(i)
-            .or_insert(self.program.size_of_var(i).expect("unsized type"));
-        if size == 0 {
-            None
-        } else {
-            Some(())
+            .entry(var.id)
+            .or_insert(self.program.size_of_var(var.id).expect("unsized type"));
+        Some(())
+    }
+    pub fn map_subvar(&mut self, i: VarID) {
+        let off = self.program.var_offset(i).expect("var offset");
+        if off.id != i {
+            self.subvar_map.insert(i, off);
         }
     }
     pub fn insert_instr(&mut self, i: &IRUInstrInst) -> Option<Option<String>> {
         match &i.i {
             IRUInstruction::Mv { dest, src } => {
                 self.alloc_stack(dest.id)?;
+                self.map_subvar(src.id);
                 self.instrs.push(IRLInstruction::Mv {
                     dest: dest.id,
                     dest_offset: 0,
@@ -87,6 +106,7 @@ impl<'a> IRLFunctionBuilder<'a> {
             }
             IRUInstruction::Ref { dest, src } => {
                 self.alloc_stack(dest.id)?;
+                self.map_subvar(src.id);
                 self.instrs.push(IRLInstruction::Ref {
                     dest: dest.id,
                     src: src.id,
@@ -151,21 +171,28 @@ impl<'a> IRLFunctionBuilder<'a> {
                 } else {
                     None
                 };
-                self.instrs.push(IRLInstruction::Call {
+                let call = IRLInstruction::Call {
                     dest,
                     f: sym,
                     args: args
                         .iter()
-                        .map(|a| (a.id, self.program.size_of_var(a.id).expect("unsized type")))
+                        .map(|a| {
+                            self.map_subvar(a.id);
+                            (a.id, self.program.size_of_var(a.id).expect("unsized type"))
+                        })
                         .collect(),
-                });
+                };
+                self.instrs.push(call);
             }
             IRUInstruction::AsmBlock { instructions, args } => {
                 let mut inputs = Vec::new();
                 let mut outputs = Vec::new();
                 for a in args {
                     match a.ty {
-                        AsmBlockArgType::In => inputs.push((a.reg, a.var.id)),
+                        AsmBlockArgType::In => {
+                            self.map_subvar(a.var.id);
+                            inputs.push((a.reg, a.var.id))
+                        }
                         AsmBlockArgType::Out => {
                             self.alloc_stack(a.var.id)?;
                             outputs.push((a.reg, a.var.id));
@@ -178,50 +205,37 @@ impl<'a> IRLFunctionBuilder<'a> {
                     outputs,
                 })
             }
-            IRUInstruction::Ret { src } => self.instrs.push(IRLInstruction::Ret { src: src.id }),
+            IRUInstruction::Ret { src } => {
+                self.map_subvar(src.id);
+                self.instrs.push(IRLInstruction::Ret {
+                    src: if self.program.size_of_var(src.id).expect("unsized var") == 0 {
+                        None
+                    } else {
+                        Some(src.id)
+                    },
+                })
+            }
             IRUInstruction::Construct { dest, fields } => {
                 self.alloc_stack(dest.id)?;
                 let ty = &self.program.get_var(dest.id).ty;
-                let Type::Concrete(id) = ty else {
+                let &Type::Struct { id, ref args } = ty else {
                     return Some(Some(format!(
                         "Failed to contruct type {}",
                         self.program.type_name(ty)
                     )));
                 };
-                let struc = self.program.get_struct(*id);
-                for (name, var) in fields {
+                for (&fid, var) in fields {
+                    self.map_subvar(var.id);
                     self.instrs.push(IRLInstruction::Mv {
                         dest: dest.id,
                         src: var.id,
-                        dest_offset: struc.fields[name].offset,
+                        dest_offset: self.program.field_offset(id, fid).expect("field offset"),
                         src_offset: 0,
                     })
                 }
             }
-            IRUInstruction::Access { dest, src, field } => {
-                self.alloc_stack(dest.id)?;
-                let ty = &self.program.get_var(src.id).ty;
-                let Type::Concrete(id) = ty else {
-                    return Some(Some(format!(
-                        "Failed to access field of struct {}",
-                        self.program.type_name(ty)
-                    )));
-                };
-                let struc = self.program.get_struct(*id);
-                let Some(field) = struc.fields.get(field) else {
-                    return Some(Some(format!(
-                        "No field {field} in struct {}",
-                        self.program.type_name(ty)
-                    )));
-                };
-                self.instrs.push(IRLInstruction::Mv {
-                    dest: dest.id,
-                    src: src.id,
-                    src_offset: field.offset,
-                    dest_offset: 0,
-                })
-            }
             IRUInstruction::If { cond, body } => {
+                self.map_subvar(cond.id);
                 let sym = self.builder.reserve();
                 self.instrs.push(IRLInstruction::Branch {
                     to: *sym,
@@ -235,19 +249,27 @@ impl<'a> IRLFunctionBuilder<'a> {
             IRUInstruction::Loop { body } => {
                 let top = self.builder.reserve();
                 let bot = self.builder.reserve();
-                let old = self.outer;
-                self.outer = Some(*bot);
+                let old = self.loopp;
+                self.loopp = Some(LoopCtx {
+                    bot: *bot,
+                    top: *top,
+                });
                 self.instrs.push(IRLInstruction::Mark(*top));
                 for i in body {
                     self.insert_instr(i);
                 }
                 self.instrs.push(IRLInstruction::Jump(*top));
                 self.instrs.push(IRLInstruction::Mark(*bot));
-                self.outer = old;
+                self.loopp = old;
             }
             IRUInstruction::Break => {
                 self.instrs.push(IRLInstruction::Jump(
-                    self.outer.expect("Tried to break outside of loop"),
+                    self.loopp.expect("Tried to break outside of loop").bot,
+                ));
+            }
+            IRUInstruction::Continue => {
+                self.instrs.push(IRLInstruction::Jump(
+                    self.loopp.expect("Tried to break outside of loop").top,
                 ));
             }
         };
@@ -265,6 +287,7 @@ impl<'a> IRLFunctionBuilder<'a> {
                 .collect(),
             ret_size: self.program.size_of_type(&f.ret).expect("unsized type"),
             stack: self.stack,
+            subvar_map: self.subvar_map,
         }
     }
 }

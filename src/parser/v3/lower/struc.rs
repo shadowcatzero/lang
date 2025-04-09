@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    common::{CompilerMsg, CompilerOutput, FileSpan},
-    ir::{IRUInstruction, IRUProgram, Origin, StructDef, StructField, VarInst},
+    common::{CompilerOutput, FileSpan},
+    ir::{FieldID, IRUInstruction, IRUProgram, StructDef, StructField, Type, VarInst},
     parser::{Node, PConstruct, PConstructFields, PStruct, PStructFields},
 };
 
@@ -12,6 +12,18 @@ impl FnLowerable for PConstruct {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         let ty = self.name.lower(ctx.program, ctx.output);
+        let field_map = match ty {
+            Type::Struct { id, .. } => ctx.program.get_struct(id),
+            _ => {
+                ctx.err(format!(
+                    "Type {} cannot be constructed",
+                    ctx.program.type_name(&ty)
+                ));
+                return None;
+            }
+        }
+        .field_map
+        .clone();
         let fields = match &self.fields {
             PConstructFields::Named(nodes) => nodes
                 .iter()
@@ -19,7 +31,15 @@ impl FnLowerable for PConstruct {
                     let def = n.as_ref()?;
                     let name = def.name.as_ref()?.to_string();
                     let expr = def.val.as_ref()?.lower(ctx)?;
-                    Some((name, expr))
+                    let Some(&field) = field_map.get(&name) else {
+                        ctx.err(format!(
+                            "Struct {} has no field {}",
+                            ctx.program.type_name(&ty),
+                            name
+                        ));
+                        return None;
+                    };
+                    Some((field, expr))
                 })
                 .collect(),
             PConstructFields::Tuple(nodes) => nodes
@@ -27,10 +47,19 @@ impl FnLowerable for PConstruct {
                 .enumerate()
                 .flat_map(|(i, n)| {
                     let expr = n.as_ref()?.lower(ctx)?;
-                    Some((format!("{i}"), expr))
+                    let name = format!("{i}");
+                    let Some(&field) = field_map.get(&name) else {
+                        ctx.err(format!(
+                            "Struct {} has no field {}",
+                            ctx.program.type_name(&ty),
+                            name
+                        ));
+                        return None;
+                    };
+                    Some((field, expr))
                 })
                 .collect(),
-            PConstructFields::None => HashMap::new(),
+            PConstructFields::None => Default::default(),
         };
         let id = ctx.temp(ty);
         ctx.push(IRUInstruction::Construct { dest: id, fields });
@@ -45,7 +74,7 @@ impl PStruct {
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Option<()> {
-        let mut offset = 0;
+        let mut field_map = HashMap::new();
         let fields = match &self.fields {
             PStructFields::Named(nodes) => nodes
                 .iter()
@@ -54,16 +83,7 @@ impl PStruct {
                     let name = def.name.as_ref()?.to_string();
                     let tynode = def.ty.as_ref()?;
                     let ty = tynode.lower(p, output);
-                    let size = p.size_of_type(&ty).unwrap_or_else(|| {
-                        output.err(CompilerMsg {
-                            msg: format!("Size of type '{}' unknown", p.type_name(&ty)),
-                            spans: vec![tynode.span],
-                        });
-                        0
-                    });
-                    let res = Some((name, StructField { ty, offset }));
-                    offset += size;
-                    res
+                    Some((name, ty))
                 })
                 .collect(),
             PStructFields::Tuple(nodes) => nodes
@@ -71,18 +91,23 @@ impl PStruct {
                 .enumerate()
                 .flat_map(|(i, n)| {
                     let ty = n.as_ref()?.lower(p, output, span);
-                    let size = p.size_of_type(&ty)?;
-                    let res = Some((format!("{i}"), StructField { ty, offset }));
-                    offset += size;
-                    res
+                    Some((format!("{i}"), ty))
                 })
                 .collect(),
-            PStructFields::None => HashMap::new(),
-        };
-        p.def_type(StructDef {
+            PStructFields::None => vec![],
+        }
+        .into_iter()
+        .enumerate()
+        .map(|(i, (name, ty))| {
+            let id = FieldID(i);
+            field_map.insert(name.clone(), id);
+            StructField { name, ty }
+        })
+        .collect();
+        p.def_struct(StructDef {
             name: self.name.as_ref()?.to_string(),
             origin: span,
-            size: offset,
+            field_map,
             fields,
         });
         Some(())

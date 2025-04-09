@@ -1,6 +1,7 @@
 struct Test {
    a: 64,
    b: 64,
+   c: 64,
 }
 
 fn start() {
@@ -11,7 +12,7 @@ fn start() {
    thinger();
    let x = 3;
    if not(not(lt(x, 5))) {
-       println("tada!");
+      println("tada!");
    };
    println("before:");
    x = 0;
@@ -26,11 +27,13 @@ fn start() {
    print(tester());
    let test = Test {
       a: 10,
-      b: 9,
+      b: 4,
+      c: 0,
    };
+   structer(test);
    arger("a", "b", "c");
    let z = sub(test.a, 10);
-   // exit(add(mul(sub(add(5, test.b), 1), 3), z));
+   print_hex(add(mul(sub(add(10, test.b), 1), 3), z));
    print("test: 0x");
    print_hex(31);
    println("");
@@ -38,6 +41,17 @@ fn start() {
 }
 
 fn structer(test: Test) {
+   print("test {\n   a: ");
+   print_dec(test.a);
+   print("\n   b: ");
+   print_dec(test.b);
+   print("\n   c: ");
+   print_dec(test.c);
+   println("\n}");
+   print("update c: ");
+   test.c = add(test.a, test.b);
+   print_dec(test.c);
+   println("");
 }
 
 fn thinger() {
@@ -64,7 +78,7 @@ fn print(msg: slice<8>) {
 }
 
 fn print_hex(x: 64) {
-   let i = 32;
+   let i = 64;
    loop {
       i = sub(i, 4);
       let c = and(shr(x, i), 15);
@@ -81,6 +95,45 @@ fn print_hex(x: 64) {
       if lt(i, 1) {
          break;
       };
+   }
+}
+
+fn print_dec(x: 64) {
+   let i = 1;
+   loop {
+      if gt(i, x) {
+         if lt(i, 2) {
+            print("0");
+            return;
+         };
+         break;
+      };
+      i = mul(i, 10);
+   };
+   let found = 0;
+   loop {
+      i = div(i, 10);
+      let c = rem(div(x, i), 10);
+      if and(lt(c, 1), not(found)) {
+         continue;
+      };
+      found = 1;
+      if gt(c, 9) {
+         c = add(c, 7);
+      };
+      c = add(c, 48);
+      asm (a1 = &c) {
+         li a2, 1
+         li a0, 1
+         li a7, 64
+         ecall
+      };
+      if lt(i, 2) {
+         break;
+      };
+   };
+   if not(found) {
+      print("0");
    }
 }
 

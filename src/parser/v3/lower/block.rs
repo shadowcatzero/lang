@@ -1,4 +1,4 @@
-use crate::ir::{IRUInstruction, VarInst};
+use crate::ir::{IRUInstruction, Type, VarInst};
 
 use super::{FnLowerCtx, FnLowerable, PBlock, PStatement};
 
@@ -9,7 +9,7 @@ impl FnLowerable for PBlock {
         for statement in &self.statements {
             statement.lower(ctx);
         }
-        let res = self.result.as_ref().map(|r| r.lower(ctx)).flatten();
+        let res = self.result.as_ref().and_then(|r| r.lower(ctx));
         ctx.program.pop();
         res
     }
@@ -28,8 +28,13 @@ impl FnLowerable for PStatement {
                 None
             }
             super::PStatement::Return(e) => {
-                let src = e.lower(ctx)?;
-                ctx.push_at(IRUInstruction::Ret { src }, src.span);
+                if let Some(e) = e {
+                    let src = e.lower(ctx)?;
+                    ctx.push_at(IRUInstruction::Ret { src }, src.span);
+                } else {
+                    let src = ctx.temp(Type::Unit);
+                    ctx.push_at(IRUInstruction::Ret { src }, src.span);
+                }
                 None
             }
             super::PStatement::Expr(e) => e.lower(ctx),

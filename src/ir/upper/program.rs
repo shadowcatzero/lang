@@ -1,13 +1,11 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::common::FileSpan;
-
 use super::{inst::VarInst, *};
 
 pub struct IRUProgram {
     pub fn_defs: Vec<FnDef>,
     pub var_defs: Vec<VarDef>,
-    pub type_defs: Vec<StructDef>,
+    pub struct_defs: Vec<StructDef>,
     pub data_defs: Vec<DataDef>,
     pub fns: Vec<Option<IRUFunction>>,
     pub data: Vec<Vec<u8>>,
@@ -21,7 +19,7 @@ impl IRUProgram {
         Self {
             fn_defs: Vec::new(),
             var_defs: Vec::new(),
-            type_defs: Vec::new(),
+            struct_defs: Vec::new(),
             data_defs: Vec::new(),
             data: Vec::new(),
             fn_map: HashMap::new(),
@@ -57,8 +55,8 @@ impl IRUProgram {
     pub fn get_fn_var(&self, id: VarID) -> Option<&FnDef> {
         Some(&self.fn_defs[self.fn_map.get(&id)?.0])
     }
-    pub fn get_struct(&self, id: TypeID) -> &StructDef {
-        &self.type_defs[id.0]
+    pub fn get_struct(&self, id: StructID) -> &StructDef {
+        &self.struct_defs[id.0]
     }
     pub fn alias_fn(&mut self, name: &str, id: FnID) {
         self.insert(name, Ident::Fn(id));
@@ -80,9 +78,11 @@ impl IRUProgram {
     pub fn size_of_type(&self, ty: &Type) -> Option<Size> {
         // TODO: target matters
         Some(match ty {
-            Type::Concrete(id) => self.type_defs[id.0].size,
             Type::Bits(b) => *b,
-            Type::Generic { base, args } => todo!(),
+            Type::Struct { id, args } => self.struct_defs[id.0]
+                .fields
+                .iter()
+                .try_fold(0, |sum, f| Some(sum + self.size_of_type(&f.ty)?))?,
             Type::Fn { args, ret } => todo!(),
             Type::Ref(_) => 64,
             Type::Array(ty, len) => self.size_of_type(ty)? * len,
@@ -92,12 +92,21 @@ impl IRUProgram {
             Type::Unit => 0,
         })
     }
+    pub fn struct_layout() {}
     pub fn size_of_var(&self, var: VarID) -> Option<Size> {
         self.size_of_type(&self.var_defs[var.0].ty)
     }
+    pub fn temp_subvar(&mut self, origin: Origin, ty: Type, parent: FieldRef) -> VarInst {
+        self.temp_var_inner(origin, ty, Some(parent))
+    }
     pub fn temp_var(&mut self, origin: Origin, ty: Type) -> VarInst {
+        self.temp_var_inner(origin, ty, None)
+    }
+
+    fn temp_var_inner(&mut self, origin: Origin, ty: Type, parent: Option<FieldRef>) -> VarInst {
         let v = self.def_var(VarDef {
             name: format!("temp{}", self.temp),
+            parent,
             origin,
             ty,
         });
@@ -107,11 +116,13 @@ impl IRUProgram {
             span: origin,
         }
     }
+
     pub fn def_fn(&mut self, def: FnDef) -> FnID {
         let i = self.fn_defs.len();
         let id = FnID(i);
         let var_def = VarDef {
             name: def.name.clone(),
+            parent: None,
             origin: def.origin,
             ty: def.ty(),
         };
@@ -126,11 +137,11 @@ impl IRUProgram {
 
         id
     }
-    pub fn def_type(&mut self, def: StructDef) -> TypeID {
-        let i = self.type_defs.len();
-        let id = TypeID(i);
+    pub fn def_struct(&mut self, def: StructDef) -> StructID {
+        let i = self.struct_defs.len();
+        let id = StructID(i);
         self.insert(&def.name, Ident::Type(id));
-        self.type_defs.push(def);
+        self.struct_defs.push(def);
         id
     }
     pub fn def_data(&mut self, def: DataDef, bytes: Vec<u8>) -> DataID {
@@ -142,10 +153,7 @@ impl IRUProgram {
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();
         match ty {
-            Type::Concrete(t) => {
-                str += &self.get_struct(*t).name;
-            }
-            Type::Generic { base, args } => {
+            Type::Struct { id: base, args } => {
                 str += &self.get_struct(*base).name;
                 if let Some(arg) = args.first() {
                     str = str + "<" + &self.type_name(arg);
@@ -201,13 +209,29 @@ impl IRUProgram {
             .enumerate()
             .flat_map(|(i, f)| Some((FnID(i), f.as_ref()?)))
     }
+    pub fn var_offset(&self, var: VarID) -> Option<VarOffset> {
+        let mut current = VarOffset { id: var, offset: 0 };
+        while let Some(parent) = self.var_defs[current.id.0].parent {
+            current.id = parent.var;
+            current.offset += self.field_offset(parent.struc, parent.field)?;
+        }
+        Some(current)
+    }
+    pub fn field_offset(&self, struct_id: StructID, field: FieldID) -> Option<Len> {
+        let struc = self.get_struct(struct_id);
+        let mut offset = 0;
+        for i in 0..field.0 {
+            offset += self.size_of_type(&struc.fields[i].ty)?;
+        }
+        Some(offset)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Ident {
     Var(VarID),
     Fn(FnID),
-    Type(TypeID),
+    Type(StructID),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -215,7 +239,7 @@ pub struct Idents {
     pub latest: Ident,
     pub var: Option<VarID>,
     pub func: Option<FnID>,
-    pub ty: Option<TypeID>,
+    pub struc: Option<StructID>,
 }
 
 impl Idents {
@@ -224,7 +248,7 @@ impl Idents {
             latest,
             var: None,
             func: None,
-            ty: None,
+            struc: None,
         };
         s.insert(latest);
         s
@@ -238,7 +262,7 @@ impl Idents {
             Ident::Fn(f) => {
                 self.func = Some(f);
             }
-            Ident::Type(t) => self.ty = Some(t),
+            Ident::Type(t) => self.struc = Some(t),
         }
     }
 }

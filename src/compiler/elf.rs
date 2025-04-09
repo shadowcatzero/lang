@@ -51,18 +51,19 @@ pub struct SectionHeader {
 }
 
 // this is currently specialized for riscv64; obviously add params later
-pub fn create(program: Vec<u8>, start_offset: Addr) -> Vec<u8> {
+pub fn create(program: &[u8], start_offset: Addr) -> Vec<u8> {
     let addr_start = 0x1000;
     let page_size = 0x1000;
-    let progam_size = std::mem::size_of_val(&program[..]) as u64;
+    // I don't know if I have to add addr_start here, idk how it maps the memory
+    let program_size = std::mem::size_of_val(program) as u64 + addr_start;
     let program_header = ProgramHeader {
         ty: 0x1,      // LOAD
         flags: 0b101, // executable, readable
         offset: 0x0,
         vaddr: addr_start,
         paddr: addr_start,
-        filesz: progam_size,
-        memsz: progam_size,
+        filesz: program_size,
+        memsz: program_size,
         align: page_size,
     };
     let header_len = (size_of::<ELF64Header>() + size_of::<ProgramHeader>()) as u64;
@@ -104,7 +105,7 @@ unsafe fn as_u8_slice<T: Sized>(p: &T) -> &[u8] {
 }
 
 impl LinkedProgram {
-    pub fn to_elf(self) -> Vec<u8> {
-        create(self.code, self.start.expect("no start found"))
+    pub fn to_elf(&self) -> Vec<u8> {
+        create(&self.code, self.start.expect("no start found"))
     }
 }

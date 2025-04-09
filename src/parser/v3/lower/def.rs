@@ -13,6 +13,7 @@ impl Node<PVarDef> {
         Some(VarDef {
             name,
             ty,
+            parent: None,
             origin: self.span,
         })
     }
@@ -36,18 +37,14 @@ impl PType {
         let Some(name) = self.name.as_ref() else {
             return Type::Error;
         };
-        match namespace.get(&name).and_then(|ids| ids.ty) {
+        match namespace.get(&name).and_then(|ids| ids.struc) {
             Some(id) => {
-                if self.args.is_empty() {
-                    Type::Concrete(id)
-                } else {
-                    let args = self
-                        .args
-                        .iter()
-                        .map(|n| n.lower(namespace, output))
-                        .collect();
-                    Type::Generic { base: id, args }
-                }
+                let args = self
+                    .args
+                    .iter()
+                    .map(|n| n.lower(namespace, output))
+                    .collect();
+                Type::Struct { id, args }
             }
             None => {
                 if let Ok(num) = name.parse::<u32>() {

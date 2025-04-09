@@ -1,6 +1,6 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
 use crate::{
-    ir::{DataDef, IRUInstruction, Type, VarInst},
+    ir::{DataDef, FieldRef, IRUInstruction, Type, VarInst},
     parser::PInfixOp,
 };
 
@@ -61,30 +61,36 @@ impl FnLowerable for PExpr {
                 let res1 = e1.lower(ctx)?;
                 if *op == PInfixOp::Access {
                     let sty = &ctx.program.get_var(res1.id).ty;
-                    let Type::Concrete(tid) = sty else {
+                    let Type::Struct {
+                        id: struct_id,
+                        args,
+                    } = sty
+                    else {
                         ctx.err(format!(
                             "Type {:?} has no fields",
                             ctx.program.type_name(sty)
                         ));
                         return None;
                     };
-                    let struc = ctx.program.get_struct(*tid);
+                    let struc = ctx.program.get_struct(*struct_id);
                     let Some(box PExpr::Ident(ident)) = &e2.inner else {
-                        ctx.err(format!("Field accesses must be identifiers",));
+                        ctx.err("Field accesses must be identifiers".to_string());
                         return None;
                     };
                     let fname = &ident.as_ref()?.0;
-                    let Some(field) = struc.fields.get(fname) else {
+                    let Some(&field) = struc.field_map.get(fname) else {
                         ctx.err(format!("Field '{fname}' not in struct"));
                         return None;
                     };
-                    let temp = ctx.temp(field.ty.clone());
-                    ctx.push(IRUInstruction::Access {
-                        dest: temp,
-                        src: res1,
-                        field: fname.to_string(),
-                    });
-                    temp
+                    let fdef = struc.field(field);
+                    ctx.temp_subvar(
+                        fdef.ty.clone(),
+                        FieldRef {
+                            var: res1.id,
+                            struc: *struct_id,
+                            field,
+                        },
+                    )
                 } else {
                     let res2 = e2.lower(ctx)?;
                     match op {
@@ -184,6 +190,10 @@ impl FnLowerable for PExpr {
             }
             PExpr::Break => {
                 ctx.push(IRUInstruction::Break);
+                return None;
+            }
+            PExpr::Continue => {
+                ctx.push(IRUInstruction::Continue);
                 return None;
             }
         })
