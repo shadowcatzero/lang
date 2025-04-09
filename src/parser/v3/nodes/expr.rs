@@ -1,5 +1,7 @@
 use std::fmt::{Debug, Write};
 
+use crate::common::FilePos;
+
 use super::{
     op::{PInfixOp, UnaryOp},
     util::parse_list,
@@ -110,29 +112,40 @@ impl Parsable for PExpr {
         }
         let end = ctx.prev_end();
         let mut recover = false;
-        let res = if let Some(mut op) = PInfixOp::from_token(&next.token) {
+        let res = if let Some(op) = PInfixOp::from_token(&next.token) {
             ctx.next();
-            let mut n1 = Node::new(e1, start.to(end)).bx();
+            let n1 = Node::new(e1, start.to(end)).bx();
             let res = ctx.parse();
-            let mut n2 = res.node.bx();
+            let n2 = res.node.bx();
             recover = res.recover;
-            if let Some(box Self::BinaryOp(op2, _, _)) = n2.as_ref() {
-                if op.presedence() > op2.presedence() {
-                    let Some(box Self::BinaryOp(op2, n21, n22)) = n2.inner else {
-                        unreachable!();
-                    };
-                    let end = n21.span.end;
-                    n1 = Node::new(Self::BinaryOp(op, n1, n21), start.to(end)).bx();
-                    op = op2;
-                    n2 = n22;
-                }
-            }
+            let (n1, op, n2) = fix_precedence(n1, op, n2, start);
             Self::BinaryOp(op, n1, n2)
         } else {
             e1
         };
         ParseResult::from_recover(res, recover)
     }
+}
+
+pub fn fix_precedence(
+    mut n1: BoxNode,
+    mut op: PInfixOp,
+    mut n2: BoxNode,
+    start: FilePos,
+) -> (BoxNode, PInfixOp, BoxNode) {
+    if let Some(box PExpr::BinaryOp(op2, _, _)) = n2.as_ref() {
+        if op.precedence() >= op2.precedence() {
+            let Some(box PExpr::BinaryOp(op2, n21, n22)) = n2.inner else {
+                unreachable!();
+            };
+            let span = start.to(n21.span.end);
+            let (n11, op1, n12) = fix_precedence(n1, op, n21, start);
+            n1 = Node::new(PExpr::BinaryOp(op1, n11, n12), span).bx();
+            op = op2;
+            n2 = n22;
+        }
+    }
+    (n1, op, n2)
 }
 
 impl Debug for PExpr {

@@ -38,8 +38,8 @@ fn run_file(file: &str, gdb: bool, asm: bool) {
     let mut ctx = ParserCtx::from(file);
     let res = PModule::parse_node(&mut ctx);
     if ctx.output.errs.is_empty() {
-        // println!("Parsed:");
-        // println!("{:#?}", res.node);
+        println!("Parsed:");
+        println!("{:#?}", res.node);
         if let Some(module) = res.node.as_ref() {
             let mut program = IRUProgram::new();
             module.lower(&mut program, &mut ctx.output);

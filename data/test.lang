@@ -4,6 +4,12 @@ struct Test {
    c: 64,
 }
 
+struct Test2 {
+   a: 64,
+   b: Test,
+   c: Test,
+}
+
 fn start() {
    println("Helld!");
    print_hex(rem(10, 7));
@@ -51,6 +57,19 @@ fn structer(test: Test) {
    print("update c: ");
    test.c = add(test.a, test.b);
    print_dec(test.c);
+   println("");
+
+   let test2 = Test2 {
+      a: 3,
+      b: test,
+      c: test,
+   };
+   test2.c.c = 20;
+   print("test2.b.c: ");
+   print_dec(test2.b.c);
+   println("");
+   print("test2.c.c: ");
+   print_dec(test2.c.c);
    println("");
 }
 

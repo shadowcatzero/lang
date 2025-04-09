@@ -13,7 +13,7 @@ pub enum PInfixOp {
 }
 
 impl PInfixOp {
-    pub fn presedence(&self) -> u32 {
+    pub fn precedence(&self) -> u32 {
         match self {
             Self::Assign => 0,
             Self::LessThan => 1,
