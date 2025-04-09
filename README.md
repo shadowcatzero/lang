@@ -14,6 +14,7 @@ currently working!!:
 
 todo:
 - generics (groundwork is there I think)
+- traits (unsure exactly how I wanna do this, either way need number ones)
 - actually handle jumps & LIs that are too large
 - iterators?
 - borrow checking
