@@ -72,7 +72,16 @@ impl UProgram {
                     }
                 }
                 UInstruction::AsmBlock { instructions, args } => {
-                    // TODO
+                    for arg in args {
+                        if let Some(size) = self.size_of_var(arg.var.id)
+                            && size != 64
+                        {
+                            output.err(CompilerMsg {
+                                msg: format!("asm block args must be size 64, is size {}", size),
+                                spans: vec![arg.var.span],
+                            });
+                        }
+                    }
                 }
                 UInstruction::Ret { src } => {
                     let srcty = &self.expect(src.id).ty;
