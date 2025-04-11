@@ -7,7 +7,6 @@
 
 use ir::{LProgram, UProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
-use util::Labelable;
 use std::{
     fs::{create_dir_all, OpenOptions},
     io::{stdout, BufRead, BufReader},

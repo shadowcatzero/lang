@@ -122,7 +122,7 @@ impl FnLowerable for PExpr {
                     }
                     UnaryOp::Deref => {
                         let t = &ctx.program.expect(res.id).ty;
-                        let Type::Ref(inner) = t else {
+                        let Type::Ref(_) = t else {
                             ctx.err(format!(
                                 "Cannot dereference type {:?}",
                                 ctx.program.type_name(t)

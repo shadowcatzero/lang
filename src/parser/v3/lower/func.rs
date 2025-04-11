@@ -6,7 +6,7 @@ use crate::{
 
 impl Node<PFunction> {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
-        Some(self.as_ref()?.lower_name(p)?)
+        self.as_ref()?.lower_name(p)
     }
     pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
         if let Some(s) = self.as_ref() {
@@ -24,6 +24,7 @@ impl PFunction {
             name.to_string(),
             Some(UVar {
                 parent: None,
+                // this gets replaced with the correct type later
                 ty: Type::Error,
                 origin: self.header.span,
             }),
