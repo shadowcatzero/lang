@@ -5,8 +5,9 @@
 // dawg what
 #![feature(str_as_str)]
 
-use ir::{IRLProgram, IRUProgram};
+use ir::{LProgram, UProgram};
 use parser::{NodeParsable, PModule, PStatement, ParserCtx};
+use util::Labelable;
 use std::{
     fs::{create_dir_all, OpenOptions},
     io::{stdout, BufRead, BufReader},
@@ -37,37 +38,45 @@ fn main() {
 fn run_file(file: &str, gdb: bool, asm: bool) {
     let mut ctx = ParserCtx::from(file);
     let res = PModule::parse_node(&mut ctx);
-    if ctx.output.errs.is_empty() {
-        println!("Parsed:");
-        println!("{:#?}", res.node);
-        if let Some(module) = res.node.as_ref() {
-            let mut program = IRUProgram::new();
-            module.lower(&mut program, &mut ctx.output);
-            if ctx.output.errs.is_empty() {
-                // println!("vars:");
-                // for (id, def) in namespace.iter_vars() {
-                //     println!("    {id:?} = {}: {}", def.name, namespace.type_name(&def.ty));
-                // }
-                // for (id, f) in namespace.iter_fns() {
-                //     println!("{id:?} = {:#?}", f.unwrap());
-                // }
-                let output = program.validate();
-                output.write_for(&mut stdout(), file);
-                if output.errs.is_empty() {
-                    let program = IRLProgram::create(&program).expect("morir");
-                    let unlinked = compiler::compile(&program);
-                    if asm {
-                        println!("{:?}", unlinked);
-                    } else {
-                        let bin = unlinked.link().to_elf();
-                        println!("compiled");
-                        save_run(&bin, gdb);
-                    }
-                }
-            }
+    let mut output = ctx.output;
+    'outer: {
+        if !output.errs.is_empty() {
+            break 'outer;
+        }
+        // println!("Parsed:");
+        // println!("{:#?}", res.node);
+        let Some(module) = res.node.as_ref() else {
+            break 'outer;
+        };
+        let mut program = UProgram::new();
+        module.lower(&mut program, &mut output);
+        if !output.errs.is_empty() {
+            break 'outer;
+        }
+        program.resolve_types();
+        // println!("vars:");
+        // for (id, def) in program.iter_vars() {
+        //     println!("    {id:?} = {}: {}", program.names.get(id), program.type_name(&def.ty));
+        // }
+        // for (id, f) in program.iter_fns() {
+        //     println!("{}:{id:?} = {:#?}", program.names.get(id), f);
+        // }
+        output = program.validate();
+        if !output.errs.is_empty() {
+            break 'outer;
+        }
+        output.write_for(&mut stdout(), file);
+        let program = LProgram::create(&program).expect("morir");
+        let unlinked = compiler::compile(&program);
+        if asm {
+            println!("{:?}", unlinked);
+        } else {
+            let bin = unlinked.link().to_elf();
+            println!("compiled");
+            save_run(&bin, gdb);
         }
     }
-    ctx.output.write_for(&mut stdout(), file);
+    output.write_for(&mut stdout(), file);
 }
 
 fn save_run(binary: &[u8], run_gdb: bool) {

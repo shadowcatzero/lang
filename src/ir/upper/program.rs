@@ -2,40 +2,67 @@ use std::{collections::HashMap, fmt::Debug};
 
 use super::{inst::VarInst, *};
 
-pub struct IRUProgram {
-    pub fn_defs: Vec<FnDef>,
-    pub var_defs: Vec<VarDef>,
-    pub struct_defs: Vec<StructDef>,
-    pub data_defs: Vec<DataDef>,
-    pub fns: Vec<Option<IRUFunction>>,
-    pub data: Vec<Vec<u8>>,
+pub struct UProgram {
+    pub fns: Vec<Option<UFunc>>,
+    pub vars: Vec<Option<UVar>>,
+    pub structs: Vec<Option<UStruct>>,
+    pub data: Vec<Option<UData>>,
+    pub start: Option<FnID>,
+    pub names: NameMap,
+    // todo: these feel weird raw
     pub fn_map: HashMap<VarID, FnID>,
+    pub inv_fn_map: Vec<VarID>,
     pub temp: usize,
-    pub stack: Vec<HashMap<String, Idents>>,
+    pub name_stack: Vec<HashMap<String, Idents>>,
 }
 
-impl IRUProgram {
+pub struct NameMap {
+    names: [Vec<String>; NAMED_KINDS],
+    inv_names: [HashMap<String, usize>; NAMED_KINDS],
+}
+
+impl NameMap {
     pub fn new() -> Self {
         Self {
-            fn_defs: Vec::new(),
-            var_defs: Vec::new(),
-            struct_defs: Vec::new(),
-            data_defs: Vec::new(),
-            data: Vec::new(),
-            fn_map: HashMap::new(),
+            names: core::array::from_fn(|_| Vec::new()),
+            inv_names: core::array::from_fn(|_| HashMap::new()),
+        }
+    }
+    pub fn get<K: Kind>(&self, id: ID<K>) -> &str {
+        &self.names[K::INDEX][id.0]
+    }
+    pub fn lookup<K: Kind>(&self, name: &str) -> Option<ID<K>> {
+        Some(ID::new(*self.inv_names[K::INDEX].get(name)?))
+    }
+    pub fn push<K: Kind>(&mut self, name: String) {
+        self.inv_names[K::INDEX].insert(name.clone(), self.names[K::INDEX].len());
+        self.names[K::INDEX].push(name);
+    }
+}
+
+impl UProgram {
+    pub fn new() -> Self {
+        Self {
             fns: Vec::new(),
+            vars: Vec::new(),
+            structs: Vec::new(),
+            data: Vec::new(),
+            start: None,
+            names: NameMap::new(),
+            fn_map: HashMap::new(),
+            inv_fn_map: Vec::new(),
             temp: 0,
-            stack: vec![HashMap::new()],
+            name_stack: vec![HashMap::new()],
         }
     }
     pub fn push(&mut self) {
-        self.stack.push(HashMap::new());
+        self.name_stack.push(HashMap::new());
     }
     pub fn pop(&mut self) {
-        self.stack.pop();
+        self.name_stack.pop();
     }
-    pub fn get(&self, name: &str) -> Option<Idents> {
-        for map in self.stack.iter().rev() {
+    pub fn get_idents(&self, name: &str) -> Option<Idents> {
+        for map in self.name_stack.iter().rev() {
             let res = map.get(name);
             if res.is_some() {
                 return res.cloned();
@@ -43,43 +70,29 @@ impl IRUProgram {
         }
         None
     }
-    pub fn get_var(&self, id: VarID) -> &VarDef {
-        &self.var_defs[id.0]
+    pub fn get<K: Kind>(&self, id: ID<K>) -> Option<&K> {
+        K::from_program(self)[id.0].as_ref()
     }
-    pub fn get_fn(&self, id: FnID) -> &FnDef {
-        &self.fn_defs[id.0]
+    pub fn get_mut<K: Kind>(&mut self, id: ID<K>) -> Option<&mut K> {
+        K::from_program_mut(self)[id.0].as_mut()
     }
-    pub fn get_data(&self, id: DataID) -> &DataDef {
-        &self.data_defs[id.0]
+    pub fn expect<K: Kind + Named>(&self, id: ID<K>) -> &K {
+        self.get(id)
+            .unwrap_or_else(|| panic!("{id:?} not defined yet!"))
     }
-    pub fn get_fn_var(&self, id: VarID) -> Option<&FnDef> {
-        Some(&self.fn_defs[self.fn_map.get(&id)?.0])
+    pub fn expect_mut<K: Kind + Named>(&mut self, id: ID<K>) -> &mut K {
+        self.get_mut(id)
+            .unwrap_or_else(|| panic!("{id:?} not defined yet!"))
     }
-    pub fn get_struct(&self, id: StructID) -> &StructDef {
-        &self.struct_defs[id.0]
-    }
-    pub fn alias_fn(&mut self, name: &str, id: FnID) {
-        self.insert(name, Ident::Fn(id));
-    }
-    pub fn named_var(&mut self, def: VarDef) -> VarID {
-        // TODO: this is stupid
-        let id = self.def_var(def.clone());
-        self.name_var(&def, id);
-        id
-    }
-    pub fn name_var(&mut self, def: &VarDef, var: VarID) {
-        self.insert(&def.name, Ident::Var(var));
-    }
-    pub fn def_var(&mut self, var: VarDef) -> VarID {
-        let i = self.var_defs.len();
-        self.var_defs.push(var);
-        VarID(i)
+    pub fn get_fn_var(&self, id: VarID) -> Option<&UFunc> {
+        self.fns[self.fn_map.get(&id)?.0].as_ref()
     }
     pub fn size_of_type(&self, ty: &Type) -> Option<Size> {
         // TODO: target matters
         Some(match ty {
             Type::Bits(b) => *b,
-            Type::Struct { id, args } => self.struct_defs[id.0]
+            Type::Struct { id, args } => self.structs[id.0]
+                .as_ref()?
                 .fields
                 .iter()
                 .try_fold(0, |sum, f| Some(sum + self.size_of_type(&f.ty)?))?,
@@ -92,9 +105,8 @@ impl IRUProgram {
             Type::Unit => 0,
         })
     }
-    pub fn struct_layout() {}
     pub fn size_of_var(&self, var: VarID) -> Option<Size> {
-        self.size_of_type(&self.var_defs[var.0].ty)
+        self.size_of_type(&self.get(var)?.ty)
     }
     pub fn temp_subvar(&mut self, origin: Origin, ty: Type, parent: FieldRef) -> VarInst {
         self.temp_var_inner(origin, ty, Some(parent))
@@ -104,12 +116,10 @@ impl IRUProgram {
     }
 
     fn temp_var_inner(&mut self, origin: Origin, ty: Type, parent: Option<FieldRef>) -> VarInst {
-        let v = self.def_var(VarDef {
-            name: format!("temp{}", self.temp),
-            parent,
-            origin,
-            ty,
-        });
+        let v = self.def(
+            format!("temp{}", self.temp),
+            Some(UVar { parent, origin, ty }),
+        );
         self.temp += 1;
         VarInst {
             id: v,
@@ -117,44 +127,29 @@ impl IRUProgram {
         }
     }
 
-    pub fn def_fn(&mut self, def: FnDef) -> FnID {
-        let i = self.fn_defs.len();
-        let id = FnID(i);
-        let var_def = VarDef {
-            name: def.name.clone(),
-            parent: None,
-            origin: def.origin,
-            ty: def.ty(),
-        };
+    pub fn write<K: Kind>(&mut self, id: ID<K>, k: K) {
+        K::from_program_mut(self)[id.0] = Some(k);
+    }
 
-        let vid = self.def_var(var_def);
-        self.insert(&def.name, Ident::Var(vid));
-        self.fn_map.insert(vid, id);
-
-        self.insert(&def.name, Ident::Fn(id));
-        self.fn_defs.push(def);
-        self.fns.push(None);
-
+    pub fn def<K: Kind>(&mut self, name: String, k: Option<K>) -> ID<K> {
+        self.names.push::<K>(name);
+        let vec = K::from_program_mut(self);
+        let id = ID::new(vec.len());
+        vec.push(k);
         id
     }
-    pub fn def_struct(&mut self, def: StructDef) -> StructID {
-        let i = self.struct_defs.len();
-        let id = StructID(i);
-        self.insert(&def.name, Ident::Type(id));
-        self.struct_defs.push(def);
+
+    pub fn def_searchable<K: Kind>(&mut self, name: String, k: Option<K>) -> ID<K> {
+        let id = self.def(name.clone(), k);
+        self.name_on_stack(id, name);
         id
     }
-    pub fn def_data(&mut self, def: DataDef, bytes: Vec<u8>) -> DataID {
-        let i = self.data.len();
-        self.data_defs.push(def);
-        self.data.push(bytes);
-        DataID(i)
-    }
+
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();
         match ty {
             Type::Struct { id: base, args } => {
-                str += &self.get_struct(*base).name;
+                str += self.names.get(*base);
                 if let Some(arg) = args.first() {
                     str = str + "<" + &self.type_name(arg);
                 }
@@ -188,81 +183,82 @@ impl IRUProgram {
         }
         str
     }
-    fn insert(&mut self, name: &str, id: Ident) {
-        let idx = self.stack.len() - 1;
-        let last = &mut self.stack[idx];
-        if let Some(l) = last.get_mut(name) {
-            l.insert(id);
+    fn name_on_stack<K: Kind>(&mut self, id: ID<K>, name: String) {
+        let idx = self.name_stack.len() - 1;
+        let last = &mut self.name_stack[idx];
+        if let Some(l) = last.get_mut(&name) {
+            l.insert(id.into());
         } else {
-            last.insert(name.to_string(), Idents::new(id));
+            last.insert(name, Idents::new(id.into()));
         }
-    }
-    pub fn write_fn(&mut self, id: FnID, f: IRUFunction) {
-        self.fns[id.0] = Some(f);
-    }
-    pub fn iter_vars(&self) -> impl Iterator<Item = (VarID, &VarDef)> {
-        self.var_defs.iter().enumerate().map(|(i, v)| (VarID(i), v))
-    }
-    pub fn iter_fns(&self) -> impl Iterator<Item = (FnID, &IRUFunction)> {
-        self.fns
-            .iter()
-            .enumerate()
-            .flat_map(|(i, f)| Some((FnID(i), f.as_ref()?)))
     }
     pub fn var_offset(&self, var: VarID) -> Option<VarOffset> {
         let mut current = VarOffset { id: var, offset: 0 };
-        while let Some(parent) = self.var_defs[current.id.0].parent {
+        while let Some(parent) = self.get(current.id)?.parent {
             current.id = parent.var;
             current.offset += self.field_offset(parent.struc, parent.field)?;
         }
         Some(current)
     }
     pub fn field_offset(&self, struct_id: StructID, field: FieldID) -> Option<Len> {
-        let struc = self.get_struct(struct_id);
+        let struc = self.get(struct_id)?;
         let mut offset = 0;
         for i in 0..field.0 {
             offset += self.size_of_type(&struc.fields[i].ty)?;
         }
         Some(offset)
     }
+    pub fn iter_vars(&self) -> impl Iterator<Item = (VarID, &UVar)> {
+        self.vars
+            .iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, x)| (ID::new(i), x))
+    }
+    pub fn iter_fns(&self) -> impl Iterator<Item = (FnID, &UFunc)> {
+        self.fns
+            .iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, x)| (ID::new(i), x))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Ident {
-    Var(VarID),
-    Fn(FnID),
-    Type(StructID),
+pub struct Ident {
+    id: usize,
+    kind: usize,
+}
+
+impl<K: Kind> From<ID<K>> for Ident {
+    fn from(id: ID<K>) -> Self {
+        Self {
+            id: id.0,
+            kind: K::INDEX,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Idents {
     pub latest: Ident,
-    pub var: Option<VarID>,
-    pub func: Option<FnID>,
-    pub struc: Option<StructID>,
+    pub kinds: [Option<usize>; NAMED_KINDS],
 }
 
 impl Idents {
     fn new(latest: Ident) -> Self {
         let mut s = Self {
             latest,
-            var: None,
-            func: None,
-            struc: None,
+            kinds: [None; NAMED_KINDS],
         };
         s.insert(latest);
         s
     }
     fn insert(&mut self, i: Ident) {
         self.latest = i;
-        match i {
-            Ident::Var(v) => {
-                self.var = Some(v);
-            }
-            Ident::Fn(f) => {
-                self.func = Some(f);
-            }
-            Ident::Type(t) => self.struc = Some(t),
-        }
+        self.kinds[i.kind] = Some(i.id);
+    }
+    pub fn get<K: Kind>(&self) -> Option<ID<K>> {
+        self.kinds[K::INDEX].map(|i| i.into())
     }
 }

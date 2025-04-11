@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     common::{CompilerOutput, FileSpan},
-    ir::{FieldID, IRUInstruction, IRUProgram, StructDef, StructField, Type, VarInst},
+    ir::{FieldID, StructField, StructID, Type, UInstruction, UProgram, UStruct, VarInst},
     parser::{Node, PConstruct, PConstructFields, PStruct, PStructFields},
 };
 
@@ -13,7 +13,7 @@ impl FnLowerable for PConstruct {
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         let ty = self.name.lower(ctx.program, ctx.output);
         let field_map = match ty {
-            Type::Struct { id, .. } => ctx.program.get_struct(id),
+            Type::Struct { id, .. } => ctx.program.expect(id),
             _ => {
                 ctx.err(format!(
                     "Type {} cannot be constructed",
@@ -62,7 +62,7 @@ impl FnLowerable for PConstruct {
             PConstructFields::None => Default::default(),
         };
         let id = ctx.temp(ty);
-        ctx.push(IRUInstruction::Construct { dest: id, fields });
+        ctx.push(UInstruction::Construct { dest: id, fields });
         Some(id)
     }
 }
@@ -70,7 +70,8 @@ impl FnLowerable for PConstruct {
 impl PStruct {
     pub fn lower(
         &self,
-        p: &mut IRUProgram,
+        id: StructID,
+        p: &mut UProgram,
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Option<()> {
@@ -99,23 +100,30 @@ impl PStruct {
         .into_iter()
         .enumerate()
         .map(|(i, (name, ty))| {
-            let id = FieldID(i);
+            let id = FieldID::new(i);
             field_map.insert(name.clone(), id);
             StructField { name, ty }
         })
         .collect();
-        p.def_struct(StructDef {
-            name: self.name.as_ref()?.to_string(),
-            origin: span,
-            field_map,
-            fields,
-        });
+        p.write(
+            id,
+            UStruct {
+                origin: span,
+                field_map,
+                fields,
+            },
+        );
         Some(())
     }
 }
 
 impl Node<PStruct> {
-    pub fn lower(&self, p: &mut IRUProgram, output: &mut CompilerOutput) {
-        self.as_ref().map(|i| i.lower(p, output, self.span));
+    pub fn lower_name(&self, p: &mut UProgram) -> Option<StructID> {
+        let name = self.as_ref()?.name.as_ref()?.to_string();
+        let id = p.def_searchable(name.to_string(), None);
+        Some(id)
+    }
+    pub fn lower(&self, id: StructID, p: &mut UProgram, output: &mut CompilerOutput) {
+        self.as_ref().map(|i| i.lower(id, p, output, self.span));
     }
 }

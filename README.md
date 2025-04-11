@@ -19,3 +19,4 @@ todo:
 - iterators?
 - borrow checking
 - basic optimization: use registers, remove temp var moves
+- Cow str

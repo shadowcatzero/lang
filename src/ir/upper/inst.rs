@@ -1,7 +1,7 @@
 use crate::{common::FileSpan, ir::VarID};
 use std::fmt::Debug;
 
-use super::IRUInstruction;
+use super::UInstruction;
 
 #[derive(Clone, Copy)]
 pub struct VarInst {
@@ -9,8 +9,8 @@ pub struct VarInst {
     pub span: FileSpan,
 }
 
-pub struct IRUInstrInst {
-    pub i: IRUInstruction,
+pub struct UInstrInst {
+    pub i: UInstruction,
     pub span: FileSpan,
 }
 
@@ -20,7 +20,7 @@ impl Debug for VarInst {
     }
 }
 
-impl Debug for IRUInstrInst {
+impl Debug for UInstrInst {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.i)
     }

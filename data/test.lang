@@ -31,7 +31,7 @@ fn start() {
    };
    println("after");
    print(tester());
-   let test = Test {
+   let test: Test = Test {
       a: 10,
       b: 4,
       c: 0,
@@ -59,7 +59,7 @@ fn structer(test: Test) {
    print_dec(test.c);
    println("");
 
-   let test2 = Test2 {
+   let test2: Test2 = Test2 {
       a: 3,
       b: test,
       c: test,

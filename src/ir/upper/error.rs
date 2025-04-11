@@ -1,9 +1,9 @@
 use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 
-use super::{IRUProgram, Type};
+use super::{Type, UProgram};
 
 impl CompilerOutput {
-    pub fn check_assign(&mut self, p: &IRUProgram, src: &Type, dest: &Type, span: FileSpan) {
+    pub fn check_assign(&mut self, p: &UProgram, src: &Type, dest: &Type, span: FileSpan) -> bool {
         // TODO: spans
         if src != dest {
             self.err(CompilerMsg {
@@ -14,6 +14,9 @@ impl CompilerOutput {
                 ),
                 spans: vec![span],
             });
+            true
+        } else {
+            false
         }
     }
 }

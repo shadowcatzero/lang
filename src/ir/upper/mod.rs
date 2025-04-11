@@ -1,5 +1,5 @@
-mod def;
-mod func;
+mod kind;
+mod instr;
 mod ty;
 mod program;
 mod validate;
@@ -7,8 +7,8 @@ mod error;
 mod inst;
 
 use super::*;
-pub use def::*;
-pub use func::*;
+pub use kind::*;
+pub use instr::*;
 pub use ty::*;
 pub use program::*;
 pub use inst::*;

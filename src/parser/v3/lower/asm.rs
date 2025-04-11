@@ -1,7 +1,7 @@
 use crate::{
     compiler::arch::riscv::Reg,
     ir::{
-        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, IRUInstruction, Type, VarInst,
+        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, UInstruction, Type, VarInst,
     },
     parser::PAsmBlockArg,
 };
@@ -48,7 +48,7 @@ impl FnLowerable for PAsmBlock {
                 }
             }
         }
-        let block = IRUInstruction::AsmBlock {
+        let block = UInstruction::AsmBlock {
             instructions: {
                 let mut v = Vec::new();
                 for i in &self.instructions {

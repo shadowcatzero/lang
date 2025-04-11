@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct IRLFunction {
-    pub instructions: Vec<IRLInstruction>,
+    pub instructions: Vec<LInstruction>,
     pub stack: HashMap<VarID, Size>,
     pub subvar_map: HashMap<VarID, VarOffset>,
     pub args: Vec<(VarID, Size)>,
@@ -14,7 +14,7 @@ pub struct IRLFunction {
 }
 
 #[derive(Debug)]
-pub enum IRLInstruction {
+pub enum LInstruction {
     Mv {
         dest: VarID,
         dest_offset: Size,
@@ -59,7 +59,7 @@ pub enum IRLInstruction {
     Mark(Symbol),
 }
 
-impl IRLInstruction {
+impl LInstruction {
     pub fn is_ret(&self) -> bool {
         matches!(self, Self::Ret { .. })
     }

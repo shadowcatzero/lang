@@ -1,46 +1,51 @@
-use std::fmt::Debug;
-
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct StructID(pub usize);
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct VarID(pub usize);
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct FnID(pub usize);
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct DataID(pub usize);
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-pub struct FieldID(pub usize);
+use std::{fmt::Debug, marker::PhantomData};
 
 // I had an idea for why these were different... now I don't
 pub type Size = u32;
 pub type Len = u32;
 
-impl Debug for VarID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "var{}", self.0)
+pub struct ID<T>(pub usize, PhantomData<T>);
+
+impl<T> ID<T> {
+    pub fn new(i: usize) -> Self {
+        Self(i, PhantomData)
     }
 }
 
-impl Debug for StructID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ty{}", self.0)
+pub trait Named {
+    const NAME: &str;
+}
+
+impl<T> From<usize> for ID<T> {
+    fn from(value: usize) -> Self {
+        Self(value, PhantomData)
     }
 }
 
-impl Debug for FnID {
+impl<K: Named> Debug for ID<K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "fn{}", self.0)
+        write!(f, "{}{}", K::NAME, self.0)
     }
 }
 
-impl Debug for DataID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "data{}", self.0)
+impl<T> PartialEq for ID<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 
-impl Debug for FieldID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "field{}", self.0)
+impl<T> Eq for ID<T> {}
+
+impl<T> std::hash::Hash for ID<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
     }
 }
+
+impl<T> Clone for ID<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T> Copy for ID<T> {}

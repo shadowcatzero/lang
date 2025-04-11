@@ -7,8 +7,8 @@ mod target;
 use arch::riscv;
 pub use program::*;
 
-use crate::ir::IRLProgram;
+use crate::ir::LProgram;
 
-pub fn compile(program: &IRLProgram) -> UnlinkedProgram<riscv::LinkerInstruction> {
+pub fn compile(program: &LProgram) -> UnlinkedProgram<riscv::LinkerInstruction> {
     arch::riscv::compile(program)
 }

@@ -1,4 +1,4 @@
-use crate::ir::{IRUInstruction, Type, VarInst};
+use crate::ir::{Type, UInstruction, VarInst};
 
 use super::{FnLowerCtx, FnLowerable, PBlock, PStatement};
 
@@ -23,17 +23,20 @@ impl FnLowerable for PStatement {
                 let def = def.lower(ctx.program, ctx.output)?;
                 let res = e.lower(ctx);
                 if let Some(res) = res {
-                    ctx.program.name_var(&def, res.id);
+                    ctx.push(UInstruction::Mv {
+                        dest: def,
+                        src: res,
+                    });
                 }
                 None
             }
             super::PStatement::Return(e) => {
                 if let Some(e) = e {
                     let src = e.lower(ctx)?;
-                    ctx.push_at(IRUInstruction::Ret { src }, src.span);
+                    ctx.push_at(UInstruction::Ret { src }, src.span);
                 } else {
                     let src = ctx.temp(Type::Unit);
-                    ctx.push_at(IRUInstruction::Ret { src }, src.span);
+                    ctx.push_at(UInstruction::Ret { src }, src.span);
                 }
                 None
             }

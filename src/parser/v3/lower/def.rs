@@ -1,26 +1,35 @@
-use crate::ir::{IRUProgram, Origin, Type, VarDef};
+use crate::ir::{Type, UProgram, UStruct, UVar, VarInst};
 
 use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType, PVarDef};
 
 impl Node<PVarDef> {
-    pub fn lower(&self, program: &mut IRUProgram, output: &mut CompilerOutput) -> Option<VarDef> {
+    pub fn lower(&self, program: &mut UProgram, output: &mut CompilerOutput) -> Option<VarInst> {
         let s = self.as_ref()?;
-        let name = s.name.as_ref()?.to_string();
+        let name = s
+            .name
+            .as_ref()
+            .map(|n| n.to_string())
+            .unwrap_or("{error}".to_string());
         let ty = match &s.ty {
             Some(ty) => ty.lower(program, output),
             None => Type::Infer,
         };
-        Some(VarDef {
-            name,
-            ty,
-            parent: None,
-            origin: self.span,
+        Some(VarInst {
+            id: program.def_searchable(
+                name,
+                Some(UVar {
+                    ty,
+                    parent: None,
+                    origin: self.span,
+                }),
+            ),
+            span: self.span,
         })
     }
 }
 
 impl Node<PType> {
-    pub fn lower(&self, namespace: &mut IRUProgram, output: &mut CompilerOutput) -> Type {
+    pub fn lower(&self, namespace: &mut UProgram, output: &mut CompilerOutput) -> Type {
         self.as_ref()
             .map(|t| t.lower(namespace, output, self.span))
             .unwrap_or(Type::Error)
@@ -30,14 +39,17 @@ impl Node<PType> {
 impl PType {
     pub fn lower(
         &self,
-        namespace: &mut IRUProgram,
+        namespace: &mut UProgram,
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Type {
         let Some(name) = self.name.as_ref() else {
             return Type::Error;
         };
-        match namespace.get(&name).and_then(|ids| ids.struc) {
+        match namespace
+            .get_idents(name)
+            .and_then(|ids| ids.get::<UStruct>())
+        {
             Some(id) => {
                 let args = self
                     .args

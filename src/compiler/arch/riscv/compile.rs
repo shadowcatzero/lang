@@ -4,7 +4,7 @@ use crate::{
     compiler::{arch::riscv::Reg, debug::DebugInfo, UnlinkedFunction, UnlinkedProgram},
     ir::{
         arch::riscv64::{RV64Instruction as AI, RegRef},
-        IRLInstruction as IRI, IRLProgram, Len, Size,
+        LInstruction as IRI, LProgram, Len, Size,
     },
 };
 
@@ -47,7 +47,7 @@ fn mov_mem(
     }
 }
 
-pub fn compile(program: &IRLProgram) -> UnlinkedProgram<LI> {
+pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
     let mut fns = Vec::new();
     let mut data = Vec::new();
     let mut dbg = DebugInfo::new(program.labels().to_vec());

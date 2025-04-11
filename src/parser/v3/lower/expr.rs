@@ -1,6 +1,6 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
 use crate::{
-    ir::{DataDef, FieldRef, IRUInstruction, Type, VarInst},
+    ir::{FieldRef, Type, UData, UInstruction, VarInst},
     parser::PInfixOp,
 };
 
@@ -12,55 +12,53 @@ impl FnLowerable for PExpr {
                 super::PLiteral::String(s) => {
                     let dest = ctx.program.temp_var(l.span, Type::Bits(8).slice());
                     let data = s.as_bytes().to_vec();
-                    let src = ctx.program.def_data(
-                        DataDef {
+                    let src = ctx.program.def(
+                        format!("string \"{}\"", s.replace("\n", "\\n")),
+                        Some(UData {
                             ty: Type::Bits(8).arr(data.len() as u32),
                             origin: l.span,
-                            label: format!("string \"{}\"", s.replace("\n", "\\n")),
-                        },
-                        data,
+                            content: data,
+                        }),
                     );
-                    ctx.push(IRUInstruction::LoadSlice { dest, src });
+                    ctx.push(UInstruction::LoadSlice { dest, src });
                     dest
                 }
                 super::PLiteral::Char(c) => {
                     let ty = Type::Bits(8);
                     let dest = ctx.program.temp_var(l.span, ty.clone());
-                    let src = ctx.program.def_data(
-                        DataDef {
+                    let src = ctx.program.def(
+                        format!("char '{c}'"),
+                        Some(UData {
                             ty,
                             origin: l.span,
-                            label: format!("char '{c}'"),
-                        },
-                        c.to_string().as_bytes().to_vec(),
+                            content: c.to_string().as_bytes().to_vec(),
+                        }),
                     );
-                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    ctx.push(UInstruction::LoadData { dest, src });
                     dest
                 }
                 super::PLiteral::Number(n) => {
                     // TODO: temp
                     let ty = Type::Bits(64);
                     let dest = ctx.program.temp_var(l.span, Type::Bits(64));
-                    let src = ctx.program.def_data(
-                        DataDef {
+                    let src = ctx.program.def(
+                        format!("num {n:?}"),
+                        Some(UData {
                             ty,
                             origin: l.span,
-                            label: format!("num {n:?}"),
-                        },
-                        n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
+                            content: n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
+                        }),
                     );
-                    ctx.push(IRUInstruction::LoadData { dest, src });
+                    ctx.push(UInstruction::LoadData { dest, src });
                     dest
                 }
-                super::PLiteral::Unit => {
-                    todo!();
-                }
+                super::PLiteral::Unit => ctx.program.temp_var(l.span, Type::Unit),
             },
             PExpr::Ident(i) => ctx.get_var(i)?,
             PExpr::BinaryOp(op, e1, e2) => {
                 let res1 = e1.lower(ctx)?;
                 if *op == PInfixOp::Access {
-                    let sty = &ctx.program.get_var(res1.id).ty;
+                    let sty = &ctx.program.expect(res1.id).ty;
                     let Type::Struct {
                         id: struct_id,
                         args,
@@ -72,7 +70,7 @@ impl FnLowerable for PExpr {
                         ));
                         return None;
                     };
-                    let struc = ctx.program.get_struct(*struct_id);
+                    let struc = ctx.program.expect(*struct_id);
                     let Some(box PExpr::Ident(ident)) = &e2.inner else {
                         ctx.err("Field accesses must be identifiers".to_string());
                         return None;
@@ -102,7 +100,7 @@ impl FnLowerable for PExpr {
                         PInfixOp::GreaterThan => todo!(),
                         PInfixOp::Access => todo!(),
                         PInfixOp::Assign => {
-                            ctx.push(IRUInstruction::Mv {
+                            ctx.push(UInstruction::Mv {
                                 dest: res1,
                                 src: res2,
                             });
@@ -115,15 +113,15 @@ impl FnLowerable for PExpr {
                 let res = e.lower(ctx)?;
                 match op {
                     UnaryOp::Ref => {
-                        let temp = ctx.temp(ctx.program.get_var(res.id).ty.clone().rf());
-                        ctx.push(IRUInstruction::Ref {
+                        let temp = ctx.temp(ctx.program.expect(res.id).ty.clone().rf());
+                        ctx.push(UInstruction::Ref {
                             dest: temp,
                             src: res,
                         });
                         temp
                     }
                     UnaryOp::Deref => {
-                        let t = &ctx.program.get_var(res.id).ty;
+                        let t = &ctx.program.expect(res.id).ty;
                         let Type::Ref(inner) = t else {
                             ctx.err(format!(
                                 "Cannot dereference type {:?}",
@@ -145,22 +143,13 @@ impl FnLowerable for PExpr {
                     let arg = arg.lower(ctx)?;
                     nargs.push(arg);
                 }
-                let def = ctx.program.get_fn_var(fe.id);
-                let ty = match def {
-                    Some(def) => def.ret.clone(),
-                    None => {
-                        ctx.err_at(
-                            e.span,
-                            format!(
-                                "Expected function, found {}",
-                                ctx.program.type_name(&ctx.program.get_var(fe.id).ty)
-                            ),
-                        );
-                        Type::Error
-                    }
-                };
+                let ty = ctx
+                    .program
+                    .get_fn_var(fe.id)
+                    .map(|f| f.ret.clone())
+                    .unwrap_or(Type::Error);
                 let temp = ctx.temp(ty);
-                ctx.push(IRUInstruction::Call {
+                ctx.push(UInstruction::Call {
                     dest: temp,
                     f: fe,
                     args: nargs,
@@ -176,7 +165,7 @@ impl FnLowerable for PExpr {
                 body.lower(&mut body_ctx);
                 let body = body_ctx.instructions;
                 ctx.program.pop();
-                ctx.push(IRUInstruction::If { cond, body });
+                ctx.push(UInstruction::If { cond, body });
                 return None;
             }
             PExpr::Loop(body) => {
@@ -185,15 +174,15 @@ impl FnLowerable for PExpr {
                 body.lower(&mut body_ctx);
                 let body = body_ctx.instructions;
                 ctx.program.pop();
-                ctx.push(IRUInstruction::Loop { body });
+                ctx.push(UInstruction::Loop { body });
                 return None;
             }
             PExpr::Break => {
-                ctx.push(IRUInstruction::Break);
+                ctx.push(UInstruction::Break);
                 return None;
             }
             PExpr::Continue => {
-                ctx.push(IRUInstruction::Continue);
+                ctx.push(UInstruction::Continue);
                 return None;
             }
         })

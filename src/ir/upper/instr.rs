@@ -1,18 +1,9 @@
 use std::{collections::HashMap, fmt::Write};
 
-use super::{
-    arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, IRUInstrInst, Type, VarID,
-};
+use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, UInstrInst, UFunc};
 use crate::{compiler::arch::riscv::Reg, ir::FieldID, util::Padder};
 
-pub struct IRUFunction {
-    pub name: String,
-    pub args: Vec<VarID>,
-    pub ret: Type,
-    pub instructions: Vec<IRUInstrInst>,
-}
-
-pub enum IRUInstruction {
+pub enum UInstruction {
     Mv {
         dest: VarInst,
         src: VarInst,
@@ -51,10 +42,10 @@ pub enum IRUInstruction {
     },
     If {
         cond: VarInst,
-        body: Vec<IRUInstrInst>,
+        body: Vec<UInstrInst>,
     },
     Loop {
-        body: Vec<IRUInstrInst>,
+        body: Vec<UInstrInst>,
     },
     Break,
     Continue,
@@ -73,7 +64,7 @@ pub enum AsmBlockArgType {
     Out,
 }
 
-impl std::fmt::Debug for IRUInstruction {
+impl std::fmt::Debug for UInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Mv { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
@@ -86,9 +77,7 @@ impl std::fmt::Debug for IRUInstruction {
                 f: func,
                 args,
             } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
-            Self::AsmBlock { args, instructions } => {
-                write!(f, "asm {args:?} {instructions:#?}")?
-            }
+            Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
             Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
             Self::If { cond, body } => {
@@ -126,9 +115,9 @@ impl std::fmt::Debug for IRUInstruction {
     }
 }
 
-impl std::fmt::Debug for IRUFunction {
+impl std::fmt::Debug for UFunc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{:?}", &self.name, self.args)?;
+        write!(f, "{:?}", self.args)?;
         if !self.instructions.is_empty() {
             f.write_str("{\n    ")?;
             let mut padder = Padder::new(f);

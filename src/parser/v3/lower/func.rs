@@ -1,110 +1,102 @@
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
-    ir::{
-        FnDef, FnID, IRUFunction, IRUInstrInst, IRUInstruction, IRUProgram, Idents, Type, VarDef,
-        VarInst, FieldRef,
-    },
+    ir::{FieldRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
     parser,
 };
 
 impl Node<PFunction> {
-    pub fn lower_header(&self, map: &mut IRUProgram, output: &mut CompilerOutput) -> Option<FnID> {
-        self.as_ref()?.lower_header(map, output)
+    pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
+        Some(self.as_ref()?.lower_name(p)?)
     }
-    pub fn lower_body(
-        &self,
-        id: FnID,
-        map: &mut IRUProgram,
-        output: &mut CompilerOutput,
-    ) -> Option<IRUFunction> {
-        Some(self.as_ref()?.lower_body(id, map, output))
+    pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
+        if let Some(s) = self.as_ref() {
+            s.lower(id, p, output)
+        }
     }
 }
 
 impl PFunction {
-    pub fn lower_header(&self, map: &mut IRUProgram, output: &mut CompilerOutput) -> Option<FnID> {
+    pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         let header = self.header.as_ref()?;
         let name = header.name.as_ref()?;
-        let args = header
-            .args
-            .iter()
-            .map(|a| {
-                a.lower(map, output).unwrap_or(VarDef {
-                    name: "{error}".to_string(),
-                    origin: a.span,
-                    parent: None,
-                    ty: Type::Error,
-                })
-            })
-            .collect();
-        let ret = match &header.ret {
-            Some(ty) => ty.lower(map, output),
-            None => Type::Unit,
-        };
-        Some(map.def_fn(FnDef {
-            name: name.to_string(),
-            origin: self.header.span,
-            args,
-            ret,
-        }))
+        let id = p.def_searchable(name.to_string(), None);
+        let var = p.def_searchable(
+            name.to_string(),
+            Some(UVar {
+                parent: None,
+                ty: Type::Error,
+                origin: self.header.span,
+            }),
+        );
+        p.fn_map.insert(var, id);
+        p.inv_fn_map.push(var);
+        Some(id)
     }
-    pub fn lower_body(
-        &self,
-        id: FnID,
-        map: &mut IRUProgram,
-        output: &mut CompilerOutput,
-    ) -> IRUFunction {
-        let def = map.get_fn(id).clone();
-        let args = def.args.iter().map(|a| map.named_var(a.clone())).collect();
+    pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
+        let (args, ret) = if let Some(header) = self.header.as_ref() {
+            (
+                header
+                    .args
+                    .iter()
+                    .flat_map(|a| Some(a.lower(p, output)?.id))
+                    .collect(),
+                match &header.ret {
+                    Some(ty) => ty.lower(p, output),
+                    None => Type::Unit,
+                },
+            )
+        } else {
+            (Vec::new(), Type::Error)
+        };
         let mut ctx = FnLowerCtx {
             instructions: Vec::new(),
-            program: map,
+            program: p,
             output,
             span: self.body.span,
         };
         if let Some(src) = self.body.lower(&mut ctx) {
-            ctx.instructions.push(IRUInstrInst {
-                i: IRUInstruction::Ret { src },
+            ctx.instructions.push(UInstrInst {
+                i: UInstruction::Ret { src },
                 span: src.span,
             });
         }
-        IRUFunction {
-            name: def.name.clone(),
+        let origin = self.header.span;
+        let f = UFunc {
+            origin,
             args,
-            ret: def.ret,
+            ret,
             instructions: ctx.instructions,
-        }
+        };
+        p.expect_mut(p.inv_fn_map[id.0]).ty = f.ty(p);
+        p.write(id, f)
     }
 }
 
 pub struct FnLowerCtx<'a> {
-    pub program: &'a mut IRUProgram,
-    pub instructions: Vec<IRUInstrInst>,
+    pub program: &'a mut UProgram,
+    pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
     pub span: FileSpan,
 }
 
 impl FnLowerCtx<'_> {
-    pub fn get(&mut self, node: &Node<parser::PIdent>) -> Option<Idents> {
+    pub fn get_idents(&mut self, node: &Node<parser::PIdent>) -> Option<Idents> {
         let name = node.inner.as_ref()?;
-        let res = self.program.get(name);
+        let res = self.program.get_idents(name);
         if res.is_none() {
             self.err_at(node.span, format!("Identifier '{}' not found", name));
         }
         res
     }
     pub fn get_var(&mut self, node: &Node<parser::PIdent>) -> Option<VarInst> {
-        let ids = self.get(node)?;
-        if ids.var.is_none() {
+        let ids = self.get_idents(node)?;
+        if ids.get::<UVar>().is_none() {
             self.err_at(
                 node.span,
-                format!(
-                    "Variable '{}' not found; Type found but cannot be used here",
-                    node.inner.as_ref()?
-                ),
+                format!("Variable '{}' not found", node.inner.as_ref()?),
             );
         }
-        ids.var.map(|id| VarInst {
+        ids.get::<UVar>().map(|id| VarInst {
             id,
             span: node.span,
         })
@@ -121,11 +113,11 @@ impl FnLowerCtx<'_> {
     pub fn temp_subvar(&mut self, ty: Type, parent: FieldRef) -> VarInst {
         self.program.temp_subvar(self.span, ty, parent)
     }
-    pub fn push(&mut self, i: IRUInstruction) {
-        self.instructions.push(IRUInstrInst { i, span: self.span });
+    pub fn push(&mut self, i: UInstruction) {
+        self.instructions.push(UInstrInst { i, span: self.span });
     }
-    pub fn push_at(&mut self, i: IRUInstruction, span: FileSpan) {
-        self.instructions.push(IRUInstrInst { i, span });
+    pub fn push_at(&mut self, i: UInstruction, span: FileSpan) {
+        self.instructions.push(UInstrInst { i, span });
     }
     pub fn branch<'a>(&'a mut self) -> FnLowerCtx<'a> {
         FnLowerCtx {

@@ -1,25 +1,25 @@
-use crate::ir::IRUProgram;
+use crate::ir::UProgram;
 
-use super::{PModule, CompilerOutput};
+use super::{CompilerOutput, PModule};
 
 impl PModule {
-    pub fn lower(&self, p: &mut IRUProgram, output: &mut CompilerOutput) {
+    pub fn lower(&self, p: &mut UProgram, output: &mut CompilerOutput) {
+        let mut structs = Vec::new();
         for s in &self.structs {
-            s.lower(p, output);
+            structs.push(s.lower_name(p));
+        }
+        for (s, id) in self.structs.iter().zip(structs) {
+            if let Some(id) = id {
+                s.lower(id, p, output);
+            }
         }
         let mut fns = Vec::new();
         for f in &self.functions {
-            if let Some(id) = f.lower_header(p, output) {
-                fns.push(Some(id));
-            } else {
-                fns.push(None)
-            }
+            fns.push(f.lower_name(p));
         }
         for (f, id) in self.functions.iter().zip(fns) {
             if let Some(id) = id {
-                if let Some(res) = f.lower_body(id, p, output) {
-                    p.write_fn(id, res);
-                }
+                f.lower(id, p, output)
             }
         }
     }

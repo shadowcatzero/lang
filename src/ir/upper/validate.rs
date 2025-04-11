@@ -1,26 +1,27 @@
 // TODO: move this into ir, not parser
-use super::{IRUInstrInst, IRUInstruction, IRUProgram, Type};
+use super::{Type, UInstrInst, UInstruction, UProgram};
 use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 
-impl IRUProgram {
+impl UProgram {
     pub fn validate(&self) -> CompilerOutput {
         let mut output = CompilerOutput::new();
-        for (f, fd) in self.fns.iter().flatten().zip(&self.fn_defs) {
-            self.validate_fn(
-                &f.instructions,
-                fd.origin,
-                &fd.ret,
-                &mut output,
-                true,
-                false,
-            );
+        for f in self.fns.iter().flatten() {
+            self.validate_fn(&f.instructions, f.origin, &f.ret, &mut output, true, false);
+        }
+        for (id, var) in self.iter_vars() {
+            if var.ty == Type::Error {
+                output.err(CompilerMsg {
+                    msg: format!("Var {:?} is error type!", id),
+                    spans: vec![var.origin],
+                });
+            }
         }
         output
     }
 
     pub fn validate_fn(
         &self,
-        instructions: &[IRUInstrInst],
+        instructions: &[UInstrInst],
         origin: FileSpan,
         ret: &Type,
         output: &mut CompilerOutput,
@@ -30,31 +31,31 @@ impl IRUProgram {
         let mut no_ret = true;
         for i in instructions {
             match &i.i {
-                IRUInstruction::Mv { dest, src } => {
-                    let dest = self.get_var(dest.id);
-                    let src = self.get_var(src.id);
+                UInstruction::Mv { dest, src } => {
+                    let dest = self.expect(dest.id);
+                    let src = self.expect(src.id);
                     output.check_assign(self, &src.ty, &dest.ty, i.span);
                 }
-                IRUInstruction::Ref { dest, src } => {
+                UInstruction::Ref { dest, src } => {
                     // TODO
                 }
-                IRUInstruction::LoadData { dest, src } => {
-                    let dest = self.get_var(dest.id);
-                    let src = self.get_data(*src);
+                UInstruction::LoadData { dest, src } => {
+                    let dest = self.expect(dest.id);
+                    let src = self.expect(*src);
                     output.check_assign(self, &src.ty, &dest.ty, i.span);
                 }
-                IRUInstruction::LoadSlice { dest, src } => {
-                    let dest = self.get_var(dest.id);
-                    let src = self.get_data(*src);
+                UInstruction::LoadSlice { dest, src } => {
+                    let dest = self.expect(dest.id);
+                    let src = self.expect(*src);
                     let Type::Array(srcty, ..) = &src.ty else {
                         todo!()
                     };
                     output.check_assign(self, &Type::Slice(srcty.clone()), &dest.ty, i.span);
                 }
-                IRUInstruction::LoadFn { dest, src } => todo!(),
-                IRUInstruction::Call { dest, f, args } => {
-                    let destty = &self.get_var(dest.id).ty;
-                    let f = self.get_var(f.id);
+                UInstruction::LoadFn { dest, src } => todo!(),
+                UInstruction::Call { dest, f, args } => {
+                    let destty = &self.expect(dest.id).ty;
+                    let f = self.expect(f.id);
                     let Type::Fn { args: argtys, ret } = &f.ty else {
                         todo!()
                     };
@@ -65,21 +66,21 @@ impl IRUProgram {
                             spans: vec![dest.span],
                         });
                     }
-                    for (argv, argt) in args.iter().zip(argtys) {
-                        let dest = self.get_var(argv.id);
-                        output.check_assign(self, argt, &dest.ty, argv.span);
+                    for (dst_ty, src) in argtys.iter().zip(args) {
+                        let src_var = self.expect(src.id);
+                        output.check_assign(self, &src_var.ty, dst_ty, src.span);
                     }
                 }
-                IRUInstruction::AsmBlock { instructions, args } => {
+                UInstruction::AsmBlock { instructions, args } => {
                     // TODO
                 }
-                IRUInstruction::Ret { src } => {
-                    let srcty = &self.get_var(src.id).ty;
+                UInstruction::Ret { src } => {
+                    let srcty = &self.expect(src.id).ty;
                     output.check_assign(self, srcty, ret, src.span);
                     no_ret = false;
                 }
-                IRUInstruction::Construct { dest, fields } => {
-                    let dest_def = self.get_var(dest.id);
+                UInstruction::Construct { dest, fields } => {
+                    let dest_def = self.expect(dest.id);
                     let tyid = match &dest_def.ty {
                         Type::Struct { id, args } => *id,
                         _ => {
@@ -90,10 +91,10 @@ impl IRUProgram {
                             continue;
                         }
                     };
-                    let def = self.get_struct(tyid);
+                    let def = self.expect(tyid);
                     for (id, field) in def.iter_fields() {
                         if let Some(var) = fields.get(&id) {
-                            let ety = &self.get_var(var.id).ty;
+                            let ety = &self.expect(var.id).ty;
                             output.check_assign(self, &field.ty, ety, var.span);
                         } else {
                             output.err(CompilerMsg {
@@ -103,15 +104,15 @@ impl IRUProgram {
                         }
                     }
                 }
-                IRUInstruction::If { cond, body } => {
-                    let cond = self.get_var(cond.id);
+                UInstruction::If { cond, body } => {
+                    let cond = self.expect(cond.id);
                     output.check_assign(self, &cond.ty, &Type::Bits(64), i.span);
                     self.validate_fn(body, origin, ret, output, false, breakable);
                 }
-                IRUInstruction::Loop { body } => {
+                UInstruction::Loop { body } => {
                     self.validate_fn(body, origin, ret, output, false, true);
                 }
-                IRUInstruction::Break => {
+                UInstruction::Break => {
                     if !breakable {
                         output.err(CompilerMsg {
                             msg: "Can't break here (outside of loop)".to_string(),
@@ -120,7 +121,7 @@ impl IRUProgram {
                     }
                     // TODO
                 }
-                IRUInstruction::Continue => {
+                UInstruction::Continue => {
                     if !breakable {
                         output.err(CompilerMsg {
                             msg: "Can't continue here (outside of loop)".to_string(),
