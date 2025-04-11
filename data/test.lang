@@ -30,6 +30,7 @@ fn start() {
       x = add(x, 1);
    };
    println("after");
+   let infer_me: slice<_> = "hello";
    print(tester());
    let test: Test = Test {
       a: 10,

@@ -15,6 +15,12 @@ impl UProgram {
                     spans: vec![var.origin],
                 });
             }
+            if var.ty == Type::Infer {
+                output.err(CompilerMsg {
+                    msg: format!("Var {:?} cannot be inferred", id),
+                    spans: vec![var.origin],
+                });
+            }
         }
         output
     }

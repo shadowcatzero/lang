@@ -127,12 +127,23 @@ pub fn match_types(dest: &Type, src: &Type) -> Option<Type> {
             if dest_id != src_id {
                 return None;
             }
-            None
-            // TODO
-            // let mut args = Vec::new();
-            // for (darg, sarg) in dest_args.iter().zip(src_args) {
-            // }
-            // Some(Type::Struct { id: *dest_id, args })
+            let mut args = Vec::new();
+            let mut changed = false;
+            for (darg, sarg) in dest_args.iter().zip(src_args) {
+                if let Some(ty) = match_types(darg, sarg) {
+                    args.push(ty);
+                    changed = true;
+                } else if darg != sarg {
+                    return None;
+                } else {
+                    args.push(darg.clone());
+                }
+            }
+            if changed {
+                Some(Type::Struct { id: *dest_id, args })
+            } else {
+                None
+            }
         }
         (
             Type::Fn {
@@ -147,13 +158,13 @@ pub fn match_types(dest: &Type, src: &Type) -> Option<Type> {
             // TODO
             None
         }
-        (Type::Ref(dest), Type::Ref(src)) => Some(match_types(dest, src)?),
-        (Type::Slice(dest), Type::Slice(src)) => Some(match_types(dest, src)?),
+        (Type::Ref(dest), Type::Ref(src)) => Some(match_types(dest, src)?.rf()),
+        (Type::Slice(dest), Type::Slice(src)) => Some(match_types(dest, src)?.slice()),
         (Type::Array(dest, dlen), Type::Array(src, slen)) => {
             if dlen != slen {
                 return None;
             }
-            match_types(dest, src)
+            Some(match_types(dest, src)?.arr(*dlen))
         }
         _ => None,
     }

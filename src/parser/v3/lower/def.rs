@@ -67,6 +67,7 @@ impl PType {
                             let inner = self.args[0].lower(namespace, output);
                             Type::Slice(Box::new(inner))
                         }
+                        "_" => Type::Infer,
                         _ => {
                             output.err(CompilerMsg::from_span(span, "Type not found".to_string()));
                             Type::Error
