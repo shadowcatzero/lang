@@ -37,7 +37,9 @@ impl UProgram {
                     output.check_assign(self, &src.ty, &dest.ty, i.span);
                 }
                 UInstruction::Ref { dest, src } => {
-                    // TODO
+                    let dest = self.expect(dest.id);
+                    let src = self.expect(src.id);
+                    output.check_assign(self, &src.ty.clone().rf(), &dest.ty, i.span);
                 }
                 UInstruction::LoadData { dest, src } => {
                     let dest = self.expect(dest.id);

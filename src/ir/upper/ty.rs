@@ -1,6 +1,4 @@
-use crate::common::CompilerOutput;
-
-use super::{Len, StructID, UInstruction, UProgram, UVar};
+use super::{Len, StructID, UInstruction, UProgram, UVar, VarID};
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
@@ -46,21 +44,22 @@ impl UProgram {
                 vars[dest.id.0].as_mut().expect("bruh").ty = ret;
             }
             UInstruction::Mv { dest, src } => {
-                let dest_ty = &vars[dest.id.0].as_ref().unwrap().ty;
-                let src_ty = &vars[src.id.0].as_ref().unwrap().ty;
+                let dest_ty = get(vars, dest.id);
+                let src_ty = get(vars, src.id);
                 if let Some(ty) = match_types(dest_ty, src_ty) {
-                    vars[dest.id.0]
-                        .as_mut()
-                        .expect("PARTIAL BORROWING WOULD BE REALLY COOL")
-                        .ty = ty.clone();
-                    vars[src.id.0]
-                        .as_mut()
-                        .expect("PARTIAL BORROWING WOULD BE REALLY COOL")
-                        .ty = ty;
+                    set(vars, dest.id, ty.clone());
+                    set(vars, src.id, ty);
                 }
             }
             UInstruction::Ref { dest, src } => {
-                // TODO
+                let dest_ty = get(vars, dest.id);
+                let src_ty = get(vars, src.id);
+                if let Type::Ref(dest_ty) = dest_ty {
+                    if let Some(ty) = match_types(dest_ty, src_ty) {
+                        set(vars, dest.id, ty.clone().rf());
+                        set(vars, src.id, ty);
+                    }
+                }
             }
             UInstruction::LoadData { dest, src } => {
                 // TODO
@@ -92,6 +91,20 @@ impl UProgram {
             UInstruction::Continue => {}
         }
     }
+}
+
+pub fn get(vars: &[Option<UVar>], id: VarID) -> &Type {
+    &vars[id.0]
+        .as_ref()
+        .expect("PARTIAL BORROWING WOULD BE REALLY COOL")
+        .ty
+}
+
+pub fn set(vars: &mut [Option<UVar>], id: VarID, ty: Type) {
+    vars[id.0]
+        .as_mut()
+        .expect("PARTIAL BORROWING WOULD BE REALLY COOL")
+        .ty = ty;
 }
 
 pub fn match_types(dest: &Type, src: &Type) -> Option<Type> {
