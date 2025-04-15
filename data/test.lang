@@ -44,6 +44,7 @@ fn start() {
    print("test: 0x");
    print_hex(31);
    println("");
+   generic();
    exit(0);
 }
 
@@ -71,6 +72,23 @@ fn structer(test: Test) {
    println("");
    print("test2.c.c: ");
    print_dec(test2.c.c);
+   println("");
+}
+
+struct GTest<T, U> {
+   a: T,
+   b: U,
+}
+
+fn generic() {
+   let gt = GTest {
+      a: 39,
+      b: "hello",
+   };
+   print("generic: ");
+   print_dec(gt.a);
+   print(", ");
+   print(gt.b);
    println("");
 }
 

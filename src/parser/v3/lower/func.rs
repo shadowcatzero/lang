@@ -1,6 +1,9 @@
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
-    ir::{FieldRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
+    ir::{
+        FieldRef, FnID, Idents, InstrIter, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar,
+        VarInst,
+    },
     parser,
 };
 
@@ -24,8 +27,7 @@ impl PFunction {
             name.to_string(),
             Some(UVar {
                 parent: None,
-                // this gets replaced with the correct type later
-                ty: Type::Error,
+                ty: Type::Placeholder,
                 origin: self.header.span,
             }),
         );
@@ -62,11 +64,12 @@ impl PFunction {
             });
         }
         let origin = self.header.span;
+        let instructions = ctx.instructions;
         let f = UFunc {
             origin,
             args,
             ret,
-            instructions: ctx.instructions,
+            instructions,
         };
         p.expect_mut(p.inv_fn_map[id.0]).ty = f.ty(p);
         p.write(id, f)
@@ -115,7 +118,7 @@ impl FnLowerCtx<'_> {
         self.program.temp_subvar(self.span, ty, parent)
     }
     pub fn push(&mut self, i: UInstruction) {
-        self.instructions.push(UInstrInst { i, span: self.span });
+        self.push_at(i, self.span);
     }
     pub fn push_at(&mut self, i: UInstruction, span: FileSpan) {
         self.instructions.push(UInstrInst { i, span });

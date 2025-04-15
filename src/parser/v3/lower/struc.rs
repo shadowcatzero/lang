@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use crate::{
     common::{CompilerOutput, FileSpan},
-    ir::{FieldID, StructField, StructID, Type, UInstruction, UProgram, UStruct, VarInst},
+    ir::{StructField, StructID, UInstruction, UProgram, UStruct, VarInst},
     parser::{Node, PConstruct, PConstructFields, PStruct, PStructFields},
 };
 
@@ -12,18 +10,6 @@ impl FnLowerable for PConstruct {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         let ty = self.name.lower(ctx.program, ctx.output);
-        let field_map = match ty {
-            Type::Struct { id, .. } => ctx.program.expect(id),
-            _ => {
-                ctx.err(format!(
-                    "Type {} cannot be constructed",
-                    ctx.program.type_name(&ty)
-                ));
-                return None;
-            }
-        }
-        .field_map
-        .clone();
         let fields = match &self.fields {
             PConstructFields::Named(nodes) => nodes
                 .iter()
@@ -31,15 +17,7 @@ impl FnLowerable for PConstruct {
                     let def = n.as_ref()?;
                     let name = def.name.as_ref()?.to_string();
                     let expr = def.val.as_ref()?.lower(ctx)?;
-                    let Some(&field) = field_map.get(&name) else {
-                        ctx.err(format!(
-                            "Struct {} has no field {}",
-                            ctx.program.type_name(&ty),
-                            name
-                        ));
-                        return None;
-                    };
-                    Some((field, expr))
+                    Some((name, expr))
                 })
                 .collect(),
             PConstructFields::Tuple(nodes) => nodes
@@ -48,15 +26,7 @@ impl FnLowerable for PConstruct {
                 .flat_map(|(i, n)| {
                     let expr = n.as_ref()?.lower(ctx)?;
                     let name = format!("{i}");
-                    let Some(&field) = field_map.get(&name) else {
-                        ctx.err(format!(
-                            "Struct {} has no field {}",
-                            ctx.program.type_name(&ty),
-                            name
-                        ));
-                        return None;
-                    };
-                    Some((field, expr))
+                    Some((name, expr))
                 })
                 .collect(),
             PConstructFields::None => Default::default(),
@@ -75,7 +45,12 @@ impl PStruct {
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Option<()> {
-        let mut field_map = HashMap::new();
+        p.push();
+        let generics = self
+            .generics
+            .iter()
+            .flat_map(|a| a.as_ref()?.lower(p))
+            .collect();
         let fields = match &self.fields {
             PStructFields::Named(nodes) => nodes
                 .iter()
@@ -98,21 +73,17 @@ impl PStruct {
             PStructFields::None => vec![],
         }
         .into_iter()
-        .enumerate()
-        .map(|(i, (name, ty))| {
-            let id = FieldID::new(i);
-            field_map.insert(name.clone(), id);
-            StructField { name, ty }
-        })
+        .map(|(name, ty)| (name, StructField { ty }))
         .collect();
         p.write(
             id,
             UStruct {
                 origin: span,
-                field_map,
+                generics,
                 fields,
             },
         );
+        p.pop();
         Some(())
     }
 }

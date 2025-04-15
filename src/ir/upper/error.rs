@@ -3,9 +3,12 @@ use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 use super::{Type, UProgram};
 
 impl CompilerOutput {
-    pub fn check_assign(&mut self, p: &UProgram, src: &Type, dest: &Type, span: FileSpan) -> bool {
+    pub fn check_assign(&mut self, p: &UProgram, src: &Type, dest: &Type, span: FileSpan) {
         // TODO: spans
         if src != dest {
+            if !src.is_real() || !dest.is_real() {
+                return;
+            }
             self.err(CompilerMsg {
                 msg: format!(
                     "Cannot assign type '{}' to '{}'",
@@ -14,9 +17,6 @@ impl CompilerOutput {
                 ),
                 spans: vec![span],
             });
-            true
-        } else {
-            false
         }
     }
 }

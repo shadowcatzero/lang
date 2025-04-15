@@ -21,6 +21,23 @@ impl UProgram {
                     spans: vec![var.origin],
                 });
             }
+            if var.ty == Type::Placeholder {
+                output.err(CompilerMsg {
+                    msg: format!("Var {:?} still placeholder!", id),
+                    spans: vec![var.origin],
+                });
+            }
+            if let Some(parent) = &var.parent {
+                let pty = &self.get(parent.var).unwrap().ty;
+                if let Some(ft) = self.field_type(pty, &parent.field) {
+                    output.check_assign(self, &var.ty, ft, var.origin);
+                } else {
+                    output.err(CompilerMsg {
+                        msg: format!("invalid parent!"),
+                        spans: vec![var.origin],
+                    });
+                }
+            }
         }
         output
     }
@@ -81,14 +98,15 @@ impl UProgram {
                 }
                 UInstruction::AsmBlock { instructions, args } => {
                     for arg in args {
-                        if let Some(size) = self.size_of_var(arg.var.id)
-                            && size != 64
-                        {
-                            output.err(CompilerMsg {
-                                msg: format!("asm block args must be size 64, is size {}", size),
-                                spans: vec![arg.var.span],
-                            });
-                        }
+                        // TODO: validate size with enabled targets
+                        // if let Some(size) = self.size_of_var(arg.var.id)
+                        //     && size != 64
+                        // {
+                        //     output.err(CompilerMsg {
+                        //         msg: format!("asm block args must be size 64, is size {}", size),
+                        //         spans: vec![arg.var.span],
+                        //     });
+                        // }
                     }
                 }
                 UInstruction::Ret { src } => {
@@ -98,24 +116,35 @@ impl UProgram {
                 }
                 UInstruction::Construct { dest, fields } => {
                     let dest_def = self.expect(dest.id);
-                    let tyid = match &dest_def.ty {
-                        Type::Struct { id, args } => *id,
+                    let (tyid, args) = match &dest_def.ty {
+                        Type::Struct { id, args } => (*id, args),
                         _ => {
                             output.err(CompilerMsg {
-                                msg: "uhh type is not struct".to_string(),
+                                msg: format!(
+                                    "Type {} cannot be constructed",
+                                    self.type_name(&dest_def.ty)
+                                ),
                                 spans: vec![dest.span],
                             });
                             continue;
                         }
                     };
                     let def = self.expect(tyid);
-                    for (id, field) in def.iter_fields() {
-                        if let Some(var) = fields.get(&id) {
+                    for (name, field) in &def.fields {
+                        if let Some(var) = fields.get(name) {
+                            let mut sty = &field.ty;
+                            if let Type::Generic { id } = sty {
+                                for (g, a) in def.generics.iter().zip(args) {
+                                    if *g == *id {
+                                        sty = a;
+                                    }
+                                }
+                            }
                             let ety = &self.expect(var.id).ty;
-                            output.check_assign(self, &field.ty, ety, var.span);
+                            output.check_assign(self, ety, sty, var.span);
                         } else {
                             output.err(CompilerMsg {
-                                msg: format!("field '{}' missing from struct", field.name),
+                                msg: format!("field '{}' missing from struct", name),
                                 spans: vec![dest.span],
                             });
                         }

@@ -3,10 +3,8 @@ use crate::{
     ir::{Len, Named, ID},
 };
 
-use super::{Type, UInstrInst, UProgram};
+use super::{Type, UInstrInst, UInstruction, UProgram};
 use std::{collections::HashMap, fmt::Debug};
-
-pub const NAMED_KINDS: usize = 4;
 
 pub struct UFunc {
     pub args: Vec<VarID>,
@@ -17,16 +15,18 @@ pub struct UFunc {
 
 #[derive(Clone)]
 pub struct StructField {
-    pub name: String,
     pub ty: Type,
 }
 
 #[derive(Clone)]
 pub struct UStruct {
-    pub fields: Vec<StructField>,
-    pub field_map: HashMap<String, FieldID>,
+    pub fields: HashMap<String, StructField>,
+    pub generics: Vec<GenericID>,
     pub origin: Origin,
 }
+
+#[derive(Clone)]
+pub struct UGeneric {}
 
 #[derive(Clone)]
 pub struct UVar {
@@ -41,13 +41,10 @@ pub struct VarOffset {
     pub offset: Len,
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FieldRef {
     pub var: VarID,
-    // this is technically redundant bc you can get it from the var...
-    // but it makes things a lot easier, and you'd have to recheck the fields anyways
-    pub struc: StructID,
-    pub field: FieldID,
+    pub field: String,
 }
 
 #[derive(Clone)]
@@ -70,84 +67,68 @@ impl UFunc {
             ret: Box::new(self.ret.clone()),
         }
     }
-}
-
-impl UStruct {
-    pub fn field(&self, id: FieldID) -> &StructField {
-        &self.fields[id.0]
-    }
-    pub fn get_field(&self, name: &str) -> Option<&StructField> {
-        self.field_map.get(name).map(|id| self.field(*id))
-    }
-    pub fn iter_fields(&self) -> impl Iterator<Item = (FieldID, &StructField)> {
-        self.fields
-            .iter()
-            .enumerate()
-            .map(|(i, f)| (FieldID::new(i), f))
+    pub fn flat_iter(&self) -> impl Iterator<Item = &UInstrInst> {
+        InstrIter::new(self.instructions.iter())
     }
 }
 
-pub type StructID = ID<UStruct>;
-pub type VarID = ID<UVar>;
-pub type DataID = ID<UData>;
-pub type FieldID = ID<StructField>;
+pub struct InstrIter<'a> {
+    iters: Vec<core::slice::Iter<'a, UInstrInst>>,
+}
+
+impl<'a> InstrIter<'a> {
+    pub fn new(iter: core::slice::Iter<'a, UInstrInst>) -> Self {
+        Self { iters: vec![iter] }
+    }
+}
+
+impl<'a> Iterator for InstrIter<'a> {
+    type Item = &'a UInstrInst;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let iter = self.iters.last_mut()?;
+        let Some(next) = iter.next() else {
+            self.iters.pop();
+            return self.next();
+        };
+        match &next.i {
+            UInstruction::Loop { body } => self.iters.push(body.iter()),
+            UInstruction::If { cond: _, body } => self.iters.push(body.iter()),
+            _ => (),
+        }
+        Some(next)
+    }
+}
+
+macro_rules! impl_kind {
+    ($struc:ty, $idx:expr, $field:ident, $name:expr) => {
+        impl Kind for $struc {
+            const INDEX: usize = $idx;
+            fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
+                &mut program.$field
+            }
+            fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
+                &program.$field
+            }
+        }
+        impl Named for $struc {
+            const NAME: &str = $name;
+        }
+    };
+}
+
+impl_kind!(UFunc, 0, fns, "func");
+impl_kind!(UVar, 1, vars, "var");
+impl_kind!(UStruct, 2, structs, "struct");
+impl_kind!(UGeneric, 3, types, "type");
+impl_kind!(UData, 4, data, "data");
+pub const NAMED_KINDS: usize = 5;
+
 pub type FnID = ID<UFunc>;
-
-impl Kind for UFunc {
-    const INDEX: usize = 0;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
-        &mut program.fns
-    }
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
-        &program.fns
-    }
-}
-impl Named for UFunc {
-    const NAME: &str = "func";
-}
-
-impl Kind for UVar {
-    const INDEX: usize = 1;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
-        &mut program.vars
-    }
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
-        &program.vars
-    }
-}
-impl Named for UVar {
-    const NAME: &str = "var";
-}
-
-impl Kind for UStruct {
-    const INDEX: usize = 2;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
-        &mut program.structs
-    }
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
-        &program.structs
-    }
-}
-impl Named for UStruct {
-    const NAME: &str = "struct";
-}
-
-impl Kind for UData {
-    const INDEX: usize = 3;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
-        &mut program.data
-    }
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
-        &program.data
-    }
-}
-impl Named for UData {
-    const NAME: &str = "data";
-}
-
-impl Named for StructField {
-    const NAME: &str = "field";
-}
+pub type VarID = ID<UVar>;
+pub type StructID = ID<UStruct>;
+pub type DataID = ID<UData>;
+pub type GenericID = ID<UGeneric>;
 
 pub trait Kind {
     const INDEX: usize;

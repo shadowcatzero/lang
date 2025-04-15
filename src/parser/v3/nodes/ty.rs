@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
-use super::{
-    util::parse_list, CompilerMsg, Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol, Token,
-};
+use super::{util::parse_list, Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol};
 
 pub struct PType {
     pub name: Node<PIdent>,
     pub args: Vec<Node<PType>>,
+}
+
+pub struct PGenericDef {
+    pub name: Node<PIdent>,
 }
 
 impl Parsable for PType {
@@ -35,6 +37,12 @@ impl Parsable for PType {
     }
 }
 
+impl Parsable for PGenericDef {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        ParseResult::Ok(Self { name: ctx.parse()? })
+    }
+}
+
 impl Debug for PType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.name)?;
@@ -43,6 +51,13 @@ impl Debug for PType {
         } else if !self.args.is_empty() {
             write!(f, "<{:?}>", self.args)?;
         }
+        Ok(())
+    }
+}
+
+impl Debug for PGenericDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.name)?;
         Ok(())
     }
 }

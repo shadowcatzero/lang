@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Write};
 
-use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, UInstrInst, UFunc};
-use crate::{compiler::arch::riscv::Reg, ir::FieldID, util::Padder};
+use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, UFunc, UInstrInst};
+use crate::{compiler::arch::riscv::Reg, util::Padder};
 
 pub enum UInstruction {
     Mv {
@@ -38,7 +38,7 @@ pub enum UInstruction {
     },
     Construct {
         dest: VarInst,
-        fields: HashMap<FieldID, VarInst>,
+        fields: HashMap<String, VarInst>,
     },
     If {
         cond: VarInst,

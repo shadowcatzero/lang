@@ -58,35 +58,16 @@ impl FnLowerable for PExpr {
             PExpr::BinaryOp(op, e1, e2) => {
                 let res1 = e1.lower(ctx)?;
                 if *op == PInfixOp::Access {
-                    let sty = &ctx.program.expect(res1.id).ty;
-                    let Type::Struct {
-                        id: struct_id,
-                        args,
-                    } = sty
-                    else {
-                        ctx.err(format!(
-                            "Type {:?} has no fields",
-                            ctx.program.type_name(sty)
-                        ));
-                        return None;
-                    };
-                    let struc = ctx.program.expect(*struct_id);
                     let Some(box PExpr::Ident(ident)) = &e2.inner else {
-                        ctx.err("Field accesses must be identifiers".to_string());
+                        ctx.err("Field accessors must be identifiers".to_string());
                         return None;
                     };
-                    let fname = &ident.as_ref()?.0;
-                    let Some(&field) = struc.field_map.get(fname) else {
-                        ctx.err(format!("Field '{fname}' not in struct"));
-                        return None;
-                    };
-                    let fdef = struc.field(field);
+                    let fname = ident.as_ref()?.0.clone();
                     ctx.temp_subvar(
-                        fdef.ty.clone(),
+                        Type::Placeholder,
                         FieldRef {
                             var: res1.id,
-                            struc: *struct_id,
-                            field,
+                            field: fname,
                         },
                     )
                 } else {
@@ -147,7 +128,7 @@ impl FnLowerable for PExpr {
                     .program
                     .get_fn_var(fe.id)
                     .map(|f| f.ret.clone())
-                    .unwrap_or(Type::Error);
+                    .unwrap_or(Type::Placeholder);
                 let temp = ctx.temp(ty);
                 ctx.push(UInstruction::Call {
                     dest: temp,

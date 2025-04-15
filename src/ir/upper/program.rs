@@ -6,6 +6,7 @@ pub struct UProgram {
     pub fns: Vec<Option<UFunc>>,
     pub vars: Vec<Option<UVar>>,
     pub structs: Vec<Option<UStruct>>,
+    pub types: Vec<Option<UGeneric>>,
     pub data: Vec<Option<UData>>,
     pub start: Option<FnID>,
     pub names: NameMap,
@@ -46,6 +47,7 @@ impl UProgram {
             fns: Vec::new(),
             vars: Vec::new(),
             structs: Vec::new(),
+            types: Vec::new(),
             data: Vec::new(),
             start: None,
             names: NameMap::new(),
@@ -87,27 +89,6 @@ impl UProgram {
     pub fn get_fn_var(&self, id: VarID) -> Option<&UFunc> {
         self.fns[self.fn_map.get(&id)?.0].as_ref()
     }
-    pub fn size_of_type(&self, ty: &Type) -> Option<Size> {
-        // TODO: target matters
-        Some(match ty {
-            Type::Bits(b) => *b,
-            Type::Struct { id, args } => self.structs[id.0]
-                .as_ref()?
-                .fields
-                .iter()
-                .try_fold(0, |sum, f| Some(sum + self.size_of_type(&f.ty)?))?,
-            Type::Fn { args, ret } => todo!(),
-            Type::Ref(_) => 64,
-            Type::Array(ty, len) => self.size_of_type(ty)? * len,
-            Type::Slice(_) => 128,
-            Type::Infer => return None,
-            Type::Error => return None,
-            Type::Unit => 0,
-        })
-    }
-    pub fn size_of_var(&self, var: VarID) -> Option<Size> {
-        self.size_of_type(&self.get(var)?.ty)
-    }
     pub fn temp_subvar(&mut self, origin: Origin, ty: Type, parent: FieldRef) -> VarInst {
         self.temp_var_inner(origin, ty, Some(parent))
     }
@@ -145,6 +126,22 @@ impl UProgram {
         id
     }
 
+    pub fn field_type<'a>(&'a self, sty: &'a Type, field: &str) -> Option<&'a Type> {
+        let Type::Struct { id, args } = sty else {
+            return None;
+        };
+        let struc = self.get(*id)?;
+        let field = struc.fields.get(field)?;
+        if let Type::Generic { id } = field.ty {
+            for (i, g) in struc.generics.iter().enumerate() {
+                if *g == id {
+                    return Some(&args[i])
+                }
+            }
+        }
+        Some(&field.ty)
+    }
+
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();
         match ty {
@@ -176,10 +173,12 @@ impl UProgram {
             }
             Type::Error => str += "{error}",
             Type::Infer => str += "{inferred}",
+            Type::Generic { id } => str += self.names.get(*id),
             Type::Bits(size) => str += &format!("b{}", size),
             Type::Array(t, len) => str += &format!("[{}; {len}]", self.type_name(t)),
             Type::Unit => str += "()",
             Type::Slice(t) => str += &format!("&[{}]", self.type_name(t)),
+            Type::Placeholder => str += "{placeholder}",
         }
         str
     }
@@ -191,22 +190,6 @@ impl UProgram {
         } else {
             last.insert(name, Idents::new(id.into()));
         }
-    }
-    pub fn var_offset(&self, var: VarID) -> Option<VarOffset> {
-        let mut current = VarOffset { id: var, offset: 0 };
-        while let Some(parent) = self.get(current.id)?.parent {
-            current.id = parent.var;
-            current.offset += self.field_offset(parent.struc, parent.field)?;
-        }
-        Some(current)
-    }
-    pub fn field_offset(&self, struct_id: StructID, field: FieldID) -> Option<Len> {
-        let struc = self.get(struct_id)?;
-        let mut offset = 0;
-        for i in 0..field.0 {
-            offset += self.size_of_type(&struc.fields[i].ty)?;
-        }
-        Some(offset)
     }
     pub fn iter_vars(&self) -> impl Iterator<Item = (VarID, &UVar)> {
         self.vars

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, UInstrInst, Size, SymbolSpace, UFunc, VarOffset};
+use crate::ir::{AsmBlockArgType, Size, SymbolSpace, UFunc, UInstrInst, VarOffset};
 
 use super::{
-    IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, Type, UInstruction, UProgram,
-    VarID,
+    IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, Type, UInstruction, UProgram, VarID,
 };
 
 pub struct LProgram {
@@ -43,12 +42,37 @@ impl LProgram {
     }
 }
 
+pub struct StructInst {
+    offsets: Vec<Len>,
+    order: HashMap<String, usize>,
+    size: Size,
+}
+
 pub struct LFunctionBuilder<'a> {
+    data: LFunctionBuilderData<'a>,
     program: &'a UProgram,
+}
+
+impl<'a> LFunctionBuilderData<'a> {
+    pub fn new(builder: &'a mut SymbolSpaceBuilder) -> Self {
+        Self {
+            instrs: Vec::new(),
+            struct_insts: HashMap::new(),
+            stack: HashMap::new(),
+            subvar_map: HashMap::new(),
+            makes_call: false,
+            builder,
+            loopp: None,
+        }
+    }
+}
+
+pub struct LFunctionBuilderData<'a> {
     builder: &'a mut SymbolSpaceBuilder,
     instrs: Vec<LInstruction>,
     stack: HashMap<VarID, Size>,
     subvar_map: HashMap<VarID, VarOffset>,
+    struct_insts: HashMap<Type, StructInst>,
     makes_call: bool,
     loopp: Option<LoopCtx>,
 }
@@ -62,29 +86,32 @@ pub struct LoopCtx {
 impl<'a> LFunctionBuilder<'a> {
     pub fn new(program: &'a UProgram, builder: &'a mut SymbolSpaceBuilder) -> Self {
         Self {
-            instrs: Vec::new(),
-            stack: HashMap::new(),
-            subvar_map: HashMap::new(),
-            makes_call: false,
+            data: LFunctionBuilderData::new(builder),
             program,
-            builder,
-            loopp: None,
         }
     }
     pub fn alloc_stack(&mut self, i: VarID) -> Option<()> {
-        if self.program.size_of_var(i).expect("unsized type") == 0 {
+        if self
+            .data
+            .size_of_var(self.program, i)
+            .expect("unsized type")
+            == 0
+        {
             return None;
         };
         self.map_subvar(i);
-        let var = self.program.var_offset(i).expect("var offset");
-        *self
-            .stack
-            .entry(var.id)
-            .or_insert(self.program.size_of_var(var.id).expect("unsized type"));
+        let var = self.data.var_offset(self.program, i).expect("var offset");
+        if let None = self.stack.get(&var.id) {
+            let size = self
+                .data
+                .size_of_var(self.program, var.id)
+                .expect("unsized type");
+            self.data.stack.insert(var.id, size);
+        }
         Some(())
     }
     pub fn map_subvar(&mut self, i: VarID) {
-        let off = self.program.var_offset(i).expect("var offset");
+        let off = self.data.var_offset(self.program, i).expect("var offset");
         if off.id != i {
             self.subvar_map.insert(i, off);
         }
@@ -112,7 +139,7 @@ impl<'a> LFunctionBuilder<'a> {
             UInstruction::LoadData { dest, src } => {
                 self.alloc_stack(dest.id)?;
                 let data = self.program.expect(*src);
-                let sym = self.builder.ro_data(
+                let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
                     Some(self.program.names.get(dest.id).to_string()),
@@ -133,7 +160,7 @@ impl<'a> LFunctionBuilder<'a> {
                         self.program.type_name(&data.ty)
                     )));
                 };
-                let sym = self.builder.ro_data(
+                let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
                     Some(self.program.names.get(dest.id).to_string()),
@@ -168,7 +195,10 @@ impl<'a> LFunctionBuilder<'a> {
                 self.makes_call = true;
                 let fid = &self.program.fn_map[&f.id];
                 let sym = self.builder.func(fid);
-                let ret_size = self.program.size_of_var(dest.id).expect("unsized type");
+                let ret_size = self
+                    .data
+                    .size_of_var(self.program, dest.id)
+                    .expect("unsized type");
                 let dest = if ret_size > 0 {
                     Some((dest.id, ret_size))
                 } else {
@@ -181,7 +211,12 @@ impl<'a> LFunctionBuilder<'a> {
                         .iter()
                         .map(|a| {
                             self.map_subvar(a.id);
-                            (a.id, self.program.size_of_var(a.id).expect("unsized type"))
+                            (
+                                a.id,
+                                self.data
+                                    .size_of_var(self.program, a.id)
+                                    .expect("unsized type"),
+                            )
                         })
                         .collect(),
                 };
@@ -210,31 +245,32 @@ impl<'a> LFunctionBuilder<'a> {
             }
             UInstruction::Ret { src } => {
                 self.map_subvar(src.id);
-                self.instrs.push(LInstruction::Ret {
-                    src: if self.program.size_of_var(src.id).expect("unsized var") == 0 {
-                        None
-                    } else {
-                        Some(src.id)
-                    },
-                })
+                let src = if self
+                    .data
+                    .size_of_var(self.program, src.id)
+                    .expect("unsized var")
+                    == 0
+                {
+                    None
+                } else {
+                    Some(src.id)
+                };
+                self.data.instrs.push(LInstruction::Ret { src })
             }
             UInstruction::Construct { dest, fields } => {
                 self.alloc_stack(dest.id)?;
-                let ty = &self.program.expect(dest.id).ty;
-                let &Type::Struct { id, ref args } = ty else {
-                    return Some(Some(format!(
-                        "Failed to contruct type {}",
-                        self.program.type_name(ty)
-                    )));
-                };
-                for (&fid, var) in fields {
+                for (field, var) in fields {
                     self.map_subvar(var.id);
-                    self.instrs.push(LInstruction::Mv {
+                    let i = LInstruction::Mv {
                         dest: dest.id,
                         src: var.id,
-                        dest_offset: self.program.field_offset(id, fid).expect("field offset"),
+                        dest_offset: self
+                            .data
+                            .field_offset(self.program, dest.id, field)
+                            .expect("field offset"),
                         src_offset: 0,
-                    })
+                    };
+                    self.instrs.push(i)
                 }
             }
             UInstruction::If { cond, body } => {
@@ -266,32 +302,143 @@ impl<'a> LFunctionBuilder<'a> {
                 self.loopp = old;
             }
             UInstruction::Break => {
-                self.instrs.push(LInstruction::Jump(
-                    self.loopp.expect("Tried to break outside of loop").bot,
+                self.data.instrs.push(LInstruction::Jump(
+                    self.data.loopp.expect("Tried to break outside of loop").bot,
                 ));
             }
             UInstruction::Continue => {
-                self.instrs.push(LInstruction::Jump(
-                    self.loopp.expect("Tried to break outside of loop").top,
+                self.data.instrs.push(LInstruction::Jump(
+                    self.data.loopp.expect("Tried to break outside of loop").top,
                 ));
             }
         };
         Some(None)
     }
 
-    pub fn finish(self, f: &UFunc) -> IRLFunction {
+    pub fn finish(mut self, f: &UFunc) -> IRLFunction {
         IRLFunction {
-            instructions: self.instrs,
-            makes_call: self.makes_call,
             args: f
                 .args
                 .iter()
-                .map(|a| (*a, self.program.size_of_var(*a).expect("unsized type")))
+                .map(|a| {
+                    (
+                        *a,
+                        self.data
+                            .size_of_var(self.program, *a)
+                            .expect("unsized type"),
+                    )
+                })
                 .collect(),
-            ret_size: self.program.size_of_type(&f.ret).expect("unsized type"),
-            stack: self.stack,
-            subvar_map: self.subvar_map,
+            ret_size: self
+                .data
+                .size_of_type(self.program, &f.ret)
+                .expect("unsized type"),
+            instructions: self.data.instrs,
+            makes_call: self.data.makes_call,
+            stack: self.data.stack,
+            subvar_map: self.data.subvar_map,
         }
+    }
+}
+
+impl LFunctionBuilderData<'_> {
+    pub fn var_offset(&mut self, p: &UProgram, var: VarID) -> Option<VarOffset> {
+        let mut current = VarOffset { id: var, offset: 0 };
+        while let Some(parent) = &p.get(current.id)?.parent {
+            current.id = parent.var;
+            current.offset += self.field_offset(p, parent.var, &parent.field)?;
+        }
+        Some(current)
+    }
+    pub fn addr_size(&self) -> Size {
+        64
+    }
+    pub fn struct_inst(&mut self, p: &UProgram, ty: &Type) -> Option<&StructInst> {
+        // normally I'd let Some(..) here and return, but polonius does not exist :grief:
+        if self.struct_insts.get(ty).is_none() {
+            let Type::Struct { id, args } = ty else {
+                return None;
+            };
+            let struc = p.get(*id)?;
+            let mut sizes = struc
+                .fields
+                .iter()
+                .map(|(n, f)| {
+                    let ty = if let Type::Generic { id } = &f.ty {
+                        struc
+                            .generics
+                            .iter()
+                            .enumerate()
+                            .find_map(|(i, g)| if *g == *id { args.get(i) } else { None })
+                            .unwrap_or(&f.ty)
+                    } else {
+                        &f.ty
+                    };
+                    (n, self.size_of_type(p, ty).expect("unsized type"))
+                })
+                .collect::<Vec<_>>();
+            sizes.sort_by(|(n1, s1, ..), (n2, s2, ..)| s1.cmp(s2).then_with(|| n1.cmp(n2)));
+            let mut offset = 0;
+            let mut offsets = Vec::new();
+            let mut order = HashMap::new();
+            for (i, (name, size)) in sizes.iter().rev().enumerate() {
+                // TODO: alignment!!!
+                order.insert(name.to_string(), i);
+                offsets.push(offset);
+                offset += size;
+            }
+            self.struct_insts.insert(
+                ty.clone(),
+                StructInst {
+                    offsets,
+                    order,
+                    size: offset,
+                },
+            );
+        }
+        self.struct_insts.get(ty)
+    }
+
+    pub fn field_offset(&mut self, p: &UProgram, var: VarID, field: &str) -> Option<Len> {
+        let ty = &p.get(var)?.ty;
+        let inst = self.struct_inst(p, ty)?;
+        let i = *inst.order.get(field)?;
+        Some(*inst.offsets.get(i)?)
+    }
+
+    pub fn size_of_type(&mut self, p: &UProgram, ty: &Type) -> Option<Size> {
+        // TODO: target matters
+        Some(match ty {
+            Type::Bits(b) => *b,
+            Type::Struct { id, args } => self.struct_inst(p, ty)?.size,
+            Type::Generic { id } => return None,
+            Type::Fn { args, ret } => todo!(),
+            Type::Ref(_) => self.addr_size(),
+            Type::Array(ty, len) => self.size_of_type(p, ty)? * len,
+            Type::Slice(_) => self.addr_size() * 2,
+            Type::Infer => return None,
+            Type::Error => return None,
+            Type::Unit => 0,
+            Type::Placeholder => return None,
+        })
+    }
+
+    pub fn size_of_var(&mut self, p: &UProgram, var: VarID) -> Option<Size> {
+        self.size_of_type(p, &p.get(var)?.ty)
+    }
+}
+
+impl<'a> std::ops::Deref for LFunctionBuilder<'a> {
+    type Target = LFunctionBuilderData<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<'a> std::ops::DerefMut for LFunctionBuilder<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
     }
 }
 

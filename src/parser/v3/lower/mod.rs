@@ -6,6 +6,7 @@ mod expr;
 mod func;
 mod module;
 mod struc;
+mod ty;
 
 use super::*;
 

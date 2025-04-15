@@ -3,13 +3,14 @@ use std::fmt::Debug;
 use crate::parser::ParsableWith;
 
 use super::{
-    util::parse_list, CompilerMsg, Keyword, Node, PExpr, PFieldDef, PIdent, PType, PVarDef,
-    Parsable, ParseResult, ParserCtx, Symbol,
+    util::parse_list, CompilerMsg, Keyword, Node, PExpr, PFieldDef, PIdent, PType, PGenericDef,
+    PVarDef, Parsable, ParseResult, ParserCtx, Symbol,
 };
 
 #[derive(Debug)]
 pub struct PStruct {
     pub name: Node<PIdent>,
+    pub generics: Vec<Node<PGenericDef>>,
     pub fields: PStructFields,
 }
 
@@ -37,7 +38,15 @@ impl Parsable for PStruct {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         ctx.expect_kw(Keyword::Struct)?;
         let name = ctx.parse()?;
-        let next = ctx.expect_peek()?;
+        let mut next = ctx.expect_peek()?;
+        let args = if next.is_symbol(Symbol::OpenAngle) {
+            ctx.next();
+            let res = parse_list(ctx, Symbol::CloseAngle)?;
+            next = ctx.expect_peek()?;
+            res
+        } else {
+            Vec::new()
+        };
         let fields = if next.is_symbol(Symbol::Semicolon) {
             ctx.next();
             PStructFields::None
@@ -52,10 +61,11 @@ impl Parsable for PStruct {
             ctx.err(msg);
             return ParseResult::Recover(PStruct {
                 name,
+                generics: args,
                 fields: PStructFields::None,
             });
         };
-        ParseResult::Ok(PStruct { name, fields })
+        ParseResult::Ok(PStruct { name, generics: args, fields })
     }
 }
 
