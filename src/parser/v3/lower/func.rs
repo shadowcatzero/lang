@@ -23,6 +23,8 @@ impl PFunction {
         Some(id)
     }
     pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
+        let name = p.names.name(id).to_string();
+        p.push_name(&name);
         let (args, ret) = if let Some(header) = self.header.as_ref() {
             (
                 header
@@ -56,7 +58,7 @@ impl PFunction {
             ret,
             instructions,
         };
-        p.expect_mut(p.fn_var.var(id)).ty = f.ty(p);
+        p.pop_name();
         p.write(id, f)
     }
 }

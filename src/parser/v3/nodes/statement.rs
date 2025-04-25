@@ -1,6 +1,6 @@
 use super::{
-    Keyword, Node, PExpr, PFunction, PStruct, PVarDef, Parsable, ParseResult, ParserCtx, Symbol,
-    Token,
+    Keyword, Node, PExpr, PFunction, PIdent, PStruct, PVarDef, Parsable, ParseResult, ParserCtx,
+    Symbol, Token,
 };
 
 pub enum PStatement {
@@ -12,6 +12,7 @@ pub enum PStatement {
 pub enum PConstStatement {
     Fn(Node<PFunction>),
     Struct(Node<PStruct>),
+    Import(Node<PIdent>),
 }
 
 pub enum PStatementLike {
@@ -47,6 +48,10 @@ impl Parsable for PStatementLike {
                 ctx.next();
                 ParseResult::Ok(Self::Const(PConstStatement::Struct(ctx.parse()?)))
             }
+            Token::Keyword(Keyword::Import) => {
+                ctx.next();
+                ParseResult::Ok(Self::Const(PConstStatement::Import(ctx.parse()?)))
+            }
             _ => ctx.parse().map(|n| Self::Statement(PStatement::Expr(n))),
         }
     }
@@ -80,6 +85,9 @@ impl std::fmt::Debug for PConstStatement {
             }
             Self::Struct(s) => {
                 s.fmt(f)?;
+            }
+            Self::Import(s) => {
+                writeln!(f, "import {:?}", s);
             }
         }
         Ok(())

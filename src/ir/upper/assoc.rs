@@ -32,8 +32,15 @@ impl NameMap {
             inv_names: core::array::from_fn(|_| HashMap::new()),
         }
     }
-    pub fn name<K: Kind>(&self, id: ID<K>) -> &str {
+    pub fn path<K: Kind>(&self, id: ID<K>) -> &str {
         &self.names[K::INDEX][id.0]
+    }
+    pub fn name<K: Kind>(&self, id: ID<K>) -> &str {
+        let mut path = self.path(id);
+        while let Some(i) = path.find("::") {
+            path = &path[i + 2..];
+        }
+        path
     }
     pub fn id<K: Kind>(&self, name: &str) -> Option<ID<K>> {
         Some(ID::new(*self.inv_names[K::INDEX].get(name)?))

@@ -31,7 +31,7 @@ impl LProgram {
                 fbuilder.instrs.push(LInstruction::Ret { src: None });
             }
             let res = fbuilder.finish(f);
-            ssbuilder.write_fn(sym, res, Some(p.names.name(i).to_string()));
+            ssbuilder.write_fn(sym, res, Some(p.names.path(i).to_string()));
         }
         let sym_space = ssbuilder.finish().expect("we failed the mission");
         Ok(Self { sym_space, entry })
@@ -142,7 +142,7 @@ impl<'a> LFunctionBuilder<'a> {
                 let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
-                    Some(self.program.names.name(dest.id).to_string()),
+                    Some(self.program.names.path(dest.id).to_string()),
                 );
                 self.instrs.push(LInstruction::LoadData {
                     dest: dest.id,
@@ -163,7 +163,7 @@ impl<'a> LFunctionBuilder<'a> {
                 let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
-                    Some(self.program.names.name(dest.id).to_string()),
+                    Some(self.program.names.path(dest.id).to_string()),
                 );
                 self.instrs.push(LInstruction::LoadAddr {
                     dest: dest.id,

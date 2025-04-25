@@ -36,6 +36,11 @@ impl UProgram {
     pub fn resolve_types(&mut self) {
         // I LOVE RUST
         let mut vars = self.vars.clone();
+        // set type of vars referring to functions
+        for (i, f) in self.iter_fns() {
+            let vi = self.fn_var.var(i);
+            vars[vi.0].as_mut().expect("bruh").ty = f.ty(self);
+        }
         for (i, f) in self.iter_fns() {
             let mut redo_iter = Vec::new();
             let mut ph_vars = Vec::new();

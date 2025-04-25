@@ -26,10 +26,8 @@ impl PModule {
             instructions: fctx.instructions,
             ret: Type::Unit,
         };
-        let ty = f.ty(p);
         p.write(id, f);
         p.pop_name();
-        p.expect_mut(p.fn_var.var(id)).ty = ty;
     }
 }
 

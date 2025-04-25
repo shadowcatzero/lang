@@ -5,6 +5,8 @@
 // dawg what
 #![feature(str_as_str)]
 
+pub const FILE_EXT: &str = "lang";
+
 use ir::{LProgram, UProgram};
 use parser::{PModule, ParseResult, ParserCtx};
 use std::{
@@ -52,11 +54,11 @@ fn run_file(file: &str, gdb: bool, asm: bool) {
         program.resolve_types();
         // println!("vars:");
         // for (id, def) in program.iter_vars() {
-        //     println!("    {id:?} = {}: {}", program.names.name(id), program.type_name(&def.ty));
+        //     println!("    {id:?} = {}: {}", program.names.path(id), program.type_name(&def.ty));
         // }
-        for (id, f) in program.iter_fns() {
-            println!("{}:{id:?} = {:#?}", program.names.name(id), f);
-        }
+        // for (id, f) in program.iter_fns() {
+        //     println!("{}:{id:?} = {:#?}", program.names.path(id), f);
+        // }
         output = program.validate();
         if !output.errs.is_empty() {
             break 'outer;

@@ -12,6 +12,7 @@ pub enum Keyword {
     Impl,
     For,
     Asm,
+    Import,
     Funne,
 }
 
@@ -30,6 +31,7 @@ impl Keyword {
             "trait" => Self::Trait,
             "impl" => Self::Impl,
             "asm" => Self::Asm,
+            "import" => Self::Import,
             "funne" => Self::Funne,
             _ => return None,
         })

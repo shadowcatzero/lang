@@ -13,6 +13,7 @@ impl FnLowerable for PBlock {
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();
         let mut struct_nodes = Vec::new();
+        let mut imports = Vec::new();
         // first sort statements
         for s in &self.statements {
             let Some(s) = s.as_ref() else {
@@ -23,6 +24,7 @@ impl FnLowerable for PBlock {
                 PStatementLike::Const(pconst_statement) => match pconst_statement {
                     PConstStatement::Fn(f) => fn_nodes.push(f),
                     PConstStatement::Struct(s) => struct_nodes.push(s),
+                    PConstStatement::Import(i) => imports.push(i),
                 },
             }
         }

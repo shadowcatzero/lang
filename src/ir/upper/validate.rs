@@ -89,7 +89,11 @@ impl UProgram {
                     let destty = &self.expect(dest.id).ty;
                     let f = self.expect(f.id);
                     let Type::Fn { args: argtys, ret } = &f.ty else {
-                        todo!()
+                        output.err(CompilerMsg {
+                            msg: format!("Type {} is not callable", self.type_name(&f.ty)),
+                            spans: vec![dest.span],
+                        });
+                        continue;
                     };
                     output.check_assign(self, ret, destty, dest.span);
                     if args.len() != argtys.len() {
