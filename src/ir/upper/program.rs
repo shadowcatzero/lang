@@ -9,7 +9,6 @@ pub struct UProgram {
     pub data: Vec<Option<UData>>,
     pub names: NameMap,
     pub origins: OriginMap,
-    // todo: these feel weird raw
     pub fn_var: FnVarMap,
     pub temp: usize,
     pub name_stack: Vec<HashMap<String, Idents>>,
