@@ -1,6 +1,5 @@
-use std::{collections::HashMap, fmt::Debug};
-
-use super::{inst::VarInst, *};
+use super::*;
+use std::collections::HashMap;
 
 pub struct UProgram {
     pub fns: Vec<Option<UFunc>>,
@@ -8,37 +7,12 @@ pub struct UProgram {
     pub structs: Vec<Option<UStruct>>,
     pub types: Vec<Option<UGeneric>>,
     pub data: Vec<Option<UData>>,
-    pub start: Option<FnID>,
     pub names: NameMap,
+    pub origins: OriginMap,
     // todo: these feel weird raw
-    pub fn_map: HashMap<VarID, FnID>,
-    pub inv_fn_map: Vec<VarID>,
+    pub fn_var: FnVarMap,
     pub temp: usize,
     pub name_stack: Vec<HashMap<String, Idents>>,
-}
-
-pub struct NameMap {
-    names: [Vec<String>; NAMED_KINDS],
-    inv_names: [HashMap<String, usize>; NAMED_KINDS],
-}
-
-impl NameMap {
-    pub fn new() -> Self {
-        Self {
-            names: core::array::from_fn(|_| Vec::new()),
-            inv_names: core::array::from_fn(|_| HashMap::new()),
-        }
-    }
-    pub fn get<K: Kind>(&self, id: ID<K>) -> &str {
-        &self.names[K::INDEX][id.0]
-    }
-    pub fn lookup<K: Kind>(&self, name: &str) -> Option<ID<K>> {
-        Some(ID::new(*self.inv_names[K::INDEX].get(name)?))
-    }
-    pub fn push<K: Kind>(&mut self, name: String) {
-        self.inv_names[K::INDEX].insert(name.clone(), self.names[K::INDEX].len());
-        self.names[K::INDEX].push(name);
-    }
 }
 
 impl UProgram {
@@ -49,10 +23,9 @@ impl UProgram {
             structs: Vec::new(),
             types: Vec::new(),
             data: Vec::new(),
-            start: None,
             names: NameMap::new(),
-            fn_map: HashMap::new(),
-            inv_fn_map: Vec::new(),
+            origins: OriginMap::new(),
+            fn_var: FnVarMap::new(),
             temp: 0,
             name_stack: vec![HashMap::new()],
         }
@@ -87,7 +60,7 @@ impl UProgram {
             .unwrap_or_else(|| panic!("{id:?} not defined yet!"))
     }
     pub fn get_fn_var(&self, id: VarID) -> Option<&UFunc> {
-        self.fns[self.fn_map.get(&id)?.0].as_ref()
+        self.fns[self.fn_var.fun(id)?.0].as_ref()
     }
     pub fn temp_subvar(&mut self, origin: Origin, ty: Type, parent: FieldRef) -> VarInst {
         self.temp_var_inner(origin, ty, Some(parent))
@@ -99,7 +72,8 @@ impl UProgram {
     fn temp_var_inner(&mut self, origin: Origin, ty: Type, parent: Option<FieldRef>) -> VarInst {
         let v = self.def(
             format!("temp{}", self.temp),
-            Some(UVar { parent, origin, ty }),
+            Some(UVar { parent, ty }),
+            origin,
         );
         self.temp += 1;
         VarInst {
@@ -112,16 +86,23 @@ impl UProgram {
         K::from_program_mut(self)[id.0] = Some(k);
     }
 
-    pub fn def<K: Kind>(&mut self, name: String, k: Option<K>) -> ID<K> {
+    pub fn def<K: Kind + Finish>(&mut self, name: String, k: Option<K>, origin: Origin) -> ID<K> {
         self.names.push::<K>(name);
+        self.origins.push::<K>(origin);
         let vec = K::from_program_mut(self);
         let id = ID::new(vec.len());
         vec.push(k);
+        K::finish(self, id);
         id
     }
 
-    pub fn def_searchable<K: Kind>(&mut self, name: String, k: Option<K>) -> ID<K> {
-        let id = self.def(name.clone(), k);
+    pub fn def_searchable<K: Kind + Finish>(
+        &mut self,
+        name: String,
+        k: Option<K>,
+        origin: Origin,
+    ) -> ID<K> {
+        let id = self.def(name.clone(), k, origin);
         self.name_on_stack(id, name);
         id
     }
@@ -135,7 +116,7 @@ impl UProgram {
         if let Type::Generic { id } = field.ty {
             for (i, g) in struc.generics.iter().enumerate() {
                 if *g == id {
-                    return Some(&args[i])
+                    return Some(&args[i]);
                 }
             }
         }
@@ -146,7 +127,7 @@ impl UProgram {
         let mut str = String::new();
         match ty {
             Type::Struct { id: base, args } => {
-                str += self.names.get(*base);
+                str += self.names.name(*base);
                 if let Some(arg) = args.first() {
                     str = str + "<" + &self.type_name(arg);
                 }
@@ -173,7 +154,7 @@ impl UProgram {
             }
             Type::Error => str += "{error}",
             Type::Infer => str += "{inferred}",
-            Type::Generic { id } => str += self.names.get(*id),
+            Type::Generic { id } => str += self.names.name(*id),
             Type::Bits(size) => str += &format!("b{}", size),
             Type::Array(t, len) => str += &format!("[{}; {len}]", self.type_name(t)),
             Type::Unit => str += "()",
@@ -204,44 +185,5 @@ impl UProgram {
             .flatten()
             .enumerate()
             .map(|(i, x)| (ID::new(i), x))
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Ident {
-    id: usize,
-    kind: usize,
-}
-
-impl<K: Kind> From<ID<K>> for Ident {
-    fn from(id: ID<K>) -> Self {
-        Self {
-            id: id.0,
-            kind: K::INDEX,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Idents {
-    pub latest: Ident,
-    pub kinds: [Option<usize>; NAMED_KINDS],
-}
-
-impl Idents {
-    fn new(latest: Ident) -> Self {
-        let mut s = Self {
-            latest,
-            kinds: [None; NAMED_KINDS],
-        };
-        s.insert(latest);
-        s
-    }
-    fn insert(&mut self, i: Ident) {
-        self.latest = i;
-        self.kinds[i.kind] = Some(i.id);
-    }
-    pub fn get<K: Kind>(&self) -> Option<ID<K>> {
-        self.kinds[K::INDEX].map(|i| i.into())
     }
 }

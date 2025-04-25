@@ -1,9 +1,6 @@
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
-    ir::{
-        FieldRef, FnID, Idents, InstrIter, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar,
-        VarInst,
-    },
+    ir::{FieldRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
     parser,
 };
 
@@ -22,17 +19,7 @@ impl PFunction {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         let header = self.header.as_ref()?;
         let name = header.name.as_ref()?;
-        let id = p.def_searchable(name.to_string(), None);
-        let var = p.def_searchable(
-            name.to_string(),
-            Some(UVar {
-                parent: None,
-                ty: Type::Placeholder,
-                origin: self.header.span,
-            }),
-        );
-        p.fn_map.insert(var, id);
-        p.inv_fn_map.push(var);
+        let id = p.def_searchable(name.to_string(), None, self.header.span);
         Some(id)
     }
     pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
@@ -63,15 +50,13 @@ impl PFunction {
                 span: src.span,
             });
         }
-        let origin = self.header.span;
         let instructions = ctx.instructions;
         let f = UFunc {
-            origin,
             args,
             ret,
             instructions,
         };
-        p.expect_mut(p.inv_fn_map[id.0]).ty = f.ty(p);
+        p.expect_mut(p.fn_var.var(id)).ty = f.ty(p);
         p.write(id, f)
     }
 }

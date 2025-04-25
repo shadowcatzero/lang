@@ -1,15 +1,13 @@
+use super::{Type, UInstrInst, UInstruction, UProgram};
 use crate::{
     common::FileSpan,
     ir::{Len, Named, ID},
 };
-
-use super::{Type, UInstrInst, UInstruction, UProgram};
 use std::{collections::HashMap, fmt::Debug};
 
 pub struct UFunc {
     pub args: Vec<VarID>,
     pub ret: Type,
-    pub origin: Origin,
     pub instructions: Vec<UInstrInst>,
 }
 
@@ -22,7 +20,6 @@ pub struct StructField {
 pub struct UStruct {
     pub fields: HashMap<String, StructField>,
     pub generics: Vec<GenericID>,
-    pub origin: Origin,
 }
 
 #[derive(Clone)]
@@ -32,7 +29,6 @@ pub struct UGeneric {}
 pub struct UVar {
     pub parent: Option<FieldRef>,
     pub ty: Type,
-    pub origin: Origin,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -50,7 +46,6 @@ pub struct FieldRef {
 #[derive(Clone)]
 pub struct UData {
     pub ty: Type,
-    pub origin: Origin,
     pub content: Vec<u8>,
 }
 
@@ -101,7 +96,14 @@ impl<'a> Iterator for InstrIter<'a> {
 }
 
 macro_rules! impl_kind {
+    // TRUST THIS IS SANE!!! KEEP THE CODE DRY AND SAFE!!!!!!
     ($struc:ty, $idx:expr, $field:ident, $name:expr) => {
+        impl_kind!($struc, $idx, $field, $name, nofin);
+        impl Finish for $struc {
+            fn finish(_: &mut UProgram, _: ID<Self>) {}
+        }
+    };
+    ($struc:ty, $idx:expr, $field:ident, $name:expr, nofin) => {
         impl Kind for $struc {
             const INDEX: usize = $idx;
             fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
@@ -117,7 +119,7 @@ macro_rules! impl_kind {
     };
 }
 
-impl_kind!(UFunc, 0, fns, "func");
+impl_kind!(UFunc, 0, fns, "func", nofin);
 impl_kind!(UVar, 1, vars, "var");
 impl_kind!(UStruct, 2, structs, "struct");
 impl_kind!(UGeneric, 3, types, "type");
@@ -130,12 +132,26 @@ pub type StructID = ID<UStruct>;
 pub type DataID = ID<UData>;
 pub type GenericID = ID<UGeneric>;
 
-pub trait Kind {
+impl Finish for UFunc {
+    fn finish(p: &mut UProgram, id: ID<Self>) {
+        let var = p.def_searchable(
+            p.names.name(id).to_string(),
+            Some(UVar {
+                parent: None,
+                ty: Type::Placeholder,
+            }),
+            p.origins.get(id),
+        );
+        p.fn_var.insert(id, var);
+    }
+}
+
+pub trait Kind: Sized {
     const INDEX: usize;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>>
-    where
-        Self: Sized;
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>>
-    where
-        Self: Sized;
+    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>>;
+    fn from_program(program: &UProgram) -> &Vec<Option<Self>>;
+}
+
+pub trait Finish: Sized {
+    fn finish(program: &mut UProgram, id: ID<Self>);
 }

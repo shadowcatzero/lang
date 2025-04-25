@@ -16,9 +16,9 @@ impl FnLowerable for PExpr {
                         format!("string \"{}\"", s.replace("\n", "\\n")),
                         Some(UData {
                             ty: Type::Bits(8).arr(data.len() as u32),
-                            origin: l.span,
                             content: data,
                         }),
+                        l.span,
                     );
                     ctx.push(UInstruction::LoadSlice { dest, src });
                     dest
@@ -30,9 +30,9 @@ impl FnLowerable for PExpr {
                         format!("char '{c}'"),
                         Some(UData {
                             ty,
-                            origin: l.span,
                             content: c.to_string().as_bytes().to_vec(),
                         }),
+                        l.span,
                     );
                     ctx.push(UInstruction::LoadData { dest, src });
                     dest
@@ -45,9 +45,9 @@ impl FnLowerable for PExpr {
                         format!("num {n:?}"),
                         Some(UData {
                             ty,
-                            origin: l.span,
                             content: n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
                         }),
+                        l.span
                     );
                     ctx.push(UInstruction::LoadData { dest, src });
                     dest

@@ -43,11 +43,10 @@ impl PType {
     }
 }
 
-impl PGenericDef {
+impl Node<PGenericDef> {
     pub fn lower(&self, p: &mut UProgram) -> Option<GenericID> {
-        let Some(name) = self.name.as_ref() else {
-            return None;
-        };
-        Some(p.def_searchable(name.to_string(), Some(UGeneric {})))
+        let s = self.as_ref()?;
+        let name = s.name.as_ref()?;
+        Some(p.def_searchable(name.to_string(), Some(UGeneric {}), self.span))
     }
 }

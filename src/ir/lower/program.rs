@@ -17,7 +17,7 @@ impl LProgram {
     pub fn create(p: &UProgram) -> Result<Self, String> {
         let start = p
             .names
-            .lookup::<UFunc>("start")
+            .id::<UFunc>("start")
             .ok_or("no start method found")?;
         let mut ssbuilder = SymbolSpaceBuilder::with_entries(&[start]);
         let entry = ssbuilder.func(&start);
@@ -31,7 +31,7 @@ impl LProgram {
                 fbuilder.instrs.push(LInstruction::Ret { src: None });
             }
             let res = fbuilder.finish(f);
-            ssbuilder.write_fn(sym, res, Some(p.names.get(i).to_string()));
+            ssbuilder.write_fn(sym, res, Some(p.names.name(i).to_string()));
         }
         let sym_space = ssbuilder.finish().expect("we failed the mission");
         Ok(Self { sym_space, entry })
@@ -101,7 +101,7 @@ impl<'a> LFunctionBuilder<'a> {
         };
         self.map_subvar(i);
         let var = self.data.var_offset(self.program, i).expect("var offset");
-        if let None = self.stack.get(&var.id) {
+        if !self.stack.contains_key(&var.id) {
             let size = self
                 .data
                 .size_of_var(self.program, var.id)
@@ -142,7 +142,7 @@ impl<'a> LFunctionBuilder<'a> {
                 let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
-                    Some(self.program.names.get(dest.id).to_string()),
+                    Some(self.program.names.name(dest.id).to_string()),
                 );
                 self.instrs.push(LInstruction::LoadData {
                     dest: dest.id,
@@ -163,7 +163,7 @@ impl<'a> LFunctionBuilder<'a> {
                 let sym = self.data.builder.ro_data(
                     src,
                     &data.content,
-                    Some(self.program.names.get(dest.id).to_string()),
+                    Some(self.program.names.name(dest.id).to_string()),
                 );
                 self.instrs.push(LInstruction::LoadAddr {
                     dest: dest.id,
@@ -193,7 +193,7 @@ impl<'a> LFunctionBuilder<'a> {
             UInstruction::Call { dest, f, args } => {
                 self.alloc_stack(dest.id);
                 self.makes_call = true;
-                let fid = &self.program.fn_map[&f.id];
+                let fid = &self.program.fn_var.fun(f.id).expect("a");
                 let sym = self.builder.func(fid);
                 let ret_size = self
                     .data

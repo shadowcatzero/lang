@@ -75,20 +75,23 @@ fn structer(test: Test) {
    println("");
 }
 
-struct GTest<T, U> {
+struct GTest<T, U, V> {
    a: T,
    b: U,
+   c: V,
 }
 
 fn generic() {
    let gt = GTest {
       a: 39,
       b: "hello",
+      c: 40,
    };
    print("generic: ");
    print_dec(gt.a);
    print(", ");
    print(gt.b);
+   print_dec(gt.c);
    println("");
 }
 

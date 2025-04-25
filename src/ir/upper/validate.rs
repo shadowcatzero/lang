@@ -5,36 +5,43 @@ use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 impl UProgram {
     pub fn validate(&self) -> CompilerOutput {
         let mut output = CompilerOutput::new();
-        for f in self.fns.iter().flatten() {
-            self.validate_fn(&f.instructions, f.origin, &f.ret, &mut output, true, false);
+        for (id, f) in self.iter_fns() {
+            self.validate_fn(
+                &f.instructions,
+                self.origins.get(id),
+                &f.ret,
+                &mut output,
+                true,
+                false,
+            );
         }
         for (id, var) in self.iter_vars() {
             if var.ty == Type::Error {
                 output.err(CompilerMsg {
                     msg: format!("Var {:?} is error type!", id),
-                    spans: vec![var.origin],
+                    spans: vec![self.origins.get(id)],
                 });
             }
             if var.ty == Type::Infer {
                 output.err(CompilerMsg {
                     msg: format!("Var {:?} cannot be inferred", id),
-                    spans: vec![var.origin],
+                    spans: vec![self.origins.get(id)],
                 });
             }
             if var.ty == Type::Placeholder {
                 output.err(CompilerMsg {
                     msg: format!("Var {:?} still placeholder!", id),
-                    spans: vec![var.origin],
+                    spans: vec![self.origins.get(id)],
                 });
             }
             if let Some(parent) = &var.parent {
                 let pty = &self.get(parent.var).unwrap().ty;
                 if let Some(ft) = self.field_type(pty, &parent.field) {
-                    output.check_assign(self, &var.ty, ft, var.origin);
+                    output.check_assign(self, &var.ty, ft, self.origins.get(id));
                 } else {
                     output.err(CompilerMsg {
                         msg: format!("invalid parent!"),
-                        spans: vec![var.origin],
+                        spans: vec![self.origins.get(id)],
                     });
                 }
             }
