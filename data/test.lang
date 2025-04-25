@@ -1,3 +1,8 @@
+println("testy");
+let x = 3;
+print_dec(x);
+start();
+
 struct Test {
    a: 64,
    b: 64,

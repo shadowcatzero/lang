@@ -1,33 +1,41 @@
 use std::fmt::{Debug, Write};
 
 use super::{
-    token::Symbol, Node, NodeParsable, PStatement, Parsable, ParseResult, ParserCtx, CompilerMsg,
+    token::Symbol, CompilerMsg, Node, NodeParsable, PStatementLike, ParseResult, ParserCtx,
 };
-use crate::util::Padder;
+use crate::{
+    parser::{ParsableWith, TokenInstance},
+    util::Padder,
+};
 
 pub struct PBlock {
-    pub statements: Vec<Node<PStatement>>,
-    pub result: Option<Node<Box<PStatement>>>,
+    pub statements: Vec<Node<PStatementLike>>,
+    pub ret_last: bool,
 }
 
-impl Parsable for PBlock {
-    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+impl ParsableWith for PBlock {
+    type Data = Option<Symbol>;
+    fn parse(ctx: &mut ParserCtx, end: Option<Symbol>) -> ParseResult<Self> {
         let mut statements = Vec::new();
-        let mut result = None;
-        ctx.expect_sym(Symbol::OpenCurly)?;
-        if ctx.expect_peek()?.is_symbol(Symbol::CloseCurly) {
+        let is_end = |t: &TokenInstance| -> bool { end.map(|e| t.is_symbol(e)).unwrap_or(false) };
+        if ctx.peek().is_none_or(is_end) {
             ctx.next();
-            return ParseResult::Ok(Self { statements, result });
+            return ParseResult::Ok(Self {
+                statements,
+                ret_last: false,
+            });
         }
         let mut expect_semi = false;
         let mut recover = false;
         loop {
             let Some(next) = ctx.peek() else {
-                recover = true;
-                ctx.err(CompilerMsg::unexpected_end());
+                if end.is_some() {
+                    recover = true;
+                    ctx.err(CompilerMsg::unexpected_end());
+                }
                 break;
             };
-            if next.is_symbol(Symbol::CloseCurly) {
+            if is_end(next) {
                 ctx.next();
                 break;
             }
@@ -41,9 +49,12 @@ impl Parsable for PBlock {
                     spans: vec![ctx.next_start().char_span()],
                 });
             }
-            let res = PStatement::parse_node(ctx);
+            let res = PStatementLike::parse_node(ctx);
+            expect_semi = res
+                .node
+                .as_ref()
+                .is_some_and(|s| matches!(s, PStatementLike::Statement(..)));
             statements.push(res.node);
-            expect_semi = true;
             if res.recover {
                 ctx.seek_syms(&[Symbol::Semicolon, Symbol::CloseCurly]);
                 if ctx.peek().is_none() {
@@ -52,26 +63,34 @@ impl Parsable for PBlock {
                 }
             }
         }
-        if expect_semi {
-            if let Some(s) = statements.pop() {
-                result = Some(s.bx());
-            }
-        }
-        ParseResult::from_recover(Self { statements, result }, recover)
+        ParseResult::from_recover(
+            Self {
+                statements,
+                ret_last: expect_semi,
+            },
+            recover,
+        )
     }
 }
 
 impl Debug for PBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if !self.statements.is_empty() || self.result.is_some() {
+        if !self.statements.is_empty() {
             f.write_str("{\n    ")?;
             let mut padder = Padder::new(f);
-            for s in &self.statements {
+            let mut end = self.statements.len();
+            if self.ret_last {
+                end -= 1;
+            }
+            for i in 0..end {
+                let s = &self.statements[i];
                 // they don't expose wrap_buf :grief:
                 padder.write_str(&format!("{s:?};\n"))?;
             }
-            if let Some(res) = &self.result {
-                padder.write_str(&format!("{res:?}\n"))?;
+            if self.ret_last
+                && let Some(s) = self.statements.last()
+            {
+                padder.write_str(&format!("{s:?}\n"))?;
             }
             f.write_char('}')?;
         } else {

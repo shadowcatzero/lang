@@ -1,11 +1,11 @@
 use std::fmt::{Debug, Write};
 
-use crate::common::FilePos;
+use crate::{common::FilePos, parser::NodeParsableWith};
 
 use super::{
     op::{PInfixOp, UnaryOp},
     util::parse_list,
-    CompilerMsg, Keyword, Node, NodeParsable, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral,
+    CompilerMsg, Keyword, Node, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral,
     Parsable, ParseResult, ParserCtx, Symbol,
 };
 
@@ -47,7 +47,8 @@ impl Parsable for PExpr {
             ctx.expect_sym(Symbol::CloseParen)?;
             Self::Group(res.node.bx())
         } else if next.is_symbol(Symbol::OpenCurly) {
-            Self::Block(PBlock::parse_node(ctx)?)
+            ctx.next();
+            Self::Block(PBlock::parse_node(ctx, Some(Symbol::CloseCurly))?)
         } else if next.is_keyword(Keyword::If) {
             ctx.next();
             let cond = ctx.parse()?.bx();
@@ -71,7 +72,7 @@ impl Parsable for PExpr {
             return ctx.parse().map(|n| {
                 let n = n.bx();
                 if let Some(box Self::BinaryOp(op2, n1, n2)) = n.inner {
-                    let span = start.to(n1.span.end);
+                    let span = start.to(n1.origin.end);
                     Self::BinaryOp(op2, Node::new(Self::UnaryOp(op, n1), span).bx(), n2)
                 } else {
                     Self::UnaryOp(op, n)
@@ -138,7 +139,7 @@ pub fn fix_precedence(
             let Some(box PExpr::BinaryOp(op2, n21, n22)) = n2.inner else {
                 unreachable!();
             };
-            let span = start.to(n21.span.end);
+            let span = start.to(n21.origin.end);
             let (n11, op1, n12) = fix_precedence(n1, op, n21, start);
             n1 = Node::new(PExpr::BinaryOp(op1, n11, n12), span).bx();
             op = op2;

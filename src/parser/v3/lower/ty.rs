@@ -8,7 +8,7 @@ use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType};
 impl Node<PType> {
     pub fn lower(&self, namespace: &mut UProgram, output: &mut CompilerOutput) -> Type {
         self.as_ref()
-            .map(|t| t.lower(namespace, output, self.span))
+            .map(|t| t.lower(namespace, output, self.origin))
             .unwrap_or(Type::Error)
     }
 }
@@ -47,6 +47,6 @@ impl Node<PGenericDef> {
     pub fn lower(&self, p: &mut UProgram) -> Option<GenericID> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?;
-        Some(p.def_searchable(name.to_string(), Some(UGeneric {}), self.span))
+        Some(p.def_searchable(name.to_string(), Some(UGeneric {}), self.origin))
     }
 }

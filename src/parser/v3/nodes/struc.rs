@@ -36,7 +36,6 @@ pub enum PConstructFields {
 
 impl Parsable for PStruct {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
-        ctx.expect_kw(Keyword::Struct)?;
         let name = ctx.parse()?;
         let mut next = ctx.expect_peek()?;
         let args = if next.is_symbol(Symbol::OpenAngle) {
@@ -75,7 +74,7 @@ impl ParsableWith for PConstruct {
         let next = ctx.expect_peek()?;
         // TODO: this is not correct span; type should also span generics, which aren't even in
         // here yet
-        let span = name_node.span;
+        let span = name_node.origin;
         let name = Node::new(
             PType {
                 name: name_node,

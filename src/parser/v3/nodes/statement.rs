@@ -1,4 +1,7 @@
-use super::{Keyword, Node, PExpr, PVarDef, Parsable, ParseResult, ParserCtx, Symbol, Token};
+use super::{
+    Keyword, Node, PExpr, PFunction, PStruct, PVarDef, Parsable, ParseResult, ParserCtx, Symbol,
+    Token,
+};
 
 pub enum PStatement {
     Let(Node<PVarDef>, Node<PExpr>),
@@ -6,7 +9,17 @@ pub enum PStatement {
     Expr(Node<PExpr>),
 }
 
-impl Parsable for PStatement {
+pub enum PConstStatement {
+    Fn(Node<PFunction>),
+    Struct(Node<PStruct>),
+}
+
+pub enum PStatementLike {
+    Statement(PStatement),
+    Const(PConstStatement),
+}
+
+impl Parsable for PStatementLike {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let next = ctx.expect_peek()?;
         match next.token {
@@ -14,17 +27,27 @@ impl Parsable for PStatement {
                 ctx.next();
                 let def = ctx.parse()?;
                 ctx.expect_sym(Symbol::Equals)?;
-                ctx.parse().map(|expr| Self::Let(def, expr))
+                ctx.parse()
+                    .map(|expr| Self::Statement(PStatement::Let(def, expr)))
             }
             Token::Keyword(Keyword::Return) => {
                 ctx.next();
                 if ctx.peek().is_some_and(|t| t.is_symbol(Symbol::Semicolon)) {
-                    ParseResult::Ok(Self::Return(None))
+                    ParseResult::Ok(Self::Statement(PStatement::Return(None)))
                 } else {
-                    ctx.parse().map(|res| Self::Return(Some(res)))
+                    ctx.parse()
+                        .map(|res| Self::Statement(PStatement::Return(Some(res))))
                 }
             }
-            _ => ctx.parse().map(Self::Expr),
+            Token::Keyword(Keyword::Fn) => {
+                ctx.next();
+                ParseResult::Ok(Self::Const(PConstStatement::Fn(ctx.parse()?)))
+            }
+            Token::Keyword(Keyword::Struct) => {
+                ctx.next();
+                ParseResult::Ok(Self::Const(PConstStatement::Struct(ctx.parse()?)))
+            }
+            _ => ctx.parse().map(|n| Self::Statement(PStatement::Expr(n))),
         }
     }
 }
@@ -47,5 +70,27 @@ impl std::fmt::Debug for PStatement {
             }
         }
         Ok(())
+    }
+}
+impl std::fmt::Debug for PConstStatement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fn(fun) => {
+                fun.fmt(f)?;
+            }
+            Self::Struct(s) => {
+                s.fmt(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for PStatementLike {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Statement(s) => s.fmt(f),
+            Self::Const(c) => c.fmt(f),
+        }
     }
 }

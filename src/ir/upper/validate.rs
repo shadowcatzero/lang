@@ -24,7 +24,7 @@ impl UProgram {
             }
             if var.ty == Type::Infer {
                 output.err(CompilerMsg {
-                    msg: format!("Var {:?} cannot be inferred", id),
+                    msg: format!("Var {:?} cannot be inferred!", id),
                     spans: vec![self.origins.get(id)],
                 });
             }
@@ -40,7 +40,7 @@ impl UProgram {
                     output.check_assign(self, &var.ty, ft, self.origins.get(id));
                 } else {
                     output.err(CompilerMsg {
-                        msg: format!("invalid parent!"),
+                        msg: "invalid parent!".to_string(),
                         spans: vec![self.origins.get(id)],
                     });
                 }

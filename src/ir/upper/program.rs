@@ -2,16 +2,19 @@ use super::*;
 use std::collections::HashMap;
 
 pub struct UProgram {
+    // kinds
     pub fns: Vec<Option<UFunc>>,
     pub vars: Vec<Option<UVar>>,
     pub structs: Vec<Option<UStruct>>,
     pub types: Vec<Option<UGeneric>>,
     pub data: Vec<Option<UData>>,
+    // associated data
     pub names: NameMap,
     pub origins: OriginMap,
     pub fn_var: FnVarMap,
-    pub temp: usize,
+    pub path: Vec<String>,
     pub name_stack: Vec<HashMap<String, Idents>>,
+    pub temp: usize,
 }
 
 impl UProgram {
@@ -25,8 +28,9 @@ impl UProgram {
             names: NameMap::new(),
             origins: OriginMap::new(),
             fn_var: FnVarMap::new(),
-            temp: 0,
+            path: Vec::new(),
             name_stack: vec![HashMap::new()],
+            temp: 0,
         }
     }
     pub fn push(&mut self) {
@@ -34,6 +38,12 @@ impl UProgram {
     }
     pub fn pop(&mut self) {
         self.name_stack.pop();
+    }
+    pub fn push_name(&mut self, name: &str) {
+        self.path.push(name.to_string());
+    }
+    pub fn pop_name(&mut self) {
+        self.path.pop();
     }
     pub fn get_idents(&self, name: &str) -> Option<Idents> {
         for map in self.name_stack.iter().rev() {
@@ -70,7 +80,7 @@ impl UProgram {
 
     fn temp_var_inner(&mut self, origin: Origin, ty: Type, parent: Option<FieldRef>) -> VarInst {
         let v = self.def(
-            format!("temp{}", self.temp),
+            &format!("temp{}", self.temp),
             Some(UVar { parent, ty }),
             origin,
         );
@@ -85,14 +95,23 @@ impl UProgram {
         K::from_program_mut(self)[id.0] = Some(k);
     }
 
-    pub fn def<K: Kind + Finish>(&mut self, name: String, k: Option<K>, origin: Origin) -> ID<K> {
-        self.names.push::<K>(name);
+    pub fn def<K: Kind + Finish>(&mut self, name: &str, k: Option<K>, origin: Origin) -> ID<K> {
+        self.names.push::<K>(self.path_for(name));
         self.origins.push::<K>(origin);
         let vec = K::from_program_mut(self);
         let id = ID::new(vec.len());
         vec.push(k);
-        K::finish(self, id);
+        K::finish(self, id, name);
         id
+    }
+
+    pub fn path_for(&self, name: &str) -> String {
+        if self.path.is_empty() {
+            return name.to_string();
+        }
+        let mut path = self.path.join("::");
+        path = path + "::" + name;
+        path
     }
 
     pub fn def_searchable<K: Kind + Finish>(
@@ -101,7 +120,7 @@ impl UProgram {
         k: Option<K>,
         origin: Origin,
     ) -> ID<K> {
-        let id = self.def(name.clone(), k, origin);
+        let id = self.def(&name, k, origin);
         self.name_on_stack(id, name);
         id
     }

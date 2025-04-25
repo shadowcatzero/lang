@@ -147,7 +147,7 @@ impl<T: ParsableWith> Node<T> {
         NodeParseResult {
             node: Self {
                 inner,
-                span: start.to(end),
+                origin: start.to(end),
             },
             recover,
         }
@@ -173,7 +173,7 @@ impl<T: MaybeParsable> Node<T> {
         let end = ctx.prev_end();
         Some(Self {
             inner,
-            span: start.to(end),
+            origin: start.to(end),
         })
     }
 }
@@ -189,5 +189,21 @@ impl<T: Parsable> NodeParsable for T {
         Self: Sized,
     {
         Node::<Self>::parse(ctx)
+    }
+}
+
+pub trait NodeParsableWith {
+    type Data;
+    fn parse_node(ctx: &mut ParserCtx, data: Self::Data) -> NodeParseResult<Self>
+    where
+        Self: Sized;
+}
+impl<T: ParsableWith<Data = D>, D> NodeParsableWith for T {
+    type Data = D;
+    fn parse_node(ctx: &mut ParserCtx, data: Self::Data) -> NodeParseResult<Self>
+    where
+        Self: Sized,
+    {
+        Node::<Self>::parse_with(ctx, data)
     }
 }

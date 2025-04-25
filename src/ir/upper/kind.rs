@@ -100,7 +100,7 @@ macro_rules! impl_kind {
     ($struc:ty, $idx:expr, $field:ident, $name:expr) => {
         impl_kind!($struc, $idx, $field, $name, nofin);
         impl Finish for $struc {
-            fn finish(_: &mut UProgram, _: ID<Self>) {}
+            fn finish(_: &mut UProgram, _: ID<Self>, _: &str) {}
         }
     };
     ($struc:ty, $idx:expr, $field:ident, $name:expr, nofin) => {
@@ -133,9 +133,9 @@ pub type DataID = ID<UData>;
 pub type GenericID = ID<UGeneric>;
 
 impl Finish for UFunc {
-    fn finish(p: &mut UProgram, id: ID<Self>) {
+    fn finish(p: &mut UProgram, id: ID<Self>, name: &str) {
         let var = p.def_searchable(
-            p.names.name(id).to_string(),
+            name.to_string(),
             Some(UVar {
                 parent: None,
                 ty: Type::Placeholder,
@@ -153,5 +153,5 @@ pub trait Kind: Sized {
 }
 
 pub trait Finish: Sized {
-    fn finish(program: &mut UProgram, id: ID<Self>);
+    fn finish(program: &mut UProgram, id: ID<Self>, name: &str);
 }

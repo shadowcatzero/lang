@@ -16,7 +16,7 @@ impl CompilerMsg {
     pub fn identifier_not_found(id: &Node<PIdent>) -> Self {
         Self {
             msg: format!("Identifier '{}' not found", id.as_ref().unwrap()),
-            spans: vec![id.span],
+            spans: vec![id.origin],
         }
     }
     pub fn unexpected_token(inst: &TokenInstance, expected: &str) -> Self {

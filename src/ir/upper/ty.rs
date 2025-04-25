@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use super::{GenericID, Len, StructID, UInstruction, UProgram, UVar, VarID};
 
@@ -80,7 +80,7 @@ impl UProgram {
 
     pub fn resolve_instr_types(
         &self,
-        vars: &mut Vec<Option<UVar>>,
+        vars: &mut [Option<UVar>],
         i: &UInstruction,
     ) -> Result<(), VarID> {
         'outer: {
@@ -161,13 +161,10 @@ impl UProgram {
                             args[i] = ty;
                         }
                     }
-                    // for arg in &args {
-                    //     println!("{:?}", self.type_name(arg));
-                    // }
                     set(vars, dest.id, Type::Struct { id, args });
                 }
-                UInstruction::If { cond, body } => {}
-                UInstruction::Loop { body } => {}
+                UInstruction::If { cond, body: _ } => {}
+                UInstruction::Loop { body: _ } => {}
                 UInstruction::Break => {}
                 UInstruction::Continue => {}
             }

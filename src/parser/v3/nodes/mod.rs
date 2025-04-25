@@ -1,35 +1,46 @@
+mod asm_block;
+mod asm_fn;
+mod asm_instr;
 mod block;
+mod def;
 mod expr;
 mod func;
-mod module;
+mod ident;
+mod lit;
 mod op;
 mod statement;
-mod lit;
-mod ident;
-mod ty;
-mod def;
 mod struc;
-mod util;
 mod trai;
-mod asm_fn;
-mod asm_block;
-mod asm_instr;
+mod ty;
+mod util;
 
+pub use asm_block::*;
+pub use asm_fn::*;
+pub use asm_instr::*;
 pub use block::*;
+pub use def::*;
 pub use expr::*;
 pub use func::*;
-pub use module::*;
-pub use statement::*;
-pub use lit::*;
 pub use ident::*;
-pub use ty::*;
-pub use def::*;
+pub use lit::*;
+pub use op::*;
+pub use statement::*;
 pub use struc::*;
 pub use trai::*;
-pub use op::*;
-pub use asm_fn::*;
-pub use asm_block::*;
-pub use asm_instr::*;
+pub use ty::*;
 
+use crate::ir::UProgram;
 
-use super::*;
+use super::{lower::{FnLowerCtx, FnLowerable}, *};
+
+pub struct PModule {
+    pub block: Node<PBlock>,
+}
+
+impl PModule {
+    pub fn parse(ctx: &mut ParserCtx) -> Self {
+        Self {
+            block: PBlock::parse_node(ctx, None).node,
+        }
+    }
+}

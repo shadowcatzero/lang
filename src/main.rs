@@ -6,7 +6,7 @@
 #![feature(str_as_str)]
 
 use ir::{LProgram, UProgram};
-use parser::{NodeParsable, PModule, PStatement, ParserCtx};
+use parser::{PModule, ParseResult, ParserCtx};
 use std::{
     fs::{create_dir_all, OpenOptions},
     io::{stdout, BufRead, BufReader},
@@ -36,7 +36,7 @@ fn main() {
 
 fn run_file(file: &str, gdb: bool, asm: bool) {
     let mut ctx = ParserCtx::from(file);
-    let res = PModule::parse_node(&mut ctx);
+    let res = PModule::parse(&mut ctx);
     let mut output = ctx.output;
     'outer: {
         if !output.errs.is_empty() {
@@ -44,22 +44,19 @@ fn run_file(file: &str, gdb: bool, asm: bool) {
         }
         // println!("Parsed:");
         // println!("{:#?}", res.node);
-        let Some(module) = res.node.as_ref() else {
-            break 'outer;
-        };
         let mut program = UProgram::new();
-        module.lower(&mut program, &mut output);
+        res.lower("crate".to_string(), &mut program, &mut output);
         if !output.errs.is_empty() {
             break 'outer;
         }
         program.resolve_types();
         // println!("vars:");
         // for (id, def) in program.iter_vars() {
-        //     println!("    {id:?} = {}: {}", program.names.get(id), program.type_name(&def.ty));
+        //     println!("    {id:?} = {}: {}", program.names.name(id), program.type_name(&def.ty));
         // }
-        // for (id, f) in program.iter_fns() {
-        //     println!("{}:{id:?} = {:#?}", program.names.get(id), f);
-        // }
+        for (id, f) in program.iter_fns() {
+            println!("{}:{id:?} = {:#?}", program.names.name(id), f);
+        }
         output = program.validate();
         if !output.errs.is_empty() {
             break 'outer;
@@ -128,16 +125,17 @@ fn save_run(binary: &[u8], run_gdb: bool) {
 }
 
 pub fn run_stdin() {
-    for line in BufReader::new(std::io::stdin()).lines() {
-        let str = &line.expect("failed to read line");
-        let mut ctx = ParserCtx::from(&str[..]);
-        if let Some(expr) = PStatement::parse_node(&mut ctx).node.as_ref() {
-            if ctx.next().is_none() {
-                println!("{:?}", expr);
-            } else {
-                println!("uhhhh ehehe");
-            }
-        }
-        ctx.output.write_for(&mut stdout(), str);
-    }
+    println!("todo");
+    // for line in BufReader::new(std::io::stdin()).lines() {
+    //     let str = &line.expect("failed to read line");
+    //     let mut ctx = ParserCtx::from(&str[..]);
+    //     if let Some(expr) = PStatement::parse_node(&mut ctx).node.as_ref() {
+    //         if ctx.next().is_none() {
+    //             println!("{:?}", expr);
+    //         } else {
+    //             println!("uhhhh ehehe");
+    //         }
+    //     }
+    //     ctx.output.write_for(&mut stdout(), str);
+    // }
 }

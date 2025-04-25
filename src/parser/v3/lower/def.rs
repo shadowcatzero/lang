@@ -15,8 +15,8 @@ impl Node<PVarDef> {
             None => Type::Infer,
         };
         Some(VarInst {
-            id: program.def_searchable(name, Some(UVar { ty, parent: None }), self.span),
-            span: self.span,
+            id: program.def_searchable(name, Some(UVar { ty, parent: None }), self.origin),
+            span: self.origin,
         })
     }
 }

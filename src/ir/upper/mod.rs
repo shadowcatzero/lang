@@ -1,17 +1,18 @@
-mod kind;
-mod instr;
-mod ty;
-mod program;
-mod validate;
+mod assoc;
 mod error;
 mod inst;
-mod maps;
+mod instr;
+mod kind;
+mod program;
+mod ty;
+mod validate;
 
 use super::*;
-use maps::*;
-pub use maps::Idents;
-pub use kind::*;
-pub use instr::*;
-pub use ty::*;
-pub use program::*;
+use assoc::*;
+
+pub use assoc::Idents;
 pub use inst::*;
+pub use instr::*;
+pub use kind::*;
+pub use program::*;
+pub use ty::*;

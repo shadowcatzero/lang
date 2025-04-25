@@ -1,5 +1,5 @@
 use super::{
-    util::parse_list, PBlock, PIdent, Keyword, Node, Parsable, ParseResult, ParserCtx,
+    util::parse_list, PBlock, PIdent, Node, Parsable, ParseResult, ParserCtx,
     Symbol, PType, PVarDef,
 };
 use std::fmt::Debug;
@@ -17,7 +17,6 @@ pub struct PFunction {
 
 impl Parsable for PFunctionHeader {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
-        ctx.expect_kw(Keyword::Fn)?;
         let name = ctx.parse()?;
         ctx.expect_sym(Symbol::OpenParen)?;
         // let sel = ctx.maybe_parse();
@@ -48,7 +47,8 @@ impl Parsable for PFunctionHeader {
 impl Parsable for PFunction {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let header = ctx.parse()?;
-        let body = ctx.parse()?;
+        ctx.expect_sym(Symbol::OpenCurly)?;
+        let body = ctx.parse_with(Some(Symbol::CloseCurly))?;
         ParseResult::Ok(Self { header, body })
     }
 }

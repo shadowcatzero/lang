@@ -85,10 +85,10 @@ impl Node<PStruct> {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<StructID> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?.to_string();
-        let id = p.def_searchable(name.to_string(), None, s.name.span);
+        let id = p.def_searchable(name.to_string(), None, s.name.origin);
         Some(id)
     }
     pub fn lower(&self, id: StructID, p: &mut UProgram, output: &mut CompilerOutput) {
-        self.as_ref().map(|i| i.lower(id, p, output, self.span));
+        self.as_ref().map(|i| i.lower(id, p, output, self.origin));
     }
 }

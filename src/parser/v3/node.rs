@@ -3,30 +3,30 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::FileSpan;
+use crate::ir::Origin;
 
 pub struct Node<T> {
     pub inner: Option<T>,
-    pub span: FileSpan,
+    pub origin: Origin,
 }
 
 impl<T> Node<T> {
-    pub fn new(inner: T, span: FileSpan) -> Self {
+    pub fn new(inner: T, span: Origin) -> Self {
         Self {
             inner: Some(inner),
-            span,
+            origin: span,
         }
     }
     pub fn bx(self) -> Node<Box<T>> {
         Node {
             inner: self.inner.map(|v| Box::new(v)),
-            span: self.span,
+            origin: self.origin,
         }
     }
     pub fn map<T2, F: Fn(T) -> T2>(self, f: F) -> Node<T2> {
         Node {
             inner: self.inner.map(f),
-            span: self.span,
+            origin: self.origin,
         }
     }
 }

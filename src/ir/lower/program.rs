@@ -17,7 +17,7 @@ impl LProgram {
     pub fn create(p: &UProgram) -> Result<Self, String> {
         let start = p
             .names
-            .id::<UFunc>("start")
+            .id::<UFunc>("crate")
             .ok_or("no start method found")?;
         let mut ssbuilder = SymbolSpaceBuilder::with_entries(&[start]);
         let entry = ssbuilder.func(&start);

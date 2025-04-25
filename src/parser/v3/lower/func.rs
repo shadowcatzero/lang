@@ -19,7 +19,7 @@ impl PFunction {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         let header = self.header.as_ref()?;
         let name = header.name.as_ref()?;
-        let id = p.def_searchable(name.to_string(), None, self.header.span);
+        let id = p.def_searchable(name.to_string(), None, self.header.origin);
         Some(id)
     }
     pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
@@ -42,7 +42,7 @@ impl PFunction {
             instructions: Vec::new(),
             program: p,
             output,
-            span: self.body.span,
+            origin: self.body.origin,
         };
         if let Some(src) = self.body.lower(&mut ctx) {
             ctx.instructions.push(UInstrInst {
@@ -65,7 +65,7 @@ pub struct FnLowerCtx<'a> {
     pub program: &'a mut UProgram,
     pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
-    pub span: FileSpan,
+    pub origin: FileSpan,
 }
 
 impl FnLowerCtx<'_> {
@@ -73,7 +73,7 @@ impl FnLowerCtx<'_> {
         let name = node.inner.as_ref()?;
         let res = self.program.get_idents(name);
         if res.is_none() {
-            self.err_at(node.span, format!("Identifier '{}' not found", name));
+            self.err_at(node.origin, format!("Identifier '{}' not found", name));
         }
         res
     }
@@ -81,29 +81,29 @@ impl FnLowerCtx<'_> {
         let ids = self.get_idents(node)?;
         if ids.get::<UVar>().is_none() {
             self.err_at(
-                node.span,
+                node.origin,
                 format!("Variable '{}' not found", node.inner.as_ref()?),
             );
         }
         ids.get::<UVar>().map(|id| VarInst {
             id,
-            span: node.span,
+            span: node.origin,
         })
     }
     pub fn err(&mut self, msg: String) {
-        self.output.err(CompilerMsg::from_span(self.span, msg))
+        self.output.err(CompilerMsg::from_span(self.origin, msg))
     }
     pub fn err_at(&mut self, span: FileSpan, msg: String) {
         self.output.err(CompilerMsg::from_span(span, msg))
     }
     pub fn temp(&mut self, ty: Type) -> VarInst {
-        self.program.temp_var(self.span, ty)
+        self.program.temp_var(self.origin, ty)
     }
     pub fn temp_subvar(&mut self, ty: Type, parent: FieldRef) -> VarInst {
-        self.program.temp_subvar(self.span, ty, parent)
+        self.program.temp_subvar(self.origin, ty, parent)
     }
     pub fn push(&mut self, i: UInstruction) {
-        self.push_at(i, self.span);
+        self.push_at(i, self.origin);
     }
     pub fn push_at(&mut self, i: UInstruction, span: FileSpan) {
         self.instructions.push(UInstrInst { i, span });
@@ -113,7 +113,7 @@ impl FnLowerCtx<'_> {
             program: self.program,
             instructions: Vec::new(),
             output: self.output,
-            span: self.span,
+            origin: self.origin,
         }
     }
 }

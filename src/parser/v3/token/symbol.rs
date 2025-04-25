@@ -34,6 +34,7 @@ pub enum Symbol {
     Pipe,
     DoublePipe,
     Comma,
+    Hash,
 }
 
 impl Symbol {
@@ -68,6 +69,7 @@ impl Symbol {
             '&' => Self::Ampersand,
             '|' => Self::Pipe,
             ',' => Self::Comma,
+            '#' => Self::Hash,
             _ => return None,
         })
     }
@@ -104,7 +106,7 @@ impl Symbol {
             Self::Dot => match next {
                 '.' => Self::DoubleDot,
                 _ => return,
-            }
+            },
             _ => return,
         };
         cursor.advance();
@@ -141,6 +143,7 @@ impl Symbol {
             Self::DoubleAmpersand => "&&",
             Self::Pipe => "|",
             Self::DoublePipe => "||",
+            Self::Hash => "#",
         }
     }
 }

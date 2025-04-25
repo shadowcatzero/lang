@@ -8,7 +8,7 @@ pub enum PInfixOp {
     Div,
     LessThan,
     GreaterThan,
-    Access,
+    Member,
     Assign,
 }
 
@@ -22,7 +22,7 @@ impl PInfixOp {
             Self::Sub => 3,
             Self::Mul => 4,
             Self::Div => 5,
-            Self::Access => 6,
+            Self::Member => 6,
         }
     }
     pub fn str(&self) -> &str {
@@ -33,7 +33,7 @@ impl PInfixOp {
             Self::Div => "/",
             Self::LessThan => "<",
             Self::GreaterThan => ">",
-            Self::Access => ".",
+            Self::Member => ".",
             Self::Assign => "=",
         }
     }
@@ -45,20 +45,8 @@ impl PInfixOp {
             Self::Div => true,
             Self::LessThan => true,
             Self::GreaterThan => true,
-            Self::Access => false,
+            Self::Member => false,
             Self::Assign => true,
-        }
-    }
-    pub fn traitt(&self) -> &str {
-        match self {
-            Self::Add => "Add",
-            Self::Sub => "Sub",
-            Self::Mul => "Mul",
-            Self::Div => "Div",
-            Self::LessThan => "LessThan",
-            Self::GreaterThan => "GreaterThan",
-            Self::Access => "Access",
-            Self::Assign => "Assign",
         }
     }
 }
@@ -81,7 +69,7 @@ impl PInfixOp {
             Symbol::Minus => Self::Sub,
             Symbol::Asterisk => Self::Mul,
             Symbol::Slash => Self::Div,
-            Symbol::Dot => Self::Access,
+            Symbol::Dot => Self::Member,
             Symbol::Equals => Self::Assign,
             _ => {
                 return None;

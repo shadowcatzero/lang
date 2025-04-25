@@ -159,7 +159,7 @@ impl RV64Instruction {
             "remu" => op(ctx, op32m::REMU, op32m::FUNCT7)?,
 
             w => {
-                ctx.err_at(inst.op.span, format!("Unknown instruction '{}'", w));
+                ctx.err_at(inst.op.origin, format!("Unknown instruction '{}'", w));
                 return None;
             }
         })
@@ -169,7 +169,7 @@ impl RV64Instruction {
 pub fn arg_to_var(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<VarInst> {
     let PAsmArg::Ref(node) = node.inner.as_ref()? else {
         ctx.err_at(
-            node.span,
+            node.origin,
             "Expected variable / function reference".to_string(),
         );
         return None;
@@ -194,7 +194,7 @@ impl Reg {
         let s = &**node.inner.as_ref()?;
         let res = Reg::from_str(s);
         if res.is_none() {
-            ctx.err_at(node.span, format!("Unknown reg name '{}'", s));
+            ctx.err_at(node.origin, format!("Unknown reg name '{}'", s));
         }
         res
     }
@@ -202,14 +202,14 @@ impl Reg {
 
 fn i32_from_arg(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<i32> {
     let PAsmArg::Value(node) = node.inner.as_ref()? else {
-        ctx.err_at(node.span, "Expected an i32, found reference".to_string());
+        ctx.err_at(node.origin, "Expected an i32, found reference".to_string());
         return None;
     };
     let word = node.inner.as_ref()?;
     match word.parse::<i32>() {
         Ok(x) => Some(x),
         Err(_) => {
-            ctx.err_at(node.span, format!("Expected an i64, found {}", word));
+            ctx.err_at(node.origin, format!("Expected an i64, found {}", word));
             None
         }
     }

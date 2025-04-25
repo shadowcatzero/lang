@@ -10,29 +10,29 @@ impl FnLowerable for PExpr {
         Some(match self {
             PExpr::Lit(l) => match l.as_ref()? {
                 super::PLiteral::String(s) => {
-                    let dest = ctx.program.temp_var(l.span, Type::Bits(8).slice());
+                    let dest = ctx.program.temp_var(l.origin, Type::Bits(8).slice());
                     let data = s.as_bytes().to_vec();
                     let src = ctx.program.def(
-                        format!("string \"{}\"", s.replace("\n", "\\n")),
+                        &format!("string \"{}\"", s.replace("\n", "\\n")),
                         Some(UData {
                             ty: Type::Bits(8).arr(data.len() as u32),
                             content: data,
                         }),
-                        l.span,
+                        l.origin,
                     );
                     ctx.push(UInstruction::LoadSlice { dest, src });
                     dest
                 }
                 super::PLiteral::Char(c) => {
                     let ty = Type::Bits(8);
-                    let dest = ctx.program.temp_var(l.span, ty.clone());
+                    let dest = ctx.program.temp_var(l.origin, ty.clone());
                     let src = ctx.program.def(
-                        format!("char '{c}'"),
+                        &format!("char '{c}'"),
                         Some(UData {
                             ty,
                             content: c.to_string().as_bytes().to_vec(),
                         }),
-                        l.span,
+                        l.origin,
                     );
                     ctx.push(UInstruction::LoadData { dest, src });
                     dest
@@ -40,24 +40,30 @@ impl FnLowerable for PExpr {
                 super::PLiteral::Number(n) => {
                     // TODO: temp
                     let ty = Type::Bits(64);
-                    let dest = ctx.program.temp_var(l.span, Type::Bits(64));
+                    let dest = ctx.program.temp_var(l.origin, Type::Bits(64));
                     let src = ctx.program.def(
-                        format!("num {n:?}"),
+                        &format!("num {n:?}"),
                         Some(UData {
                             ty,
                             content: n.whole.parse::<i64>().unwrap().to_le_bytes().to_vec(),
                         }),
-                        l.span
+                        l.origin,
                     );
                     ctx.push(UInstruction::LoadData { dest, src });
                     dest
                 }
-                super::PLiteral::Unit => ctx.program.temp_var(l.span, Type::Unit),
+                super::PLiteral::Unit => ctx.program.temp_var(l.origin, Type::Unit),
             },
             PExpr::Ident(i) => ctx.get_var(i)?,
-            PExpr::BinaryOp(op, e1, e2) => {
-                let res1 = e1.lower(ctx)?;
-                if *op == PInfixOp::Access {
+            PExpr::BinaryOp(op, e1, e2) => match op {
+                PInfixOp::Add => todo!(),
+                PInfixOp::Sub => todo!(),
+                PInfixOp::Mul => todo!(),
+                PInfixOp::Div => todo!(),
+                PInfixOp::LessThan => todo!(),
+                PInfixOp::GreaterThan => todo!(),
+                PInfixOp::Member => {
+                    let res1 = e1.lower(ctx)?;
                     let Some(box PExpr::Ident(ident)) = &e2.inner else {
                         ctx.err("Field accessors must be identifiers".to_string());
                         return None;
@@ -70,26 +76,17 @@ impl FnLowerable for PExpr {
                             field: fname,
                         },
                     )
-                } else {
-                    let res2 = e2.lower(ctx)?;
-                    match op {
-                        PInfixOp::Add => todo!(),
-                        PInfixOp::Sub => todo!(),
-                        PInfixOp::Mul => todo!(),
-                        PInfixOp::Div => todo!(),
-                        PInfixOp::LessThan => todo!(),
-                        PInfixOp::GreaterThan => todo!(),
-                        PInfixOp::Access => todo!(),
-                        PInfixOp::Assign => {
-                            ctx.push(UInstruction::Mv {
-                                dest: res1,
-                                src: res2,
-                            });
-                            res1
-                        }
-                    }
                 }
-            }
+                PInfixOp::Assign => {
+                    let res1 = e1.lower(ctx)?;
+                    let res2 = e2.lower(ctx)?;
+                    ctx.push(UInstruction::Mv {
+                        dest: res1,
+                        src: res2,
+                    });
+                    res1
+                }
+            },
             PExpr::UnaryOp(op, e) => {
                 let res = e.lower(ctx)?;
                 match op {
