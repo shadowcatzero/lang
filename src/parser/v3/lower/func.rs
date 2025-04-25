@@ -1,4 +1,4 @@
-use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
+use super::{import::Import, CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
     ir::{FieldRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
     parser,
@@ -8,9 +8,9 @@ impl Node<PFunction> {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         self.as_ref()?.lower_name(p)
     }
-    pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
+    pub fn lower(&self, id: FnID, p: &mut UProgram, imports: &mut Vec<Import>, output: &mut CompilerOutput) {
         if let Some(s) = self.as_ref() {
-            s.lower(id, p, output)
+            s.lower(id, p, imports, output)
         }
     }
 }
@@ -22,7 +22,7 @@ impl PFunction {
         let id = p.def_searchable(name.to_string(), None, self.header.origin);
         Some(id)
     }
-    pub fn lower(&self, id: FnID, p: &mut UProgram, output: &mut CompilerOutput) {
+    pub fn lower(&self, id: FnID, p: &mut UProgram, imports: &mut Vec<Import>, output: &mut CompilerOutput) {
         let name = p.names.name(id).to_string();
         p.push_name(&name);
         let (args, ret) = if let Some(header) = self.header.as_ref() {
@@ -45,6 +45,7 @@ impl PFunction {
             program: p,
             output,
             origin: self.body.origin,
+            imports,
         };
         if let Some(src) = self.body.lower(&mut ctx) {
             ctx.instructions.push(UInstrInst {
@@ -68,6 +69,7 @@ pub struct FnLowerCtx<'a> {
     pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
     pub origin: FileSpan,
+    pub imports: &'a mut Vec<Import>
 }
 
 impl FnLowerCtx<'_> {
@@ -116,6 +118,7 @@ impl FnLowerCtx<'_> {
             instructions: Vec::new(),
             output: self.output,
             origin: self.origin,
+            imports: self.imports,
         }
     }
 }

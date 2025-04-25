@@ -3,7 +3,7 @@ use crate::{
     parser::{PConstStatement, PStatementLike},
 };
 
-use super::{FnLowerCtx, FnLowerable, PBlock, PStatement};
+use super::{import::Import, FnLowerCtx, FnLowerable, PBlock, PStatement};
 
 impl FnLowerable for PBlock {
     type Output = VarInst;
@@ -13,7 +13,7 @@ impl FnLowerable for PBlock {
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();
         let mut struct_nodes = Vec::new();
-        let mut imports = Vec::new();
+        let mut import_nodes = Vec::new();
         // first sort statements
         for s in &self.statements {
             let Some(s) = s.as_ref() else {
@@ -24,8 +24,15 @@ impl FnLowerable for PBlock {
                 PStatementLike::Const(pconst_statement) => match pconst_statement {
                     PConstStatement::Fn(f) => fn_nodes.push(f),
                     PConstStatement::Struct(s) => struct_nodes.push(s),
-                    PConstStatement::Import(i) => imports.push(i),
+                    PConstStatement::Import(i) => import_nodes.push(i),
                 },
+            }
+        }
+        // then lower imports
+        for i in &import_nodes {
+            if let Some(i) = i.as_ref() {
+                let import = Import(i.0.clone());
+                ctx.imports.push(import);
             }
         }
         // then lower const things
@@ -44,7 +51,7 @@ impl FnLowerable for PBlock {
         }
         for (f, id) in fn_nodes.iter().zip(fns) {
             if let Some(id) = id {
-                f.lower(id, ctx.program, ctx.output)
+                f.lower(id, ctx.program, ctx.imports, ctx.output)
             }
         }
         // then lower statements

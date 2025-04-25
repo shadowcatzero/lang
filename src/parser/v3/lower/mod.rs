@@ -6,6 +6,7 @@ mod expr;
 mod func;
 mod struc;
 mod ty;
+mod import;
 
 use super::*;
 use crate::ir::{Type, UFunc, UProgram};
@@ -19,6 +20,7 @@ impl PModule {
             instructions: Vec::new(),
             output,
             origin: self.block.origin,
+            imports: Vec::new(),
         };
         self.block.lower(&mut fctx);
         let f = UFunc {
