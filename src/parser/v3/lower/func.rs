@@ -1,6 +1,6 @@
-use super::{import::Import, CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
+use super::{Imports, CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
 use crate::{
-    ir::{FieldRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
+    ir::{MemberRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
     parser,
 };
 
@@ -8,7 +8,13 @@ impl Node<PFunction> {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         self.as_ref()?.lower_name(p)
     }
-    pub fn lower(&self, id: FnID, p: &mut UProgram, imports: &mut Vec<Import>, output: &mut CompilerOutput) {
+    pub fn lower(
+        &self,
+        id: FnID,
+        p: &mut UProgram,
+        imports: &mut Imports,
+        output: &mut CompilerOutput,
+    ) {
         if let Some(s) = self.as_ref() {
             s.lower(id, p, imports, output)
         }
@@ -22,7 +28,13 @@ impl PFunction {
         let id = p.def_searchable(name.to_string(), None, self.header.origin);
         Some(id)
     }
-    pub fn lower(&self, id: FnID, p: &mut UProgram, imports: &mut Vec<Import>, output: &mut CompilerOutput) {
+    pub fn lower(
+        &self,
+        id: FnID,
+        p: &mut UProgram,
+        imports: &mut Imports,
+        output: &mut CompilerOutput,
+    ) {
         let name = p.names.name(id).to_string();
         p.push_name(&name);
         let (args, ret) = if let Some(header) = self.header.as_ref() {
@@ -69,7 +81,7 @@ pub struct FnLowerCtx<'a> {
     pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
     pub origin: FileSpan,
-    pub imports: &'a mut Vec<Import>
+    pub imports: &'a mut Imports,
 }
 
 impl FnLowerCtx<'_> {
@@ -102,9 +114,6 @@ impl FnLowerCtx<'_> {
     }
     pub fn temp(&mut self, ty: Type) -> VarInst {
         self.program.temp_var(self.origin, ty)
-    }
-    pub fn temp_subvar(&mut self, ty: Type, parent: FieldRef) -> VarInst {
-        self.program.temp_subvar(self.origin, ty, parent)
     }
     pub fn push(&mut self, i: UInstruction) {
         self.push_at(i, self.origin);

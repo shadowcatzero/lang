@@ -1,3 +1,5 @@
+use crate::common::FileID;
+
 use super::{
     token::{CharCursor, Keyword, Symbol, Token, TokenInstance},
     CompilerMsg, FilePos,
@@ -17,7 +19,7 @@ impl<'a> TokenCursor<'a> {
         self.next_start = next
             .as_ref()
             .map(|i| i.span.end)
-            .unwrap_or(FilePos::start());
+            .unwrap_or(FilePos::start(self.file()));
         std::mem::replace(&mut self.next, next)
     }
     pub fn expect_next(&mut self) -> Result<TokenInstance, CompilerMsg> {
@@ -78,11 +80,11 @@ impl<'a> TokenCursor<'a> {
     pub fn next_start(&self) -> FilePos {
         self.next_start
     }
-}
-
-impl<'a> From<&'a str> for TokenCursor<'a> {
-    fn from(string: &'a str) -> Self {
-        Self::from(CharCursor::from(string))
+    pub fn from_file_str(id: FileID, string: &'a str) -> Self {
+        Self::from(CharCursor::from_file_str(id, string))
+    }
+    pub fn file(&self) -> FileID {
+        self.cursor.file()
     }
 }
 
@@ -90,10 +92,10 @@ impl<'a> From<CharCursor<'a>> for TokenCursor<'a> {
     fn from(mut cursor: CharCursor<'a>) -> Self {
         let cur = TokenInstance::parse(&mut cursor);
         Self {
+            next_start: FilePos::start(cursor.file()),
+            prev_end: FilePos::start(cursor.file()),
             cursor,
             next: cur,
-            next_start: FilePos::start(),
-            prev_end: FilePos::start(),
         }
     }
 }

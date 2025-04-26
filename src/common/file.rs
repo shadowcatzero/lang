@@ -1,24 +1,45 @@
+use std::{collections::HashMap, path::PathBuf};
+
+pub type FileID = usize;
+pub type FileMap = HashMap<FileID, SrcFile>;
+
+#[derive(Debug, Clone)]
+pub struct SrcFile {
+    pub path: PathBuf,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FilePos {
+    pub file: FileID,
     pub line: usize,
     pub col: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct FileSpan {
+    pub file: FileID,
     pub start: FilePos,
     pub end: FilePos,
 }
 
 impl FilePos {
-    pub fn start() -> Self {
-        Self { line: 0, col: 0 }
+    pub fn start(file: FileID) -> Self {
+        Self {
+            line: 0,
+            col: 0,
+            file,
+        }
     }
 }
 
 impl FilePos {
     pub fn to(self, end: FilePos) -> FileSpan {
-        FileSpan { start: self, end }
+        FileSpan {
+            start: self,
+            end,
+            file: self.file,
+        }
     }
     pub fn char_span(self) -> FileSpan {
         FileSpan::at(self)
@@ -33,6 +54,7 @@ impl FileSpan {
         Self {
             start: pos,
             end: pos,
+            file: pos.file,
         }
     }
     pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {

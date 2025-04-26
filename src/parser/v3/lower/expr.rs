@@ -1,6 +1,6 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
 use crate::{
-    ir::{FieldRef, Type, UData, UInstruction, VarInst},
+    ir::{MemberRef, Type, UData, UInstruction, VarInst},
     parser::PInfixOp,
 };
 
@@ -69,13 +69,10 @@ impl FnLowerable for PExpr {
                         return None;
                     };
                     let fname = ident.as_ref()?.0.clone();
-                    ctx.temp_subvar(
-                        Type::Placeholder,
-                        FieldRef {
-                            var: res1.id,
-                            field: fname,
-                        },
-                    )
+                    ctx.temp(Type::Member(MemberRef {
+                        parent: res1.id,
+                        name: fname,
+                    }))
                 }
                 PInfixOp::Assign => {
                     let res1 = e1.lower(ctx)?;

@@ -1,13 +1,15 @@
 use std::ops::{Deref, DerefMut};
 
+use crate::common::FileID;
+
 use super::{
-    MaybeParsable, Node, NodeParseResult, Parsable, ParsableWith, CompilerMsg, CompilerOutput,
+    CompilerMsg, CompilerOutput, MaybeParsable, Node, NodeParseResult, Parsable, ParsableWith,
     TokenCursor,
 };
 
 pub struct ParserCtx<'a> {
     pub cursor: TokenCursor<'a>,
-    pub output: CompilerOutput,
+    pub output: &'a mut CompilerOutput,
 }
 
 impl<'a> Deref for ParserCtx<'a> {
@@ -40,22 +42,10 @@ impl<'a> ParserCtx<'a> {
     pub fn maybe_parse<T: MaybeParsable>(&mut self) -> Option<Node<T>> {
         Node::maybe_parse(self)
     }
-}
-
-impl<'a> From<TokenCursor<'a>> for ParserCtx<'a> {
-    fn from(cursor: TokenCursor<'a>) -> Self {
+    pub fn new(file: FileID, string: &'a str, output: &'a mut CompilerOutput) -> Self {
         Self {
-            cursor,
-            output: CompilerOutput::new(),
-        }
-    }
-}
-
-impl<'a> From<&'a str> for ParserCtx<'a> {
-    fn from(string: &'a str) -> Self {
-        Self {
-            cursor: TokenCursor::from(string),
-            output: CompilerOutput::new(),
+            cursor: TokenCursor::from_file_str(file, string),
+            output,
         }
     }
 }

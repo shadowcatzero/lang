@@ -27,7 +27,6 @@ pub struct UGeneric {}
 
 #[derive(Clone)]
 pub struct UVar {
-    pub parent: Option<FieldRef>,
     pub ty: Type,
 }
 
@@ -35,12 +34,6 @@ pub struct UVar {
 pub struct VarOffset {
     pub id: VarID,
     pub offset: Len,
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub struct FieldRef {
-    pub var: VarID,
-    pub field: String,
 }
 
 #[derive(Clone)]
@@ -124,7 +117,7 @@ impl_kind!(UVar, 1, vars, "var");
 impl_kind!(UStruct, 2, structs, "struct");
 impl_kind!(UGeneric, 3, types, "type");
 impl_kind!(UData, 4, data, "data");
-pub const NAMED_KINDS: usize = 5;
+pub const NAMED_KINDS: usize = 6;
 
 pub type FnID = ID<UFunc>;
 pub type VarID = ID<UVar>;
@@ -137,7 +130,6 @@ impl Finish for UFunc {
         let var = p.def_searchable(
             name.to_string(),
             Some(UVar {
-                parent: None,
                 ty: Type::Placeholder,
             }),
             p.origins.get(id),

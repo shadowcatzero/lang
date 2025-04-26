@@ -1,14 +1,13 @@
 use crate::{
-    ir::{Type, UInstruction, VarInst},
+    ir::{Type, UInstruction, UVar, VarInst},
     parser::{PConstStatement, PStatementLike},
 };
 
-use super::{import::Import, FnLowerCtx, FnLowerable, PBlock, PStatement};
+use super::{FnLowerCtx, FnLowerable, Import, PBlock, PStatement};
 
 impl FnLowerable for PBlock {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
-        ctx.program.push();
         let mut last = None;
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();
@@ -29,12 +28,26 @@ impl FnLowerable for PBlock {
             }
         }
         // then lower imports
-        for i in &import_nodes {
-            if let Some(i) = i.as_ref() {
-                let import = Import(i.0.clone());
-                ctx.imports.push(import);
+        for i_n in &import_nodes {
+            if let Some(i) = i_n.as_ref() {
+                let name = &i.0;
+                let import = Import(ctx.program.path_for(name));
+                ctx
+                    .imports
+                    .entry(import)
+                    .or_insert(ctx.program.def(name, None, i_n.origin));
+                // I could prevent this if someone imports something twice,
+                // but that doesn't seem worth it at all
+                ctx.program.def_searchable::<UVar>(
+                    name.clone(),
+                    Some(UVar {
+                        ty: Type::Module,
+                    }),
+                    i_n.origin,
+                );
             }
         }
+        ctx.program.push();
         // then lower const things
         let mut structs = Vec::new();
         for s in &struct_nodes {

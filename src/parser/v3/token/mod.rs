@@ -4,10 +4,10 @@ mod symbol;
 
 use std::ops::Deref;
 
+use super::FileSpan;
 pub use cursor::*;
 pub use keyword::*;
 pub use symbol::*;
-use super::FileSpan;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Token {
@@ -35,7 +35,11 @@ impl TokenInstance {
             let end = cursor.prev_pos();
             return Some(Self {
                 token: Token::Symbol(s),
-                span: FileSpan { start, end },
+                span: FileSpan {
+                    start,
+                    end,
+                    file: cursor.file(),
+                },
             });
         }
         let mut word = String::new();
@@ -54,7 +58,11 @@ impl TokenInstance {
         };
         Some(Self {
             token,
-            span: FileSpan { start, end },
+            span: FileSpan {
+                start,
+                end,
+                file: cursor.file(),
+            },
         })
     }
 }

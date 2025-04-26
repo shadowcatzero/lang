@@ -1,4 +1,4 @@
-use super::{FilePos, FileSpan};
+use super::{FileMap, FilePos, FileSpan};
 
 #[derive(Debug, Clone)]
 pub struct CompilerMsg {
@@ -7,6 +7,7 @@ pub struct CompilerMsg {
 }
 
 pub struct CompilerOutput {
+    pub file_map: FileMap,
     pub errs: Vec<CompilerMsg>,
     pub hints: Vec<CompilerMsg>,
 }
@@ -30,11 +31,18 @@ impl CompilerMsg {
             spans: vec![FileSpan::at(pos)],
         }
     }
-    pub fn write_for(&self, ty: &str, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
+    pub fn write_to(
+        &self,
+        ty: &str,
+        writer: &mut impl std::io::Write,
+        map: &FileMap,
+    ) -> std::io::Result<()> {
         let after = if self.spans.is_empty() { "" } else { ":" };
         writeln!(writer, "{}: {}{}", ty, self.msg, after)?;
         for span in &self.spans {
-            span.write_for(writer, file)?;
+            let file = map.get(&span.file).expect("unknown file id");
+            writeln!(writer, "{:?}", &file.path)?;
+            span.write_for(writer, &file.text)?;
         }
         Ok(())
     }
@@ -45,6 +53,7 @@ impl CompilerOutput {
         Self {
             errs: Vec::new(),
             hints: Vec::new(),
+            file_map: FileMap::new(),
         }
     }
     pub fn err(&mut self, msg: CompilerMsg) {
@@ -53,12 +62,12 @@ impl CompilerOutput {
     pub fn hint(&mut self, msg: CompilerMsg) {
         self.hints.push(msg);
     }
-    pub fn write_for(&self, out: &mut impl std::io::Write, file: &str) {
+    pub fn write_to(&self, out: &mut impl std::io::Write) {
         for err in &self.errs {
-            err.write_for("error", out, file).unwrap();
+            err.write_to("error", out, &self.file_map).unwrap();
         }
         for hint in &self.hints {
-            hint.write_for("hint", out, file).unwrap();
+            hint.write_to("hint", out, &self.file_map).unwrap();
         }
     }
 }

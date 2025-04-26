@@ -71,19 +71,13 @@ impl UProgram {
     pub fn get_fn_var(&self, id: VarID) -> Option<&UFunc> {
         self.fns[self.fn_var.fun(id)?.0].as_ref()
     }
-    pub fn temp_subvar(&mut self, origin: Origin, ty: Type, parent: FieldRef) -> VarInst {
-        self.temp_var_inner(origin, ty, Some(parent))
-    }
+
     pub fn temp_var(&mut self, origin: Origin, ty: Type) -> VarInst {
-        self.temp_var_inner(origin, ty, None)
+        self.temp_var_inner(origin, ty)
     }
 
-    fn temp_var_inner(&mut self, origin: Origin, ty: Type, parent: Option<FieldRef>) -> VarInst {
-        let v = self.def(
-            &format!("temp{}", self.temp),
-            Some(UVar { parent, ty }),
-            origin,
-        );
+    fn temp_var_inner(&mut self, origin: Origin, ty: Type) -> VarInst {
+        let v = self.def(&format!("temp{}", self.temp), Some(UVar { ty }), origin);
         self.temp += 1;
         VarInst {
             id: v,
@@ -96,7 +90,7 @@ impl UProgram {
     }
 
     pub fn def<K: Kind + Finish>(&mut self, name: &str, k: Option<K>, origin: Origin) -> ID<K> {
-        self.names.push::<K>(self.path_for(name));
+        self.names.push::<K>(&self.path_for(name));
         self.origins.push::<K>(origin);
         let vec = K::from_program_mut(self);
         let id = ID::new(vec.len());
@@ -105,12 +99,12 @@ impl UProgram {
         id
     }
 
-    pub fn path_for(&self, name: &str) -> String {
+    pub fn path_for(&self, name: &str) -> Vec<String> {
         if self.path.is_empty() {
-            return name.to_string();
+            return vec![name.to_string()];
         }
-        let mut path = self.path.join("::");
-        path = path + "::" + name;
+        let mut path = self.path.clone();
+        path.push(name.to_string());
         path
     }
 
@@ -125,27 +119,46 @@ impl UProgram {
         id
     }
 
+    pub fn ref_ty<'a>(&'a self, mem: &MemberRef) -> Option<&'a Type> {
+        self.follow_ref(mem).and_then(|r| Some(&self.get(r)?.ty))
+    }
+
+    pub fn follow_ref<'a>(&'a self, mem: &MemberRef) -> Option<VarID> {
+        let parent = self.get(mem.parent)?;
+        if let Type::Member(mem) = &parent.ty {
+            self.follow_ref(mem)
+        } else {
+            Some(mem.parent)
+        }
+    }
+
     pub fn field_type<'a>(&'a self, sty: &'a Type, field: &str) -> Option<&'a Type> {
-        let Type::Struct { id, args } = sty else {
-            return None;
-        };
-        let struc = self.get(*id)?;
-        let field = struc.fields.get(field)?;
-        if let Type::Generic { id } = field.ty {
-            for (i, g) in struc.generics.iter().enumerate() {
-                if *g == id {
-                    return Some(&args[i]);
+        if let Type::Struct(st) = sty {
+            let struc = self.get(st.id)?;
+            let field = struc.fields.get(field)?;
+            if let Type::Generic { id } = field.ty {
+                for (i, g) in struc.generics.iter().enumerate() {
+                    if *g == id {
+                        return Some(&st.args[i]);
+                    }
                 }
             }
+            Some(&field.ty)
+        } else if let Type::Module(path) = sty {
+            let id = self.names.id::<UVar>(path)?;
+            Some(&self.get(id)?.ty)
+        } else {
+            None
         }
-        Some(&field.ty)
     }
 
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();
         match ty {
-            Type::Struct { id: base, args } => {
-                str += self.names.name(*base);
+            Type::Struct(ty) => {
+                let base = ty.id;
+                let args = &ty.args;
+                str += self.names.name(base);
                 if let Some(arg) = args.first() {
                     str = str + "<" + &self.type_name(arg);
                 }
@@ -178,8 +191,21 @@ impl UProgram {
             Type::Unit => str += "()",
             Type::Slice(t) => str += &format!("&[{}]", self.type_name(t)),
             Type::Placeholder => str += "{placeholder}",
+            Type::Module(path) => str += &path.join("::"),
+            Type::Member(m) => {
+                str += &self
+                    .ref_ty(m)
+                    .map(|t| self.type_name(t))
+                    .unwrap_or("{error}".to_string())
+            }
         }
         str
+    }
+    pub fn path_var(&self, path: &NamePath) -> Option<VarID> {
+        self.names.id(path)
+    }
+    pub fn path_ty(&self, path: &NamePath) -> Option<&Type> {
+        Some(&self.get(self.path_var(path)?)?.ty)
     }
     fn name_on_stack<K: Kind>(&mut self, id: ID<K>, name: String) {
         let idx = self.name_stack.len() - 1;

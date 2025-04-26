@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, Size, SymbolSpace, UFunc, UInstrInst, VarOffset};
+use crate::ir::{AsmBlockArgType, Size, StructTy, SymbolSpace, UFunc, UInstrInst, VarOffset};
 
 use super::{
     IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, Type, UInstruction, UProgram, VarID,
@@ -17,7 +17,7 @@ impl LProgram {
     pub fn create(p: &UProgram) -> Result<Self, String> {
         let start = p
             .names
-            .id::<UFunc>("crate")
+            .id::<UFunc>(&["crate".to_string()])
             .ok_or("no start method found")?;
         let mut ssbuilder = SymbolSpaceBuilder::with_entries(&[start]);
         let entry = ssbuilder.func(&start);
@@ -44,8 +44,18 @@ impl LProgram {
 
 pub struct StructInst {
     offsets: Vec<Len>,
+    types: Vec<Type>,
     order: HashMap<String, usize>,
     size: Size,
+}
+
+impl StructInst {
+    pub fn offset(&self, name: &str) -> Option<Len> {
+        Some(self.offsets[*self.order.get(name)?])
+    }
+    pub fn ty(&self, name: &str) -> Option<&Type> {
+        Some(&self.types[*self.order.get(name)?])
+    }
 }
 
 pub struct LFunctionBuilder<'a> {
@@ -72,7 +82,7 @@ pub struct LFunctionBuilderData<'a> {
     instrs: Vec<LInstruction>,
     stack: HashMap<VarID, Size>,
     subvar_map: HashMap<VarID, VarOffset>,
-    struct_insts: HashMap<Type, StructInst>,
+    struct_insts: HashMap<StructTy, StructInst>,
     makes_call: bool,
     loopp: Option<LoopCtx>,
 }
@@ -258,6 +268,10 @@ impl<'a> LFunctionBuilder<'a> {
                 self.data.instrs.push(LInstruction::Ret { src })
             }
             UInstruction::Construct { dest, fields } => {
+                let sty = &self.program.expect(dest.id).ty;
+                let Type::Struct(sty) = sty else {
+                    panic!("bruh htis aint' a struct");
+                };
                 self.alloc_stack(dest.id)?;
                 for (field, var) in fields {
                     self.map_subvar(var.id);
@@ -266,7 +280,7 @@ impl<'a> LFunctionBuilder<'a> {
                         src: var.id,
                         dest_offset: self
                             .data
-                            .field_offset(self.program, dest.id, field)
+                            .field_offset(self.program, sty, field)
                             .expect("field offset"),
                         src_offset: 0,
                     };
@@ -344,22 +358,25 @@ impl<'a> LFunctionBuilder<'a> {
 impl LFunctionBuilderData<'_> {
     pub fn var_offset(&mut self, p: &UProgram, var: VarID) -> Option<VarOffset> {
         let mut current = VarOffset { id: var, offset: 0 };
-        while let Some(parent) = &p.get(current.id)?.parent {
-            current.id = parent.var;
-            current.offset += self.field_offset(p, parent.var, &parent.field)?;
+        while let Type::Member(parent) = &p.get(current.id)?.ty {
+            current.id = parent.parent;
+            // ... should it be set to 0 if not? what does that even mean??
+            // "the field of this struct is a reference to another variable" ????
+            if let Type::Struct(sty) = &p.get(parent.parent)?.ty {
+                current.offset += self.field_offset(p, sty, &parent.name)?;
+            }
         }
         Some(current)
     }
     pub fn addr_size(&self) -> Size {
         64
     }
-    pub fn struct_inst(&mut self, p: &UProgram, ty: &Type) -> Option<&StructInst> {
+    pub fn struct_inst(&mut self, p: &UProgram, ty: &StructTy) -> &StructInst {
         // normally I'd let Some(..) here and return, but polonius does not exist :grief:
         if self.struct_insts.get(ty).is_none() {
-            let Type::Struct { id, args } = ty else {
-                return None;
-            };
-            let struc = p.get(*id)?;
+            let StructTy { id, args } = ty;
+            let struc = p.expect(*id);
+            let mut types = Vec::new();
             let mut sizes = struc
                 .fields
                 .iter()
@@ -374,6 +391,7 @@ impl LFunctionBuilderData<'_> {
                     } else {
                         &f.ty
                     };
+                    types.push(ty.clone());
                     (n, self.size_of_type(p, ty).expect("unsized type"))
                 })
                 .collect::<Vec<_>>();
@@ -392,25 +410,24 @@ impl LFunctionBuilderData<'_> {
                 StructInst {
                     offsets,
                     order,
+                    types,
                     size: offset,
                 },
             );
         }
-        self.struct_insts.get(ty)
+        self.struct_insts.get(ty).unwrap()
     }
 
-    pub fn field_offset(&mut self, p: &UProgram, var: VarID, field: &str) -> Option<Len> {
-        let ty = &p.get(var)?.ty;
-        let inst = self.struct_inst(p, ty)?;
-        let i = *inst.order.get(field)?;
-        Some(*inst.offsets.get(i)?)
+    pub fn field_offset(&mut self, p: &UProgram, sty: &StructTy, field: &str) -> Option<Len> {
+        let inst = self.struct_inst(p, sty);
+        Some(inst.offset(field)?)
     }
 
     pub fn size_of_type(&mut self, p: &UProgram, ty: &Type) -> Option<Size> {
         // TODO: target matters
         Some(match ty {
             Type::Bits(b) => *b,
-            Type::Struct { id, args } => self.struct_inst(p, ty)?.size,
+            Type::Struct(ty) => self.struct_inst(p, ty).size,
             Type::Generic { id } => return None,
             Type::Fn { args, ret } => todo!(),
             Type::Ref(_) => self.addr_size(),
@@ -420,6 +437,18 @@ impl LFunctionBuilderData<'_> {
             Type::Error => return None,
             Type::Unit => 0,
             Type::Placeholder => return None,
+            Type::Module(_) => return None,
+            Type::Member(m) => {
+                let pty = &p.expect(m.parent).ty;
+                let ty = match pty {
+                    Type::Struct(ty) => self.struct_inst(p, ty).ty(&m.name)?,
+                    Type::Module(path) => p.path_ty(path)?,
+                    Type::Member(_) => return self.size_of_type(p, pty),
+                    _ => return None,
+                }
+                .clone();
+                self.size_of_type(p, &ty)?
+            }
         })
     }
 

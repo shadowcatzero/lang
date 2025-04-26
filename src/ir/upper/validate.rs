@@ -3,14 +3,13 @@ use super::{Type, UInstrInst, UInstruction, UProgram};
 use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 
 impl UProgram {
-    pub fn validate(&self) -> CompilerOutput {
-        let mut output = CompilerOutput::new();
+    pub fn validate(&self, output: &mut CompilerOutput) {
         for (id, f) in self.iter_fns() {
             self.validate_fn(
                 &f.instructions,
                 self.origins.get(id),
                 &f.ret,
-                &mut output,
+                output,
                 true,
                 false,
             );
@@ -46,7 +45,6 @@ impl UProgram {
                 }
             }
         }
-        output
     }
 
     pub fn validate_fn(

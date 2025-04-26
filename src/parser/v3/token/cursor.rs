@@ -1,14 +1,17 @@
 use std::{iter::Peekable, str::Chars};
 
+use crate::common::FileID;
+
 use super::super::{CompilerMsg, FilePos};
 
 pub struct CharCursor<'a> {
+    file: FileID,
     chars: Peekable<Chars<'a>>,
     next_pos: FilePos,
     prev_pos: FilePos,
 }
 
-impl CharCursor<'_> {
+impl<'a> CharCursor<'a> {
     pub fn next(&mut self) -> Option<char> {
         let res = self.peek()?;
         self.advance();
@@ -54,14 +57,15 @@ impl CharCursor<'_> {
     pub fn prev_pos(&self) -> FilePos {
         self.prev_pos
     }
-}
-
-impl<'a> From<&'a str> for CharCursor<'a> {
-    fn from(value: &'a str) -> Self {
+    pub fn from_file_str(file: FileID, value: &'a str) -> Self {
         Self {
             chars: value.chars().peekable(),
-            next_pos: FilePos::start(),
-            prev_pos: FilePos::start(),
+            next_pos: FilePos::start(file),
+            prev_pos: FilePos::start(file),
+            file,
         }
+    }
+    pub fn file(&self) -> FileID {
+        self.file
     }
 }

@@ -7,13 +7,16 @@
 
 pub const FILE_EXT: &str = "lang";
 
+use common::{CompilerOutput, SrcFile};
 use ir::{LProgram, UProgram};
-use parser::{PModule, ParseResult, ParserCtx};
+use parser::{Import, Imports, PModule, ParseResult, ParserCtx};
 use std::{
+    collections::{HashMap, HashSet},
+    ffi::OsString,
     fs::{create_dir_all, OpenOptions},
     io::{stdout, BufRead, BufReader},
     os::unix::fs::OpenOptionsExt,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -29,52 +32,84 @@ fn main() {
     let gdb = std::env::args().nth(2).is_some_and(|a| a == "--debug");
     let asm = std::env::args().nth(2).is_some_and(|a| a == "--asm");
     if let Some(path) = file {
-        let file = std::fs::read_to_string(path).expect("failed to read file");
-        run_file(&file, gdb, asm);
+        let path = PathBuf::from(path);
+        run_file(&path, gdb, asm);
     } else {
         run_stdin();
     }
 }
 
-fn run_file(file: &str, gdb: bool, asm: bool) {
-    let mut ctx = ParserCtx::from(file);
-    let res = PModule::parse(&mut ctx);
-    let mut output = ctx.output;
-    'outer: {
-        if !output.errs.is_empty() {
-            break 'outer;
+impl UProgram {
+    pub fn from_path(path: &Path) -> (Self, CompilerOutput) {
+        let parent = path.parent().expect("bruh");
+        let mut program = Self::new();
+        let mut output = CompilerOutput::new();
+
+        let mut imports = Imports::new();
+        imports.insert(Import(
+            path.file_name()
+                .expect("bruh")
+                .to_str()
+                .expect("bruh")
+                .to_string(),
+        ));
+        let mut imported = HashSet::new();
+        let mut fid = 0;
+
+        while !imports.is_empty() {
+            let iter = std::mem::take(&mut imports);
+            for i in iter {
+                let name = &i.0;
+                if imported.contains(&i) {
+                    continue;
+                }
+                let path = parent.join(name).with_extension(FILE_EXT);
+                let text = std::fs::read_to_string(&path).expect("failed to read file");
+                output.file_map.insert(
+                    fid,
+                    SrcFile {
+                        path,
+                        text: text.clone(),
+                    },
+                );
+                let mut ctx = ParserCtx::new(fid, text.as_str(), &mut output);
+                fid += 1;
+                let res = PModule::parse(&mut ctx);
+                // println!("Parsed:");
+                // println!("{:#?}", res.node);
+                res.lower(name.clone(), &mut program, &mut imports, &mut output);
+                imported.insert(i);
+            }
         }
-        // println!("Parsed:");
-        // println!("{:#?}", res.node);
-        let mut program = UProgram::new();
-        res.lower("crate".to_string(), &mut program, &mut output);
-        if !output.errs.is_empty() {
-            break 'outer;
-        }
-        program.resolve_types();
-        // println!("vars:");
-        // for (id, def) in program.iter_vars() {
-        //     println!("    {id:?} = {}: {}", program.names.path(id), program.type_name(&def.ty));
-        // }
-        // for (id, f) in program.iter_fns() {
-        //     println!("{}:{id:?} = {:#?}", program.names.path(id), f);
-        // }
-        output = program.validate();
-        if !output.errs.is_empty() {
-            break 'outer;
-        }
-        output.write_for(&mut stdout(), file);
-        let program = LProgram::create(&program).expect("morir");
-        let unlinked = compiler::compile(&program);
-        if asm {
-            println!("{:?}", unlinked);
-        } else {
-            let bin = unlinked.link().to_elf();
-            println!("compiled");
-            save_run(&bin, gdb);
-        }
+        (program, output)
     }
-    output.write_for(&mut stdout(), file);
+}
+
+fn run_file(path: &Path, gdb: bool, asm: bool) {
+    let (mut program, mut output) = UProgram::from_path(path);
+    program.resolve_types();
+    program.validate(&mut output);
+    // println!("vars:");
+    // for (id, def) in program.iter_vars() {
+    //     println!("    {id:?} = {}: {}", program.names.path(id), program.type_name(&def.ty));
+    // }
+    // for (id, f) in program.iter_fns() {
+    //     println!("{}:{id:?} = {:#?}", program.names.path(id), f);
+    // }
+    if !output.errs.is_empty() {
+        output.write_to(&mut stdout());
+        return;
+    }
+    let program = LProgram::create(&program).expect("morir");
+    let unlinked = compiler::compile(&program);
+    if asm {
+        println!("{:?}", unlinked);
+    } else {
+        let bin = unlinked.link().to_elf();
+        println!("compiled");
+        save_run(&bin, gdb);
+    }
+    output.write_to(&mut stdout());
 }
 
 fn save_run(binary: &[u8], run_gdb: bool) {

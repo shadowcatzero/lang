@@ -1,5 +1,5 @@
 use crate::{
-    ir::{GenericID, Type, UGeneric, UProgram, UStruct},
+    ir::{GenericID, StructTy, Type, UGeneric, UProgram, UStruct},
     parser::PGenericDef,
 };
 
@@ -24,7 +24,7 @@ impl PType {
             Type::Generic { id }
         } else if let Some(id) = ids.and_then(|ids| ids.get::<UStruct>()) {
             let args = self.args.iter().map(|n| n.lower(p, output)).collect();
-            Type::Struct { id, args }
+            Type::Struct(StructTy { id, args })
         } else if let Ok(num) = name.parse::<u32>() {
             Type::Bits(num)
         } else {

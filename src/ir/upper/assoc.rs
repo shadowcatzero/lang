@@ -20,16 +20,56 @@ impl OriginMap {
     }
 }
 
+pub type NamePath = Vec<String>;
+
+pub struct NameTree {
+    ids: [HashMap<String, usize>; NAMED_KINDS],
+    children: HashMap<String, NameTree>,
+}
+
+impl NameTree {
+    pub fn new() -> Self {
+        Self {
+            ids: core::array::from_fn(|_| HashMap::new()),
+            children: HashMap::new(),
+        }
+    }
+    pub fn get(&self, path: &[String]) -> Option<&NameTree> {
+        let first = path.first()?;
+        self.children.get(first)?.get(&path[1..])
+    }
+    pub fn id<K: Kind>(&self, path: &[String]) -> Option<ID<K>> {
+        let last = path.last()?;
+        self.get(&path[..path.len() - 1])?.ids[K::INDEX]
+            .get(last)
+            .copied()
+            .map(ID::new)
+    }
+    pub fn insert<K: Kind>(&mut self, path: &[String], id: usize) {
+        if let [key] = &path[..] {
+            self.ids[K::INDEX].insert(key.to_string(), id);
+            return;
+        }
+        let Some(key) = path.first() else {
+            return;
+        };
+        self.children
+            .entry(key.to_string())
+            .or_insert_with(|| NameTree::new())
+            .insert::<K>(&path[1..], id);
+    }
+}
+
 pub struct NameMap {
     names: [Vec<String>; NAMED_KINDS],
-    inv_names: [HashMap<String, usize>; NAMED_KINDS],
+    tree: NameTree,
 }
 
 impl NameMap {
     pub fn new() -> Self {
         Self {
             names: core::array::from_fn(|_| Vec::new()),
-            inv_names: core::array::from_fn(|_| HashMap::new()),
+            tree: NameTree::new(),
         }
     }
     pub fn path<K: Kind>(&self, id: ID<K>) -> &str {
@@ -42,11 +82,13 @@ impl NameMap {
         }
         path
     }
-    pub fn id<K: Kind>(&self, name: &str) -> Option<ID<K>> {
-        Some(ID::new(*self.inv_names[K::INDEX].get(name)?))
+    pub fn id<K: Kind>(&self, path: &[String]) -> Option<ID<K>> {
+        Some(self.tree.id(path)?)
     }
-    pub fn push<K: Kind>(&mut self, name: String) {
-        self.inv_names[K::INDEX].insert(name.clone(), self.names[K::INDEX].len());
+    pub fn push<K: Kind>(&mut self, path: &[String]) {
+        let id = self.names[K::INDEX].len();
+        self.tree.insert::<K>(path, id);
+        let name = path.join("::");
         self.names[K::INDEX].push(name);
     }
 }

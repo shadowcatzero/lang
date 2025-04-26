@@ -6,21 +6,26 @@ mod expr;
 mod func;
 mod struc;
 mod ty;
-mod import;
 
 use super::*;
 use crate::ir::{Type, UFunc, UProgram};
 
 impl PModule {
-    pub fn lower(&self, name: String, p: &mut UProgram, output: &mut CompilerOutput) {
-        let id = p.def_searchable(name.clone(), None, self.block.origin);
+    pub fn lower(
+        &self,
+        name: String,
+        p: &mut UProgram,
+        imports: &mut Imports,
+        output: &mut CompilerOutput,
+    ) {
+        let fid = p.def_searchable(name.clone(), None, self.block.origin);
         p.push_name(&name);
         let mut fctx = FnLowerCtx {
             program: p,
             instructions: Vec::new(),
             output,
             origin: self.block.origin,
-            imports: Vec::new(),
+            imports,
         };
         self.block.lower(&mut fctx);
         let f = UFunc {
@@ -28,12 +33,13 @@ impl PModule {
             instructions: fctx.instructions,
             ret: Type::Unit,
         };
-        p.write(id, f);
+        p.write(fid, f);
         p.pop_name();
     }
 }
 
 pub use func::FnLowerCtx;
+use import::Imports;
 
 pub trait FnLowerable {
     type Output;
