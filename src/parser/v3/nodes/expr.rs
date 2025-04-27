@@ -3,10 +3,10 @@ use std::fmt::{Debug, Write};
 use crate::{common::FilePos, parser::NodeParsableWith};
 
 use super::{
-    op::{PInfixOp, UnaryOp},
+    op::{InfixOp, PostfixOp},
     util::parse_list,
-    CompilerMsg, Keyword, Node, PAsmBlock, PBlock, PConstruct, PIdent, PLiteral,
-    Parsable, ParseResult, ParserCtx, Symbol,
+    CompilerMsg, Keyword, Node, PAsmBlock, PBlock, PIdent, PLiteral, PMap, Parsable, ParseResult,
+    ParserCtx, Symbol,
 };
 
 type BoxNode = Node<Box<PExpr>>;
@@ -14,13 +14,14 @@ type BoxNode = Node<Box<PExpr>>;
 pub enum PExpr {
     Lit(Node<PLiteral>),
     Ident(Node<PIdent>),
-    BinaryOp(PInfixOp, BoxNode, BoxNode),
-    UnaryOp(UnaryOp, BoxNode),
+    BinaryOp(InfixOp, BoxNode, BoxNode),
+    PostfixOp(BoxNode, PostfixOp),
     Block(Node<PBlock>),
     Call(BoxNode, Vec<Node<PExpr>>),
     Group(BoxNode),
+    Access(BoxNode, Node<PIdent>),
     AsmBlock(Node<PAsmBlock>),
-    Construct(Node<PConstruct>),
+    Construct(BoxNode, Node<PMap>),
     If(BoxNode, BoxNode),
     Loop(BoxNode),
     Break,
@@ -30,8 +31,58 @@ pub enum PExpr {
 impl Parsable for PExpr {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let start = ctx.next_start();
+        let mut e1 = Self::parse_unit_postfix(ctx)?;
+        while let Some(op) = ctx
+            .peek()
+            .map(|next| InfixOp::from_token(&next.token))
+            .flatten()
+        {
+            let span = start.to(ctx.prev_end());
+            ctx.next();
+            let n2 = ctx.parse()?.bx();
+            let (n1, op, n2) = fix_precedence(Node::new(e1, span).bx(), op, n2, start);
+            e1 = Self::BinaryOp(op, n1, n2);
+        }
+        return ParseResult::Ok(e1);
+    }
+}
+
+impl PExpr {
+    fn parse_unit_postfix(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let start = ctx.next_start();
+        // first get unit
+        let mut e1 = Self::parse_unit(ctx)?;
+        // then apply post ops
+        loop {
+            let span = start.to(ctx.prev_end());
+            let Some(next) = ctx.peek() else {
+                break;
+            };
+            if next.is_symbol(Symbol::OpenParen) {
+                ctx.next();
+                let args = parse_list(ctx, Symbol::CloseParen)?;
+                e1 = Self::Call(Node::new(e1, span).bx(), args);
+                continue;
+            } else if next.is_symbol(Symbol::OpenCurly) {
+                let map = ctx.parse()?;
+                e1 = Self::Construct(Node::new(e1, span).bx(), map);
+                continue;
+            } else if next.is_symbol(Symbol::Dot) {
+                let field = ctx.parse()?;
+                e1 = Self::Access(Node::new(e1, span).bx(), field);
+                continue;
+            } else if let Some(op) = PostfixOp::from_token(next) {
+                ctx.next();
+                e1 = Self::PostfixOp(Node::new(e1, span).bx(), op);
+                continue;
+            }
+            break;
+        }
+        return ParseResult::Ok(e1);
+    }
+    fn parse_unit(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let next = ctx.expect_peek()?;
-        let mut e1 = if next.is_symbol(Symbol::OpenParen) {
+        return ParseResult::Ok(if next.is_symbol(Symbol::OpenParen) {
             ctx.next();
             if ctx.expect_peek()?.is_symbol(Symbol::CloseParen) {
                 ctx.next();
@@ -67,75 +118,28 @@ impl Parsable for PExpr {
         } else if next.is_keyword(Keyword::Asm) {
             ctx.next();
             Self::AsmBlock(ctx.parse()?)
-        } else if let Some(op) = UnaryOp::from_token(next) {
-            ctx.next();
-            return ctx.parse().map(|n| {
-                let n = n.bx();
-                if let Some(box Self::BinaryOp(op2, n1, n2)) = n.inner {
-                    let span = start.to(n1.origin.end);
-                    Self::BinaryOp(op2, Node::new(Self::UnaryOp(op, n1), span).bx(), n2)
-                } else {
-                    Self::UnaryOp(op, n)
-                }
-            });
         } else if let Some(val) = ctx.maybe_parse() {
             Self::Lit(val)
         } else {
             let res = ctx.parse();
             if res.node.is_some() {
-                // TODO: this is extremely limiting
-                // maybe parse generically and then during lowering figure out what's a function vs
-                // struct vs etc like mentioned in main.rs
-                if let Some(next) = ctx.peek()
-                    && next.is_symbol(Symbol::OpenCurly)
-                {
-                    Self::Construct(ctx.parse_with(res.node)?)
-                } else {
-                    Self::Ident(res.node)
-                }
+                Self::Ident(res.node)
             } else {
                 let next = ctx.expect_peek()?;
                 return ParseResult::Err(CompilerMsg::unexpected_token(next, "an expression"));
             }
-        };
-        let Some(mut next) = ctx.peek() else {
-            return ParseResult::Ok(e1);
-        };
-        while next.is_symbol(Symbol::OpenParen) {
-            ctx.next();
-            let args = parse_list(ctx, Symbol::CloseParen)?;
-            let end = ctx.prev_end();
-            e1 = Self::Call(Node::new(Box::new(e1), start.to(end)), args);
-            let Some(next2) = ctx.peek() else {
-                return ParseResult::Ok(e1);
-            };
-            next = next2
-        }
-        let end = ctx.prev_end();
-        let mut recover = false;
-        let res = if let Some(op) = PInfixOp::from_token(&next.token) {
-            ctx.next();
-            let n1 = Node::new(e1, start.to(end)).bx();
-            let res = ctx.parse();
-            let n2 = res.node.bx();
-            recover = res.recover;
-            let (n1, op, n2) = fix_precedence(n1, op, n2, start);
-            Self::BinaryOp(op, n1, n2)
-        } else {
-            e1
-        };
-        ParseResult::from_recover(res, recover)
+        });
     }
 }
 
 pub fn fix_precedence(
     mut n1: BoxNode,
-    mut op: PInfixOp,
+    mut op: InfixOp,
     mut n2: BoxNode,
     start: FilePos,
-) -> (BoxNode, PInfixOp, BoxNode) {
+) -> (BoxNode, InfixOp, BoxNode) {
     if let Some(box PExpr::BinaryOp(op2, _, _)) = n2.as_ref() {
-        if op.precedence() >= op2.precedence() {
+        if op.precedence() > op2.precedence() {
             let Some(box PExpr::BinaryOp(op2, n21, n22)) = n2.inner else {
                 unreachable!();
             };
@@ -176,14 +180,15 @@ impl Debug for PExpr {
                 }
                 f.write_char(')')?;
             }
-            PExpr::UnaryOp(op, e) => write!(f, "({}{:?})", op.str(), e)?,
+            PExpr::PostfixOp(e, op) => write!(f, "({:?}{})", e, op.str())?,
             PExpr::Group(inner) => inner.fmt(f)?,
             PExpr::AsmBlock(inner) => inner.fmt(f)?,
-            PExpr::Construct(inner) => inner.fmt(f)?,
+            PExpr::Construct(node, inner) => inner.fmt(f)?,
             PExpr::If(cond, res) => write!(f, "if {cond:?} then {res:?}")?,
             PExpr::Loop(res) => write!(f, "loop -> {res:?}")?,
             PExpr::Break => write!(f, "break")?,
             PExpr::Continue => write!(f, "continue")?,
+            PExpr::Access(e1, name) => write!(f, "{:?}.{:?}", e1, name)?,
         }
         Ok(())
     }

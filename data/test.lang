@@ -122,7 +122,7 @@ fn println(msg: slice<8>) {
 }
 
 fn print(msg: slice<8>) {
-   asm (a1 = &msg) {
+   asm (a1 = msg@) {
       ld a2, 8, a1
       ld a1, 0, a1
       li a0, 1
@@ -140,7 +140,7 @@ fn print_hex(x: 64) {
          c = add(c, 7);
       };
       c = add(c, 48);
-      asm (a1 = &c) {
+      asm (a1 = c@) {
          li a2, 1
          li a0, 1
          li a7, 64
@@ -176,7 +176,7 @@ fn print_dec(x: 64) {
          c = add(c, 7);
       };
       c = add(c, 48);
-      asm (a1 = &c) {
+      asm (a1 = c@) {
          li a2, 1
          li a0, 1
          li a7, 64

@@ -50,6 +50,7 @@ const BEFORE: usize = 1;
 const AFTER: usize = 0;
 
 impl FileSpan {
+    const BUILTIN_FILE: usize = usize::MAX;
     pub fn at(pos: FilePos) -> Self {
         Self {
             start: pos,
@@ -57,7 +58,21 @@ impl FileSpan {
             file: pos.file,
         }
     }
+    pub fn builtin() -> Self {
+        let pos = FilePos {
+            file: Self::BUILTIN_FILE,
+            line: 0,
+            col: 0,
+        };
+        Self::at(pos)
+    }
+    pub fn is_builtin(&self) -> bool {
+        self.file == Self::BUILTIN_FILE
+    }
     pub fn write_for(&self, writer: &mut impl std::io::Write, file: &str) -> std::io::Result<()> {
+        if self.is_builtin() {
+            return Ok(());
+        }
         let start = self.start.line.saturating_sub(BEFORE);
         let num_before = self.start.line - start;
         let mut lines = file.lines().skip(start);

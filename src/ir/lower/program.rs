@@ -82,7 +82,7 @@ pub struct LFunctionBuilderData<'a> {
     instrs: Vec<LInstruction>,
     stack: HashMap<VarID, Size>,
     subvar_map: HashMap<VarID, VarOffset>,
-    struct_insts: HashMap<StructTy, StructInst>,
+    struct_insts: HashMap<StructInst, StructInst>,
     makes_call: bool,
     loopp: Option<LoopCtx>,
 }
@@ -268,7 +268,7 @@ impl<'a> LFunctionBuilder<'a> {
                 self.data.instrs.push(LInstruction::Ret { src })
             }
             UInstruction::Construct { dest, fields } => {
-                let sty = &self.program.expect(dest.id).ty;
+                let sty = &self.program.expect_type(dest.id);
                 let Type::Struct(sty) = sty else {
                     panic!("bruh htis aint' a struct");
                 };
@@ -379,7 +379,7 @@ impl LFunctionBuilderData<'_> {
     pub fn struct_inst(&mut self, p: &UProgram, ty: &StructTy) -> &StructInst {
         // normally I'd let Some(..) here and return, but polonius does not exist :grief:
         if self.struct_insts.get(ty).is_none() {
-            let StructTy { id, args } = ty;
+            let StructInst { id, args } = ty;
             let struc = p.expect(*id);
             let mut types = Vec::new();
             let mut sizes = struc
@@ -423,7 +423,7 @@ impl LFunctionBuilderData<'_> {
         self.struct_insts.get(ty).unwrap()
     }
 
-    pub fn field_offset(&mut self, p: &UProgram, sty: &StructTy, field: &str) -> Option<Len> {
+    pub fn field_offset(&mut self, p: &UProgram, sty: &StructInst, field: &str) -> Option<Len> {
         let inst = self.struct_inst(p, sty);
         Some(inst.offset(field)?)
     }

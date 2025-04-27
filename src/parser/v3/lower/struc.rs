@@ -1,12 +1,12 @@
 use crate::{
     common::{CompilerOutput, FileSpan},
     ir::{StructField, StructID, UInstruction, UProgram, UStruct, VarInst},
-    parser::{Node, PConstruct, PConstructFields, PStruct, PStructFields},
+    parser::{Node, PMap, PConstructFields, PStruct, PStructFields},
 };
 
 use super::{FnLowerCtx, FnLowerable};
 
-impl FnLowerable for PConstruct {
+impl FnLowerable for PMap {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         let ty = self.name.lower(ctx.program, ctx.output);

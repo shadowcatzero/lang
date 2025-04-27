@@ -133,7 +133,10 @@ impl<T: Parsable> ParsableWith for T {
 
 impl<T: ParsableWith> Node<T> {
     pub fn parse_with(ctx: &mut ParserCtx, data: T::Data) -> NodeParseResult<T> {
-        let start = ctx.peek().map(|t| t.span.start).unwrap_or(FilePos::start(ctx.cursor.file()));
+        let start = ctx
+            .peek()
+            .map(|t| t.span.start)
+            .unwrap_or(FilePos::start(ctx.cursor.file()));
         let (inner, recover) = match T::parse(ctx, data) {
             ParseResult::Ok(v) => (Some(v), false),
             ParseResult::Recover(v) => (Some(v), true),

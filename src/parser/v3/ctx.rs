@@ -4,7 +4,7 @@ use crate::common::FileID;
 
 use super::{
     CompilerMsg, CompilerOutput, MaybeParsable, Node, NodeParseResult, Parsable, ParsableWith,
-    TokenCursor,
+    ParseResult, TokenCursor,
 };
 
 pub struct ParserCtx<'a> {

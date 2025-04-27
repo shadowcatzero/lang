@@ -1,18 +1,17 @@
 use super::{Symbol, Token};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum PInfixOp {
+pub enum InfixOp {
     Add,
     Sub,
     Mul,
     Div,
     LessThan,
     GreaterThan,
-    Member,
     Assign,
 }
 
-impl PInfixOp {
+impl InfixOp {
     pub fn precedence(&self) -> u32 {
         match self {
             Self::Assign => 0,
@@ -22,7 +21,6 @@ impl PInfixOp {
             Self::Sub => 3,
             Self::Mul => 4,
             Self::Div => 5,
-            Self::Member => 6,
         }
     }
     pub fn str(&self) -> &str {
@@ -33,7 +31,6 @@ impl PInfixOp {
             Self::Div => "/",
             Self::LessThan => "<",
             Self::GreaterThan => ">",
-            Self::Member => ".",
             Self::Assign => "=",
         }
     }
@@ -45,19 +42,18 @@ impl PInfixOp {
             Self::Div => true,
             Self::LessThan => true,
             Self::GreaterThan => true,
-            Self::Member => false,
             Self::Assign => true,
         }
     }
 }
 
-pub enum UnaryOp {
+pub enum PostfixOp {
     Not,
     Ref,
     Deref,
 }
 
-impl PInfixOp {
+impl InfixOp {
     pub fn from_token(token: &Token) -> Option<Self> {
         let Token::Symbol(symbol) = token else {
             return None;
@@ -69,7 +65,6 @@ impl PInfixOp {
             Symbol::Minus => Self::Sub,
             Symbol::Asterisk => Self::Mul,
             Symbol::Slash => Self::Div,
-            Symbol::Dot => Self::Member,
             Symbol::Equals => Self::Assign,
             _ => {
                 return None;
@@ -78,11 +73,11 @@ impl PInfixOp {
     }
 }
 
-impl UnaryOp {
+impl PostfixOp {
     pub fn str(&self) -> &str {
         match self {
             Self::Not => "!",
-            Self::Ref => "&",
+            Self::Ref => "@",
             Self::Deref => "*",
         }
     }
@@ -91,7 +86,7 @@ impl UnaryOp {
             return None;
         };
         Some(match symbol {
-            Symbol::Ampersand => Self::Ref,
+            Symbol::At => Self::Ref,
             Symbol::Bang => Self::Not,
             Symbol::Asterisk => Self::Deref,
             _ => {

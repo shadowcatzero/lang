@@ -15,3 +15,7 @@ for each var, create list of constraints on type
         for global vars yes, in functions no
         but if function returns are inferrable (even if just "impl Trait"), then needed in functions?
 every kind has an origin, should make separate like names?
+
+
+
+TYPE IDS!!!!! MY SAVIOR!!! MY GOAT!!!

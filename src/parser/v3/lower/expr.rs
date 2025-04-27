@@ -1,7 +1,7 @@
-use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
+use super::{func::FnLowerCtx, FnLowerable, PExpr, PostfixOp};
 use crate::{
     ir::{FieldRef, Type, UData, UInstruction, VarInst},
-    parser::PInfixOp,
+    parser::InfixOp,
 };
 
 impl FnLowerable for PExpr {
@@ -56,13 +56,13 @@ impl FnLowerable for PExpr {
             },
             PExpr::Ident(i) => ctx.get_var(i)?,
             PExpr::BinaryOp(op, e1, e2) => match op {
-                PInfixOp::Add => todo!(),
-                PInfixOp::Sub => todo!(),
-                PInfixOp::Mul => todo!(),
-                PInfixOp::Div => todo!(),
-                PInfixOp::LessThan => todo!(),
-                PInfixOp::GreaterThan => todo!(),
-                PInfixOp::Member => {
+                InfixOp::Add => todo!(),
+                InfixOp::Sub => todo!(),
+                InfixOp::Mul => todo!(),
+                InfixOp::Div => todo!(),
+                InfixOp::LessThan => todo!(),
+                InfixOp::GreaterThan => todo!(),
+                InfixOp::Member => {
                     let res1 = e1.lower(ctx)?;
                     let Some(box PExpr::Ident(ident)) = &e2.inner else {
                         ctx.err("Field accessors must be identifiers".to_string());
@@ -74,7 +74,7 @@ impl FnLowerable for PExpr {
                         name: fname,
                     }))
                 }
-                PInfixOp::Assign => {
+                InfixOp::Assign => {
                     let res1 = e1.lower(ctx)?;
                     let res2 = e2.lower(ctx)?;
                     ctx.push(UInstruction::Mv {
@@ -84,10 +84,10 @@ impl FnLowerable for PExpr {
                     res1
                 }
             },
-            PExpr::UnaryOp(op, e) => {
+            PExpr::PostfixOp(op, e) => {
                 let res = e.lower(ctx)?;
                 match op {
-                    UnaryOp::Ref => {
+                    PostfixOp::Ref => {
                         let temp = ctx.temp(ctx.program.expect(res.id).ty.clone().rf());
                         ctx.push(UInstruction::Ref {
                             dest: temp,
@@ -95,7 +95,7 @@ impl FnLowerable for PExpr {
                         });
                         temp
                     }
-                    UnaryOp::Deref => {
+                    PostfixOp::Deref => {
                         let t = &ctx.program.expect(res.id).ty;
                         let Type::Ref(_) = t else {
                             ctx.err(format!(
@@ -106,7 +106,7 @@ impl FnLowerable for PExpr {
                         };
                         todo!();
                     }
-                    UnaryOp::Not => todo!(),
+                    PostfixOp::Not => todo!(),
                 }
             }
             PExpr::Block(b) => b.lower(ctx)?,

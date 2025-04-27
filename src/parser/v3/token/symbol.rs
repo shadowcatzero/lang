@@ -35,6 +35,7 @@ pub enum Symbol {
     DoublePipe,
     Comma,
     Hash,
+    At,
 }
 
 impl Symbol {
@@ -70,6 +71,7 @@ impl Symbol {
             '|' => Self::Pipe,
             ',' => Self::Comma,
             '#' => Self::Hash,
+            '@' => Self::At,
             _ => return None,
         })
     }
@@ -144,6 +146,7 @@ impl Symbol {
             Self::Pipe => "|",
             Self::DoublePipe => "||",
             Self::Hash => "#",
+            Self::At => "@",
         }
     }
 }

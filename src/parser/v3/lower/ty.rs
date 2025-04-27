@@ -1,12 +1,12 @@
 use crate::{
-    ir::{GenericID, StructTy, Type, UGeneric, UProgram, UStruct},
+    ir::{StructInst, Type, TypeID, UGeneric, UProgram, UStruct},
     parser::PGenericDef,
 };
 
 use super::{CompilerMsg, CompilerOutput, FileSpan, Node, PType};
 
 impl Node<PType> {
-    pub fn lower(&self, namespace: &mut UProgram, output: &mut CompilerOutput) -> Type {
+    pub fn lower(&self, namespace: &mut UProgram, output: &mut CompilerOutput) -> TypeID {
         self.as_ref()
             .map(|t| t.lower(namespace, output, self.origin))
             .unwrap_or(Type::Error)
@@ -14,17 +14,17 @@ impl Node<PType> {
 }
 
 impl PType {
-    pub fn lower(&self, p: &mut UProgram, output: &mut CompilerOutput, span: FileSpan) -> Type {
+    pub fn lower(&self, p: &mut UProgram, output: &mut CompilerOutput, span: FileSpan) -> TypeID {
         let Some(name) = self.name.as_ref() else {
-            return Type::Error;
+            return p.error_type();
         };
         let ids = p.get_idents(name);
         // TODO: should generics always take precedence?
-        if let Some(id) = ids.and_then(|ids| ids.get::<UGeneric>()) {
+        if let Some(id) = ids.and_then(|ids| ids.get::<Type>()) {
             Type::Generic { id }
         } else if let Some(id) = ids.and_then(|ids| ids.get::<UStruct>()) {
             let args = self.args.iter().map(|n| n.lower(p, output)).collect();
-            Type::Struct(StructTy { id, args })
+            Type::Struct(StructInst { id, args })
         } else if let Ok(num) = name.parse::<u32>() {
             Type::Bits(num)
         } else {

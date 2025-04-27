@@ -6,13 +6,14 @@ pub struct UProgram {
     pub fns: Vec<Option<UFunc>>,
     pub vars: Vec<Option<UVar>>,
     pub structs: Vec<Option<UStruct>>,
-    pub types: Vec<Option<UGeneric>>,
+    pub types: Vec<Option<Type>>,
     pub data: Vec<Option<UData>>,
     // associated data
     pub names: NameMap,
     pub origins: OriginMap,
     pub fn_var: FnVarMap,
     // utils for creation
+    error: Option<TypeID>,
     pub path: Vec<String>,
     pub name_stack: Vec<HashMap<String, Idents>>,
     pub temp: usize,
@@ -29,10 +30,15 @@ impl UProgram {
             names: NameMap::new(),
             origins: OriginMap::new(),
             fn_var: FnVarMap::new(),
+            error: None,
             path: Vec::new(),
             name_stack: Vec::new(),
             temp: 0,
         }
+    }
+    pub fn error_type(&mut self) -> TypeID {
+        self.error
+            .unwrap_or_else(|| self.def("error", Some(Type::Error), Origin::builtin()))
     }
     pub fn set_module(&mut self, path: Vec<String>) {
         self.path = path;
@@ -69,6 +75,9 @@ impl UProgram {
         self.get(id)
             .unwrap_or_else(|| panic!("{id:?} not defined yet!"))
     }
+    pub fn expect_type(&self, var: VarID) -> &Type {
+        self.expect(self.expect(var).ty)
+    }
     pub fn expect_mut<K: Kind + Named>(&mut self, id: ID<K>) -> &mut K {
         self.get_mut(id)
             .unwrap_or_else(|| panic!("{id:?} not defined yet!"))
@@ -77,16 +86,12 @@ impl UProgram {
         self.fns[self.fn_var.fun(id)?.0].as_ref()
     }
 
-    pub fn temp_var(&mut self, origin: Origin, ty: impl Into<Type>) -> VarInst {
+    pub fn temp_var(&mut self, origin: Origin, ty: TypeID) -> VarInst {
         self.temp_var_inner(origin, ty)
     }
 
-    fn temp_var_inner(&mut self, origin: Origin, ty: impl Into<Type>) -> VarInst {
-        let v = self.def(
-            &format!("temp{}", self.temp),
-            Some(UVar { ty: ty.into() }),
-            origin,
-        );
+    fn temp_var_inner(&mut self, origin: Origin, ty: TypeID) -> VarInst {
+        let v = self.def(&format!("temp{}", self.temp), Some(UVar { ty }), origin);
         self.temp += 1;
         VarInst {
             id: v,
@@ -128,76 +133,64 @@ impl UProgram {
         id
     }
 
-    pub fn struct_field_type<'a>(&'a self, sty: &'a StructTy, field: &str) -> Option<&'a Type> {
-        let struc = self.get(sty.id)?;
-        let field = struc.fields.get(field)?;
-        if let Type::Generic { id } = field.ty {
-            for (i, g) in struc.generics.iter().enumerate() {
-                if *g == id {
-                    return Some(&sty.args[i]);
-                }
-            }
-        }
-        Some(&field.ty)
-    }
-
-    pub fn field_type<'a>(&'a self, ty: &'a Type, field: &str) -> Option<&'a Type> {
-        if let Type::Struct(sty) = ty {
-            self.struct_field_type(sty, field)
-        } else if let Type::Module(path) = ty {
-            let id = self.names.id::<UVar>(path, field)?;
-            Some(&self.get(id)?.ty)
-        } else {
-            None
-        }
-    }
-
-    pub fn follow_ref(&self, m: &FieldRef) -> Option<&Type> {
-        let parent = self.get(m.parent)?;
-        self.field_type(self.follow_type(&parent.ty)?, &m.name)
-    }
-
-    pub fn get_type<'a>(&'a self, v: VarID) -> Option<&'a Type> {
-        self.follow_type(&self.get(v)?.ty)
-    }
-
-    pub fn set_type(&mut self, mut var: VarID, set: Type) -> Option<()> {
-        let mut path = Vec::new();
-        while let Type::Field(parent) = &self.get(var)?.ty {
-            var = parent.parent;
-            path.push(parent.name.clone());
-        }
-        let mut ty = &mut self.vars[var.0].as_mut()?.ty;
-        'outer: while let Type::Struct(sty) = ty {
-            let Some(name) = path.pop() else {
-                break;
-            };
-            let struc = &self.structs[sty.id.0].as_ref()?;
-            let field = struc.fields.get(&name)?;
-            let Type::Generic { id } = field.ty else {
-                return None;
-            };
-            for (i, g) in struc.generics.iter().enumerate() {
-                if *g == id {
-                    ty = &mut sty.args[i];
-                    continue 'outer;
-                }
-            }
-            return None;
-        }
-        *ty = set;
-        Some(())
-    }
-
-    pub fn follow_type<'a>(&'a self, ty: &'a Type) -> Option<&'a Type> {
-        match ty {
-            Type::Field(m) => {
-                let parent = self.get(m.parent)?;
-                self.field_type(self.follow_type(&parent.ty)?, &m.name)
-            }
-            ty => Some(ty),
-        }
-    }
+    // hopefully these are not needed after redoing types
+    // pub fn field_type<'a>(&'a self, ty: &'a Type, field: &str) -> Option<&'a Type> {
+    //     if let Type::Struct(sty) = ty {
+    //         Some(&self.get(*sty.fields.get(field)?)?.ty)
+    //     } else if let Type::Module(path) = ty {
+    //         let id = self.names.id::<UVar>(path, field)?;
+    //         Some(&self.get(id)?.ty)
+    //     } else {
+    //         None
+    //     }
+    // }
+    //
+    // pub fn follow_ref(&self, m: &FieldRef) -> Option<&Type> {
+    //     let parent = self.get(m.parent)?;
+    //     self.field_type(self.follow_type(&parent.ty)?, &m.name)
+    // }
+    //
+    // pub fn get_type<'a>(&'a self, v: VarID) -> Option<&'a Type> {
+    //     self.follow_type(&self.get(v)?.ty)
+    // }
+    //
+    // pub fn set_type(&mut self, mut var: VarID, set: Type) -> Option<()> {
+    //     let mut path = Vec::new();
+    //     while let Type::Field(parent) = &self.get(var)?.ty {
+    //         var = parent.parent;
+    //         path.push(parent.name.clone());
+    //     }
+    //     let mut ty = &mut self.vars[var.0].as_mut()?.ty;
+    //     'outer: while let Type::Struct(sty) = ty {
+    //         let Some(name) = path.pop() else {
+    //             break;
+    //         };
+    //         let struc = &self.structs[sty.id.0].as_ref()?;
+    //         let field = struc.fields.get(&name)?;
+    //         let Type::Generic { id } = field.ty else {
+    //             return None;
+    //         };
+    //         for (i, g) in struc.generics.iter().enumerate() {
+    //             if *g == id {
+    //                 ty = &mut sty.args[i];
+    //                 continue 'outer;
+    //             }
+    //         }
+    //         return None;
+    //     }
+    //     *ty = set;
+    //     Some(())
+    // }
+    //
+    // pub fn follow_type<'a>(&'a self, ty: &'a Type) -> Option<&'a Type> {
+    //     match ty {
+    //         Type::Field(m) => {
+    //             let parent = self.get(m.parent)?;
+    //             self.field_type(self.follow_type(&parent.ty)?, &m.name)
+    //         }
+    //         ty => Some(ty),
+    //     }
+    // }
 
     pub fn type_name(&self, ty: &Type) -> String {
         let mut str = String::new();

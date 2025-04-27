@@ -28,7 +28,7 @@ pub struct UGeneric {}
 
 #[derive(Clone)]
 pub struct UVar {
-    pub ty: Type,
+    pub ty: TypeID,
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -48,12 +48,8 @@ pub type Origin = FileSpan;
 impl UFunc {
     pub fn ty(&self, program: &UProgram) -> Type {
         Type::Fn {
-            args: self
-                .args
-                .iter()
-                .map(|a| program.expect(*a).ty.clone())
-                .collect(),
-            ret: Box::new(self.ret.clone()),
+            args: self.args.iter().map(|a| program.expect(*a).ty).collect(),
+            ret: self.ret,
         }
     }
     pub fn flat_iter(&self) -> impl Iterator<Item = &UInstrInst> {
@@ -116,15 +112,15 @@ macro_rules! impl_kind {
 impl_kind!(UFunc, 0, fns, "func", nofin);
 impl_kind!(UVar, 1, vars, "var");
 impl_kind!(UStruct, 2, structs, "struct");
-impl_kind!(UGeneric, 3, types, "type");
+impl_kind!(Type, 3, types, "type");
 impl_kind!(UData, 4, data, "data");
-pub const NAMED_KINDS: usize = 6;
+pub const NAMED_KINDS: usize = 5;
 
 pub type FnID = ID<UFunc>;
 pub type VarID = ID<UVar>;
 pub type StructID = ID<UStruct>;
 pub type DataID = ID<UData>;
-pub type GenericID = ID<UGeneric>;
+pub type TypeID = ID<Type>;
 
 impl Finish for UFunc {
     fn finish(p: &mut UProgram, id: ID<Self>, name: &str) {

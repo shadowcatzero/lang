@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{assoc::NamePath, GenericID, Len, StructID, UInstruction, UProgram, UVar, VarID};
+use super::{assoc::NamePath, Len, StructID, TypeID, UInstruction, UProgram, VarID};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FieldRef {
@@ -8,22 +8,20 @@ pub struct FieldRef {
     pub name: String,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct StructTy {
     pub id: StructID,
-    pub args: Vec<Type>,
+    pub fields: HashMap<String, VarID>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Type {
     Bits(u32),
     Struct(StructTy),
-    // is this real? I don't know, it's kind of like infer
-    Generic { id: GenericID },
-    Fn { args: Vec<Type>, ret: Box<Type> },
-    Ref(Box<Type>),
-    Slice(Box<Type>),
-    Array(Box<Type>, Len),
+    Fn { args: Vec<TypeID>, ret: TypeID },
+    Ref(TypeID),
+    Slice(TypeID),
+    Array(TypeID, Len),
     Unit,
     // fake types
     Field(FieldRef),
@@ -36,15 +34,6 @@ pub enum Type {
 impl Type {
     pub fn is_resolved(&self) -> bool {
         !matches!(self, Self::Error | Self::Placeholder | Self::Infer)
-    }
-    pub fn rf(self) -> Self {
-        Type::Ref(Box::new(self))
-    }
-    pub fn arr(self, len: Len) -> Self {
-        Type::Array(Box::new(self), len)
-    }
-    pub fn slice(self) -> Self {
-        Type::Slice(Box::new(self))
     }
 }
 
