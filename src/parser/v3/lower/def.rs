@@ -8,8 +8,7 @@ impl Node<PVarDef> {
         let name = s
             .name
             .as_ref()
-            .map(|n| n.to_string())
-            .unwrap_or("{error}".to_string());
+            .map_or("{error}", |v| v);
         let ty = match &s.ty {
             Some(ty) => ty.lower(program, output),
             None => Type::Infer,

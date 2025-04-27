@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, Size, StructTy, SymbolSpace, UFunc, UInstrInst, VarOffset};
+use crate::ir::{AsmBlockArgType, Size, StructTy, SymbolSpace, Type, UFunc, UInstrInst, VarOffset};
 
 use super::{
-    IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, Type, UInstruction, UProgram, VarID,
+    IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, UInstruction, UProgram, VarID,
 };
 
 pub struct LProgram {
@@ -17,7 +17,7 @@ impl LProgram {
     pub fn create(p: &UProgram) -> Result<Self, String> {
         let start = p
             .names
-            .id::<UFunc>(&["crate".to_string()])
+            .id::<UFunc>(&[], "crate")
             .ok_or("no start method found")?;
         let mut ssbuilder = SymbolSpaceBuilder::with_entries(&[start]);
         let entry = ssbuilder.func(&start);
@@ -356,17 +356,22 @@ impl<'a> LFunctionBuilder<'a> {
 }
 
 impl LFunctionBuilderData<'_> {
-    pub fn var_offset(&mut self, p: &UProgram, var: VarID) -> Option<VarOffset> {
-        let mut current = VarOffset { id: var, offset: 0 };
-        while let Type::Member(parent) = &p.get(current.id)?.ty {
-            current.id = parent.parent;
-            // ... should it be set to 0 if not? what does that even mean??
-            // "the field of this struct is a reference to another variable" ????
-            if let Type::Struct(sty) = &p.get(parent.parent)?.ty {
-                current.offset += self.field_offset(p, sty, &parent.name)?;
-            }
+    pub fn var_offset(&mut self, p: &UProgram, mut var: VarID) -> Option<VarOffset> {
+        let mut path = Vec::new();
+        while let Type::Field(parent) = &p.get(var)?.ty {
+            var = parent.parent;
+            path.push(&parent.name);
         }
-        Some(current)
+        let mut ty = &p.get(var)?.ty;
+        let mut offset = 0;
+        while let Type::Struct(sty) = ty {
+            let Some(name) = path.pop() else {
+                break;
+            };
+            offset += self.field_offset(p, sty, &name)?;
+            ty = p.struct_field_type(sty, name).expect("bad field");
+        }
+        Some(VarOffset { id: var, offset })
     }
     pub fn addr_size(&self) -> Size {
         64
@@ -425,7 +430,7 @@ impl LFunctionBuilderData<'_> {
 
     pub fn size_of_type(&mut self, p: &UProgram, ty: &Type) -> Option<Size> {
         // TODO: target matters
-        Some(match ty {
+        Some(match p.follow_type(ty)? {
             Type::Bits(b) => *b,
             Type::Struct(ty) => self.struct_inst(p, ty).size,
             Type::Generic { id } => return None,
@@ -433,22 +438,8 @@ impl LFunctionBuilderData<'_> {
             Type::Ref(_) => self.addr_size(),
             Type::Array(ty, len) => self.size_of_type(p, ty)? * len,
             Type::Slice(_) => self.addr_size() * 2,
-            Type::Infer => return None,
-            Type::Error => return None,
             Type::Unit => 0,
-            Type::Placeholder => return None,
-            Type::Module(_) => return None,
-            Type::Member(m) => {
-                let pty = &p.expect(m.parent).ty;
-                let ty = match pty {
-                    Type::Struct(ty) => self.struct_inst(p, ty).ty(&m.name)?,
-                    Type::Module(path) => p.path_ty(path)?,
-                    Type::Member(_) => return self.size_of_type(p, pty),
-                    _ => return None,
-                }
-                .clone();
-                self.size_of_type(p, &ty)?
-            }
+            _ => return None,
         })
     }
 

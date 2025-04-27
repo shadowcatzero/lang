@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Write};
 use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, UFunc, UInstrInst};
 use crate::{compiler::arch::riscv::Reg, util::Padder};
 
+#[derive(Clone)]
 pub enum UInstruction {
     Mv {
         dest: VarInst,
@@ -51,14 +52,14 @@ pub enum UInstruction {
     Continue,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsmBlockArg {
     pub var: VarInst,
     pub reg: Reg,
     pub ty: AsmBlockArgType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AsmBlockArgType {
     In,
     Out,

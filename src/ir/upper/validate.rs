@@ -1,4 +1,3 @@
-// TODO: move this into ir, not parser
 use super::{Type, UInstrInst, UInstruction, UProgram};
 use crate::common::{CompilerMsg, CompilerOutput, FileSpan};
 
@@ -32,17 +31,6 @@ impl UProgram {
                     msg: format!("Var {:?} still placeholder!", id),
                     spans: vec![self.origins.get(id)],
                 });
-            }
-            if let Some(parent) = &var.parent {
-                let pty = &self.get(parent.var).unwrap().ty;
-                if let Some(ft) = self.field_type(pty, &parent.field) {
-                    output.check_assign(self, &var.ty, ft, self.origins.get(id));
-                } else {
-                    output.err(CompilerMsg {
-                        msg: "invalid parent!".to_string(),
-                        spans: vec![self.origins.get(id)],
-                    });
-                }
             }
         }
     }
@@ -108,6 +96,7 @@ impl UProgram {
                 UInstruction::AsmBlock { instructions, args } => {
                     for arg in args {
                         // TODO: validate size with enabled targets
+                        // maybe should happen in lowering? but I think it could happen here
                         // if let Some(size) = self.size_of_var(arg.var.id)
                         //     && size != 64
                         // {
@@ -125,8 +114,8 @@ impl UProgram {
                 }
                 UInstruction::Construct { dest, fields } => {
                     let dest_def = self.expect(dest.id);
-                    let (tyid, args) = match &dest_def.ty {
-                        Type::Struct { id, args } => (*id, args),
+                    let sty = match &dest_def.ty {
+                        Type::Struct(sty) => sty,
                         _ => {
                             output.err(CompilerMsg {
                                 msg: format!(
@@ -138,19 +127,19 @@ impl UProgram {
                             continue;
                         }
                     };
-                    let def = self.expect(tyid);
+                    let def = self.expect(sty.id);
                     for (name, field) in &def.fields {
                         if let Some(var) = fields.get(name) {
-                            let mut sty = &field.ty;
-                            if let Type::Generic { id } = sty {
-                                for (g, a) in def.generics.iter().zip(args) {
+                            let mut fty = &field.ty;
+                            if let Type::Generic { id } = fty {
+                                for (g, a) in def.generics.iter().zip(&sty.args) {
                                     if *g == *id {
-                                        sty = a;
+                                        fty = a;
                                     }
                                 }
                             }
                             let ety = &self.expect(var.id).ty;
-                            output.check_assign(self, ety, sty, var.span);
+                            output.check_assign(self, ety, fty, var.span);
                         } else {
                             output.err(CompilerMsg {
                                 msg: format!("field '{}' missing from struct", name),

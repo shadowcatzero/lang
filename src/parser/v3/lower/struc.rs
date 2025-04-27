@@ -46,11 +46,7 @@ impl PStruct {
         span: FileSpan,
     ) -> Option<()> {
         p.push();
-        let generics = self
-            .generics
-            .iter()
-            .flat_map(|a| a.lower(p))
-            .collect();
+        let generics = self.generics.iter().flat_map(|a| a.lower(p)).collect();
         let fields = match &self.fields {
             PStructFields::Named(nodes) => nodes
                 .iter()
@@ -84,8 +80,8 @@ impl PStruct {
 impl Node<PStruct> {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<StructID> {
         let s = self.as_ref()?;
-        let name = s.name.as_ref()?.to_string();
-        let id = p.def_searchable(name.to_string(), None, s.name.origin);
+        let name = s.name.as_ref()?;
+        let id = p.def_searchable(name, None, s.name.origin);
         Some(id)
     }
     pub fn lower(&self, id: StructID, p: &mut UProgram, output: &mut CompilerOutput) {

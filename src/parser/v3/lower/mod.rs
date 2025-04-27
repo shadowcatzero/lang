@@ -13,12 +13,14 @@ use crate::ir::{Type, UFunc, UProgram};
 impl PModule {
     pub fn lower(
         &self,
-        name: String,
+        path: Vec<String>,
         p: &mut UProgram,
         imports: &mut Imports,
         output: &mut CompilerOutput,
     ) {
-        let fid = p.def_searchable(name.clone(), None, self.block.origin);
+        let name = path.last().unwrap().clone();
+        p.set_module(path);
+        let fid = p.def_searchable(&name, None, self.block.origin);
         p.push_name(&name);
         let mut fctx = FnLowerCtx {
             program: p,

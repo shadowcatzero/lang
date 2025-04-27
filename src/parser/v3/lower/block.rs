@@ -27,27 +27,24 @@ impl FnLowerable for PBlock {
                 },
             }
         }
+        ctx.program.push();
         // then lower imports
         for i_n in &import_nodes {
             if let Some(i) = i_n.as_ref() {
                 let name = &i.0;
-                let import = Import(ctx.program.path_for(name));
-                ctx
-                    .imports
-                    .entry(import)
-                    .or_insert(ctx.program.def(name, None, i_n.origin));
-                // I could prevent this if someone imports something twice,
-                // but that doesn't seem worth it at all
-                ctx.program.def_searchable::<UVar>(
-                    name.clone(),
-                    Some(UVar {
-                        ty: Type::Module,
-                    }),
-                    i_n.origin,
-                );
+                let path = ctx.program.path_for(name);
+                let import = Import(path.clone());
+                if ctx.imports.insert(import) {
+                    ctx.program.def_searchable::<UVar>(
+                        name,
+                        Some(UVar {
+                            ty: Type::Module(path),
+                        }),
+                        i_n.origin,
+                    );
+                }
             }
         }
-        ctx.program.push();
         // then lower const things
         let mut structs = Vec::new();
         for s in &struct_nodes {

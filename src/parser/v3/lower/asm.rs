@@ -1,7 +1,7 @@
 use crate::{
     compiler::arch::riscv::Reg,
     ir::{
-        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, UInstruction, Type, VarInst,
+        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, Type, UInstruction, VarInst
     },
     parser::PAsmBlockArg,
 };

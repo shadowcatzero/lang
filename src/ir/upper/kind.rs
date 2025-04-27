@@ -5,6 +5,7 @@ use crate::{
 };
 use std::{collections::HashMap, fmt::Debug};
 
+#[derive(Clone)]
 pub struct UFunc {
     pub args: Vec<VarID>,
     pub ret: Type,
@@ -128,7 +129,7 @@ pub type GenericID = ID<UGeneric>;
 impl Finish for UFunc {
     fn finish(p: &mut UProgram, id: ID<Self>, name: &str) {
         let var = p.def_searchable(
-            name.to_string(),
+            name,
             Some(UVar {
                 ty: Type::Placeholder,
             }),

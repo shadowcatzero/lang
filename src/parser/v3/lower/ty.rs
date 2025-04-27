@@ -47,6 +47,6 @@ impl Node<PGenericDef> {
     pub fn lower(&self, p: &mut UProgram) -> Option<GenericID> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?;
-        Some(p.def_searchable(name.to_string(), Some(UGeneric {}), self.origin))
+        Some(p.def_searchable(name, Some(UGeneric {}), self.origin))
     }
 }

@@ -1,6 +1,6 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, UnaryOp};
 use crate::{
-    ir::{MemberRef, Type, UData, UInstruction, VarInst},
+    ir::{FieldRef, Type, UData, UInstruction, VarInst},
     parser::PInfixOp,
 };
 
@@ -40,7 +40,7 @@ impl FnLowerable for PExpr {
                 super::PLiteral::Number(n) => {
                     // TODO: temp
                     let ty = Type::Bits(64);
-                    let dest = ctx.program.temp_var(l.origin, Type::Bits(64));
+                    let dest = ctx.program.temp_var(l.origin, ty.clone());
                     let src = ctx.program.def(
                         &format!("num {n:?}"),
                         Some(UData {
@@ -69,7 +69,7 @@ impl FnLowerable for PExpr {
                         return None;
                     };
                     let fname = ident.as_ref()?.0.clone();
-                    ctx.temp(Type::Member(MemberRef {
+                    ctx.temp(Type::Field(FieldRef {
                         parent: res1.id,
                         name: fname,
                     }))

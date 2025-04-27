@@ -38,10 +38,9 @@ impl NameTree {
         let first = path.first()?;
         self.children.get(first)?.get(&path[1..])
     }
-    pub fn id<K: Kind>(&self, path: &[String]) -> Option<ID<K>> {
-        let last = path.last()?;
-        self.get(&path[..path.len() - 1])?.ids[K::INDEX]
-            .get(last)
+    pub fn id<K: Kind>(&self, path: &[String], name: &str) -> Option<ID<K>> {
+        self.get(&path)?.ids[K::INDEX]
+            .get(name)
             .copied()
             .map(ID::new)
     }
@@ -82,8 +81,8 @@ impl NameMap {
         }
         path
     }
-    pub fn id<K: Kind>(&self, path: &[String]) -> Option<ID<K>> {
-        Some(self.tree.id(path)?)
+    pub fn id<K: Kind>(&self, path: &[String], name: &str) -> Option<ID<K>> {
+        Some(self.tree.id(path, name)?)
     }
     pub fn push<K: Kind>(&mut self, path: &[String]) {
         let id = self.names[K::INDEX].len();

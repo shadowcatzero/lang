@@ -1,6 +1,6 @@
-use super::{Imports, CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Node, PFunction};
+use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Imports, Node, PFunction};
 use crate::{
-    ir::{MemberRef, FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
+    ir::{FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
     parser,
 };
 
@@ -25,7 +25,7 @@ impl PFunction {
     pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
         let header = self.header.as_ref()?;
         let name = header.name.as_ref()?;
-        let id = p.def_searchable(name.to_string(), None, self.header.origin);
+        let id = p.def_searchable(name, None, self.header.origin);
         Some(id)
     }
     pub fn lower(
@@ -112,7 +112,7 @@ impl FnLowerCtx<'_> {
     pub fn err_at(&mut self, span: FileSpan, msg: String) {
         self.output.err(CompilerMsg::from_span(span, msg))
     }
-    pub fn temp(&mut self, ty: Type) -> VarInst {
+    pub fn temp(&mut self, ty: impl Into<Type>) -> VarInst {
         self.program.temp_var(self.origin, ty)
     }
     pub fn push(&mut self, i: UInstruction) {

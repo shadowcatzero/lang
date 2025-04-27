@@ -46,29 +46,30 @@ impl UProgram {
         let mut output = CompilerOutput::new();
 
         let mut imports = Imports::new();
-        imports.insert(Import(
-            path.file_name()
-                .expect("bruh")
-                .to_str()
-                .expect("bruh")
-                .to_string(),
-        ));
+        imports.insert(Import(vec![path
+            .file_name()
+            .expect("bruh")
+            .to_str()
+            .expect("bruh")
+            .to_string()]));
         let mut imported = HashSet::new();
         let mut fid = 0;
 
         while !imports.is_empty() {
             let iter = std::mem::take(&mut imports);
             for i in iter {
-                let name = &i.0;
+                let import_path = &i.0;
                 if imported.contains(&i) {
                     continue;
                 }
-                let path = parent.join(name).with_extension(FILE_EXT);
-                let text = std::fs::read_to_string(&path).expect("failed to read file");
+                let mut file_path = parent.to_path_buf();
+                file_path.extend(import_path);
+                file_path.set_extension(FILE_EXT);
+                let text = std::fs::read_to_string(&file_path).expect("failed to read file");
                 output.file_map.insert(
                     fid,
                     SrcFile {
-                        path,
+                        path: file_path,
                         text: text.clone(),
                     },
                 );
@@ -77,7 +78,7 @@ impl UProgram {
                 let res = PModule::parse(&mut ctx);
                 // println!("Parsed:");
                 // println!("{:#?}", res.node);
-                res.lower(name.clone(), &mut program, &mut imports, &mut output);
+                res.lower(import_path.clone(), &mut program, &mut imports, &mut output);
                 imported.insert(i);
             }
         }

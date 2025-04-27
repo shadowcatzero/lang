@@ -9,6 +9,7 @@ pub struct VarInst {
     pub span: FileSpan,
 }
 
+#[derive(Clone)]
 pub struct UInstrInst {
     pub i: UInstruction,
     pub span: FileSpan,
