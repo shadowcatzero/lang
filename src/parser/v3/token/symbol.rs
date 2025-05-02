@@ -36,6 +36,7 @@ pub enum Symbol {
     Comma,
     Hash,
     At,
+    Carrot,
 }
 
 impl Symbol {
@@ -72,6 +73,7 @@ impl Symbol {
             ',' => Self::Comma,
             '#' => Self::Hash,
             '@' => Self::At,
+            '^' => Self::Carrot,
             _ => return None,
         })
     }
@@ -147,6 +149,7 @@ impl Symbol {
             Self::DoublePipe => "||",
             Self::Hash => "#",
             Self::At => "@",
+            Self::Carrot => "^",
         }
     }
 }

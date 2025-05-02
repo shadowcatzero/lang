@@ -2,9 +2,13 @@ use std::fmt::Debug;
 
 use super::{util::parse_list, Node, PIdent, Parsable, ParseResult, ParserCtx, Symbol};
 
-pub struct PType {
-    pub name: Node<PIdent>,
-    pub args: Vec<Node<PType>>,
+type BoxNode = Node<Box<PType>>;
+
+pub enum PType {
+    Member(BoxNode, Node<PIdent>),
+    Ref(BoxNode),
+    Generic(BoxNode, Vec<Node<PType>>),
+    Ident(PIdent),
 }
 
 pub struct PGenericDef {
@@ -13,27 +17,30 @@ pub struct PGenericDef {
 
 impl Parsable for PType {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
-        let next = ctx.expect_peek()?;
-        let res = if next.is_symbol(Symbol::Ampersand) {
-            let name = Node::new(PIdent("&".to_string()), next.span);
-            ctx.next();
-            let arg = ctx.parse()?;
-            Self {
-                name,
-                args: vec![arg],
+        let start = ctx.next_start();
+        let mut cur = ctx.parse()?.map(PType::Ident);
+        loop {
+            let span = start.to(ctx.prev_end());
+            let Some(next) = ctx.peek() else {
+                break;
+            };
+            if next.is_symbol(Symbol::Ampersand) {
+                ctx.next();
+                cur = Node::new(PType::Ref(cur.bx()), span);
+                continue;
+            } else if next.is_symbol(Symbol::OpenAngle) {
+                ctx.next();
+                let args = parse_list(ctx, Symbol::CloseAngle)?;
+                cur = Node::new(PType::Generic(cur.bx(), args), span);
+                continue;
+            } else if next.is_symbol(Symbol::DoubleColon) {
+                ctx.next();
+                let mem = ctx.parse()?;
+                cur = Node::new(PType::Member(cur.bx(), mem), span);
             }
-        } else {
-            let n = ctx.parse()?;
-            let mut args = Vec::new();
-            if let Some(next) = ctx.peek() {
-                if next.is_symbol(Symbol::OpenAngle) {
-                    ctx.next();
-                    args = parse_list(ctx, Symbol::CloseAngle)?;
-                }
-            }
-            Self { name: n, args }
-        };
-        ParseResult::Ok(res)
+            break;
+        }
+        ParseResult::Wrap(cur)
     }
 }
 
@@ -45,11 +52,11 @@ impl Parsable for PGenericDef {
 
 impl Debug for PType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.name)?;
-        if self.name.as_ref().is_some_and(|n| n.0 == "&") {
-            write!(f, "{:?}", self.args[0])?;
-        } else if !self.args.is_empty() {
-            write!(f, "<{:?}>", self.args)?;
+        match self {
+            PType::Member(node, name) => write!(f, "{:?}.{:?}", node, name)?,
+            PType::Ref(node) => write!(f, "{:?}&", node)?,
+            PType::Generic(node, args) => write!(f, "{:?}<{:?}>", node, args)?,
+            PType::Ident(node) => node.fmt(f)?,
         }
         Ok(())
     }

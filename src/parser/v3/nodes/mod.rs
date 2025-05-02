@@ -9,6 +9,7 @@ mod ident;
 mod lit;
 mod op;
 mod statement;
+mod string;
 mod struc;
 mod trai;
 mod ty;
@@ -28,10 +29,9 @@ pub use statement::*;
 pub use struc::*;
 pub use trai::*;
 pub use ty::*;
+pub use string::*;
 
-use crate::ir::UProgram;
-
-use super::{lower::{FnLowerCtx, FnLowerable}, *};
+use super::*;
 
 pub struct PModule {
     pub block: Node<PBlock>,

@@ -23,7 +23,7 @@ impl PModule {
         let fid = p.def_searchable(&name, None, self.block.origin);
         p.push_name(&name);
         let mut fctx = FnLowerCtx {
-            program: p,
+            b: p,
             instructions: Vec::new(),
             output,
             origin: self.block.origin,

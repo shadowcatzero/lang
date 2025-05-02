@@ -6,27 +6,31 @@ use crate::{compiler::arch::riscv::Reg, util::Padder};
 #[derive(Clone)]
 pub enum UInstruction {
     Mv {
-        dest: VarInst,
+        dst: VarInst,
         src: VarInst,
     },
     Ref {
-        dest: VarInst,
+        dst: VarInst,
+        src: VarInst,
+    },
+    Deref {
+        dst: VarInst,
         src: VarInst,
     },
     LoadData {
-        dest: VarInst,
+        dst: VarInst,
         src: DataID,
     },
     LoadSlice {
-        dest: VarInst,
+        dst: VarInst,
         src: DataID,
     },
     LoadFn {
-        dest: VarInst,
+        dst: VarInst,
         src: FnID,
     },
     Call {
-        dest: VarInst,
+        dst: VarInst,
         f: VarInst,
         args: Vec<VarInst>,
     },
@@ -38,7 +42,7 @@ pub enum UInstruction {
         src: VarInst,
     },
     Construct {
-        dest: VarInst,
+        dst: VarInst,
         fields: HashMap<String, VarInst>,
     },
     If {
@@ -68,19 +72,19 @@ pub enum AsmBlockArgType {
 impl std::fmt::Debug for UInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Mv { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::Ref { dest, src } => write!(f, "{dest:?} <- &{src:?}")?,
-            Self::LoadData { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::LoadFn { dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::LoadSlice { dest, src } => write!(f, "{dest:?} <- &[{src:?}]")?,
+            Self::Mv { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::Ref { dst: dest, src } => write!(f, "{dest:?} <- &{src:?}")?,
+            Self::LoadData { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::LoadFn { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
+            Self::LoadSlice { dst: dest, src } => write!(f, "{dest:?} <- &[{src:?}]")?,
             Self::Call {
-                dest,
+                dst: dest,
                 f: func,
                 args,
             } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
             Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
-            Self::Construct { dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
+            Self::Construct { dst: dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
             Self::If { cond, body } => {
                 write!(f, "if {cond:?}:")?;
                 if !body.is_empty() {

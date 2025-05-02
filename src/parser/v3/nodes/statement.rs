@@ -29,7 +29,7 @@ impl Parsable for PStatementLike {
                 let def = ctx.parse()?;
                 ctx.expect_sym(Symbol::Equals)?;
                 ctx.parse()
-                    .map(|expr| Self::Statement(PStatement::Let(def, expr)))
+                    .map_res(|expr| Self::Statement(PStatement::Let(def, expr)))
             }
             Token::Keyword(Keyword::Return) => {
                 ctx.next();
@@ -37,7 +37,7 @@ impl Parsable for PStatementLike {
                     ParseResult::Ok(Self::Statement(PStatement::Return(None)))
                 } else {
                     ctx.parse()
-                        .map(|res| Self::Statement(PStatement::Return(Some(res))))
+                        .map_res(|res| Self::Statement(PStatement::Return(Some(res))))
                 }
             }
             Token::Keyword(Keyword::Fn) => {
@@ -52,7 +52,7 @@ impl Parsable for PStatementLike {
                 ctx.next();
                 ParseResult::Ok(Self::Const(PConstStatement::Import(ctx.parse()?)))
             }
-            _ => ctx.parse().map(|n| Self::Statement(PStatement::Expr(n))),
+            _ => ctx.parse().map_res(|n| Self::Statement(PStatement::Expr(n))),
         }
     }
 }

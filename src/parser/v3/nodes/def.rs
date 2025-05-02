@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use super::{
-    CompilerMsg, MaybeParsable, Node, PExpr, PIdent, PType, Parsable, ParseResult, ParserCtx,
+    CompilerMsg, Node, PExpr, PIdent, PType, Parsable, ParseResult, ParserCtx,
     Symbol, Token,
 };
 
@@ -55,28 +55,28 @@ pub enum SelfType {
     Take,
 }
 
-impl MaybeParsable for SelfVar {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg> {
-        if let Some(mut next) = ctx.peek() {
-            let mut ty = SelfType::Take;
-            if next.is_symbol(Symbol::Ampersand) {
-                ctx.next();
-                ty = SelfType::Ref;
-                next = ctx.expect_peek()?;
-            }
-            if let Token::Word(name) = &next.token {
-                if name == "self" {
-                    ctx.next();
-                    return Ok(Some(Self { ty }));
-                }
-            }
-            if ty != SelfType::Take {
-                return Err(CompilerMsg::unexpected_token(next, "self"));
-            }
-        }
-        Ok(None)
-    }
-}
+// impl Parsable for Option<SelfVar> {
+//     fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg> {
+//         if let Some(mut next) = ctx.peek() {
+//             let mut ty = SelfType::Take;
+//             if next.is_symbol(Symbol::Ampersand) {
+//                 ctx.next();
+//                 ty = SelfType::Ref;
+//                 next = ctx.expect_peek()?;
+//             }
+//             if let Token::Word(name) = &next.token {
+//                 if name == "self" {
+//                     ctx.next();
+//                     return Ok(Some(Self { ty }));
+//                 }
+//             }
+//             if ty != SelfType::Take {
+//                 return Err(CompilerMsg::unexpected_token(next, "self"));
+//             }
+//         }
+//         Ok(None)
+//     }
+// }
 
 impl Debug for PVarDef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

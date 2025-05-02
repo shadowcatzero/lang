@@ -1,18 +1,18 @@
-use crate::{common::FileSpan, ir::VarID};
+use crate::ir::VarID;
 use std::fmt::Debug;
 
-use super::UInstruction;
+use super::{Origin, UInstruction};
 
 #[derive(Clone, Copy)]
 pub struct VarInst {
     pub id: VarID,
-    pub span: FileSpan,
+    pub origin: Origin,
 }
 
 #[derive(Clone)]
 pub struct UInstrInst {
     pub i: UInstruction,
-    pub span: FileSpan,
+    pub origin: Origin,
 }
 
 impl Debug for VarInst {

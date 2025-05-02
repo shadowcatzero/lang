@@ -9,14 +9,14 @@ pub struct SrcFile {
     pub text: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FilePos {
     pub file: FileID,
     pub line: usize,
     pub col: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct FileSpan {
     pub file: FileID,
     pub start: FilePos,

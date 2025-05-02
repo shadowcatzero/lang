@@ -7,6 +7,8 @@ use super::{CompilerMsg, FilePos, Node, ParserCtx};
 
 pub enum ParseResult<T> {
     Ok(T),
+    Wrap(NodeParseResult<T>),
+    Node(Node<T>),
     Recover(T),
     Err(CompilerMsg),
     SubErr,
@@ -33,6 +35,20 @@ impl<T> Try for ParseResult<T> {
             ParseResult::Ok(v) => ControlFlow::Continue(v),
             // TODO: this is messed up; need to break w a Result<Option<T>> or smth :woozy:
             ParseResult::Recover(v) => ControlFlow::Break(None),
+            ParseResult::Wrap(n) => {
+                if n.recover {
+                    ControlFlow::Break(None)
+                } else {
+                    match n.node.inner {
+                        Some(v) => ControlFlow::Continue(v),
+                        None => ControlFlow::Break(None),
+                    }
+                }
+            }
+            ParseResult::Node(n) => match n.inner {
+                Some(v) => ControlFlow::Continue(v),
+                None => ControlFlow::Break(None),
+            },
             ParseResult::Err(e) => ControlFlow::Break(Some(e)),
             ParseResult::SubErr => ControlFlow::Break(None),
         }
@@ -72,12 +88,21 @@ pub struct NodeParseResult<T> {
 }
 
 impl<T> NodeParseResult<T> {
-    pub fn map<F: FnOnce(Node<T>) -> U, U>(self, op: F) -> ParseResult<U> {
+    pub fn map_res<F: FnOnce(Node<T>) -> U, U>(self, op: F) -> ParseResult<U> {
         let res = op(self.node);
         if self.recover {
             ParseResult::Recover(res)
         } else {
             ParseResult::Ok(res)
+        }
+    }
+    pub fn map<F: FnOnce(T) -> U, U>(self, op: F) -> NodeParseResult<U> {
+        NodeParseResult {
+            node: Node {
+                inner: self.node.inner.map(op),
+                origin: self.node.origin,
+            },
+            recover: self.recover,
         }
     }
 }
@@ -119,10 +144,6 @@ pub trait ParsableWith: Sized {
     fn parse(ctx: &mut ParserCtx, data: Self::Data) -> ParseResult<Self>;
 }
 
-pub trait MaybeParsable: Sized {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg>;
-}
-
 impl<T: Parsable> ParsableWith for T {
     type Data = ();
 
@@ -140,6 +161,13 @@ impl<T: ParsableWith> Node<T> {
         let (inner, recover) = match T::parse(ctx, data) {
             ParseResult::Ok(v) => (Some(v), false),
             ParseResult::Recover(v) => (Some(v), true),
+            ParseResult::Wrap(r) => return r,
+            ParseResult::Node(node) => {
+                return NodeParseResult {
+                    node,
+                    recover: false,
+                }
+            }
             ParseResult::Err(e) => {
                 ctx.err(e);
                 (None, true)
@@ -163,21 +191,33 @@ impl<T: Parsable> Node<T> {
     }
 }
 
-impl<T: MaybeParsable> Node<T> {
-    pub fn maybe_parse(ctx: &mut ParserCtx) -> Option<Self> {
-        let start = ctx.next_start();
-        let inner = match T::maybe_parse(ctx) {
-            Ok(v) => Some(v?),
-            Err(e) => {
-                ctx.err(e);
-                None
-            }
-        };
-        let end = ctx.prev_end();
-        Some(Self {
-            inner,
-            origin: start.to(end),
-        })
+impl<T> Node<Option<T>>
+where
+    Option<T>: Parsable,
+{
+    pub fn maybe_parse(ctx: &mut ParserCtx) -> Option<NodeParseResult<T>> {
+        let res = Node::<Option<T>>::parse_with(ctx, ());
+        let origin = res.node.origin;
+        let recover = res.recover;
+        match res.node.inner {
+            Some(val) => match val {
+                Some(v) => Some(NodeParseResult {
+                    node: Node {
+                        inner: Some(v),
+                        origin,
+                    },
+                    recover,
+                }),
+                None => None,
+            },
+            None => Some(NodeParseResult {
+                node: Node {
+                    inner: None,
+                    origin,
+                },
+                recover,
+            }),
+        }
     }
 }
 

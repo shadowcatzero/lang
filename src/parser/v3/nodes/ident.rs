@@ -1,4 +1,4 @@
-use super::{MaybeParsable, Parsable, ParseResult, ParserCtx, Token, CompilerMsg};
+use super::{CompilerMsg, Parsable, ParseResult, ParserCtx, Token};
 use std::{
     fmt::{Debug, Display},
     ops::Deref,
@@ -19,15 +19,17 @@ impl Parsable for PIdent {
     }
 }
 
-impl MaybeParsable for PIdent {
-    fn maybe_parse(ctx: &mut ParserCtx) -> Result<Option<Self>, CompilerMsg> {
-        let Some(next) = ctx.peek() else { return Ok(None) };
+impl Parsable for Option<PIdent> {
+    fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
+        let Some(next) = ctx.peek() else {
+            return ParseResult::Ok(None);
+        };
         let Token::Word(name) = &next.token else {
-            return Ok(None);
+            return ParseResult::Ok(None);
         };
         let name = name.to_string();
         ctx.next();
-        Ok(Some(Self(name)))
+        ParseResult::Ok(Some(PIdent(name)))
     }
 }
 

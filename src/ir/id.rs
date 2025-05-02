@@ -1,4 +1,8 @@
-use std::{fmt::Debug, marker::PhantomData};
+use std::{
+    fmt::Debug,
+    marker::PhantomData,
+    ops::{Index, IndexMut},
+};
 
 // I had an idea for why these were different... now I don't
 pub type Size = u32;
@@ -12,19 +16,15 @@ impl<T> ID<T> {
     }
 }
 
-pub trait Named {
-    const NAME: &str;
-}
-
 impl<T> From<usize> for ID<T> {
     fn from(value: usize) -> Self {
         Self(value, PhantomData)
     }
 }
 
-impl<K: Named> Debug for ID<K> {
+impl<T> Debug for ID<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{}", K::NAME, self.0)
+        write!(f, "{{{}}}", self.0)
     }
 }
 
@@ -49,3 +49,60 @@ impl<T> Clone for ID<T> {
 }
 
 impl<T> Copy for ID<T> {}
+
+// :fear:
+impl<T> Index<ID<T>> for Vec<T> {
+    type Output = T;
+
+    fn index(&self, i: ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<ID<T>> for Vec<T> {
+    fn index_mut(&mut self, i: ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}
+
+impl<T> Index<&ID<T>> for Vec<T> {
+    type Output = T;
+
+    fn index(&self, i: &ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<&ID<T>> for Vec<T> {
+    fn index_mut(&mut self, i: &ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}
+
+impl<T> Index<ID<T>> for [T] {
+    type Output = T;
+
+    fn index(&self, i: ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<ID<T>> for [T] {
+    fn index_mut(&mut self, i: ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}
+
+impl<T> Index<&ID<T>> for [T] {
+    type Output = T;
+
+    fn index(&self, i: &ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<&ID<T>> for [T] {
+    fn index_mut(&mut self, i: &ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}

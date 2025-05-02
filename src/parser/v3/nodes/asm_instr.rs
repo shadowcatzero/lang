@@ -6,7 +6,7 @@ pub struct PInstruction {
 }
 
 pub enum PAsmArg {
-    Value(Node<PIdent>),
+    Value(PIdent),
     Ref(Node<PIdent>),
 }
 
@@ -33,7 +33,7 @@ impl Parsable for PInstruction {
 impl Parsable for PAsmArg {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         if let Some(ident) = ctx.maybe_parse() {
-            return ParseResult::Ok(Self::Value(ident));
+            return ParseResult::Wrap(ident.map(Self::Value));
         }
 
         let mut next = ctx.expect_peek()?;
@@ -41,10 +41,10 @@ impl Parsable for PAsmArg {
             ctx.next();
             if let Some(mut ident) = ctx.maybe_parse::<PIdent>() {
                 // TODO: this is so messed up
-                if let Some(i) = ident.as_mut() {
+                if let Some(i) = ident.node.as_mut() {
                     i.0.insert(0, '-')
                 }
-                return ParseResult::Ok(Self::Value(ident));
+                return ParseResult::Wrap(ident.map(Self::Value));
             }
             next = ctx.expect_peek()?;
         }

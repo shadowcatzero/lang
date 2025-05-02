@@ -27,15 +27,15 @@ impl FnLowerable for PBlock {
                 },
             }
         }
-        ctx.program.push();
+        ctx.b.push();
         // then lower imports
         for i_n in &import_nodes {
             if let Some(i) = i_n.as_ref() {
                 let name = &i.0;
-                let path = ctx.program.path_for(name);
+                let path = ctx.b.path_for(name);
                 let import = Import(path.clone());
                 if ctx.imports.insert(import) {
-                    ctx.program.def_searchable::<UVar>(
+                    ctx.b.def_searchable::<UVar>(
                         name,
                         Some(UVar {
                             ty: Type::Module(path),
@@ -48,27 +48,27 @@ impl FnLowerable for PBlock {
         // then lower const things
         let mut structs = Vec::new();
         for s in &struct_nodes {
-            structs.push(s.lower_name(ctx.program));
+            structs.push(s.lower_name(ctx.b));
         }
         for (s, id) in struct_nodes.iter().zip(structs) {
             if let Some(id) = id {
-                s.lower(id, ctx.program, ctx.output);
+                s.lower(id, ctx.b, ctx.output);
             }
         }
         let mut fns = Vec::new();
         for f in &fn_nodes {
-            fns.push(f.lower_name(ctx.program));
+            fns.push(f.lower_name(ctx.b));
         }
         for (f, id) in fn_nodes.iter().zip(fns) {
             if let Some(id) = id {
-                f.lower(id, ctx.program, ctx.imports, ctx.output)
+                f.lower(id, ctx.b, ctx.imports, ctx.output)
             }
         }
         // then lower statements
         for s in statements {
             last = s.lower(ctx);
         }
-        ctx.program.pop();
+        ctx.b.pop();
         last
     }
 }
@@ -78,11 +78,11 @@ impl FnLowerable for PStatement {
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
         match self {
             PStatement::Let(def, e) => {
-                let def = def.lower(ctx.program, ctx.output)?;
+                let def = def.lower(ctx.b, ctx.output)?;
                 let res = e.lower(ctx);
                 if let Some(res) = res {
                     ctx.push(UInstruction::Mv {
-                        dest: def,
+                        dst: def,
                         src: res,
                     });
                 }
@@ -91,10 +91,10 @@ impl FnLowerable for PStatement {
             PStatement::Return(e) => {
                 if let Some(e) = e {
                     let src = e.lower(ctx)?;
-                    ctx.push_at(UInstruction::Ret { src }, src.span);
+                    ctx.push_at(UInstruction::Ret { src }, src.origin);
                 } else {
                     let src = ctx.temp(Type::Unit);
-                    ctx.push_at(UInstruction::Ret { src }, src.span);
+                    ctx.push_at(UInstruction::Ret { src }, src.origin);
                 }
                 None
             }

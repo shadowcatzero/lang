@@ -9,12 +9,11 @@ pub const FILE_EXT: &str = "lang";
 
 use common::{CompilerOutput, SrcFile};
 use ir::{LProgram, UProgram};
-use parser::{Import, Imports, PModule, ParseResult, ParserCtx};
+use parser::{Import, Imports, PModule, ParserCtx};
 use std::{
-    collections::{HashMap, HashSet},
-    ffi::OsString,
+    collections::HashSet,
     fs::{create_dir_all, OpenOptions},
-    io::{stdout, BufRead, BufReader},
+    io::stdout,
     os::unix::fs::OpenOptionsExt,
     path::{Path, PathBuf},
     process::Command,
@@ -88,8 +87,7 @@ impl UProgram {
 
 fn run_file(path: &Path, gdb: bool, asm: bool) {
     let (mut program, mut output) = UProgram::from_path(path);
-    program.resolve_types();
-    program.validate(&mut output);
+    program.resolve(&mut output);
     // println!("vars:");
     // for (id, def) in program.iter_vars() {
     //     println!("    {id:?} = {}: {}", program.names.path(id), program.type_name(&def.ty));

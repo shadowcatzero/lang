@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Imports, Node, PFunction};
 use crate::{
-    ir::{FnID, Idents, Type, UFunc, UInstrInst, UInstruction, UProgram, UVar, VarInst},
+    ir::{
+        FnID, Idents, Typable, Type, UFunc, UInstrInst, UInstruction, UModuleBuilder, UProgram,
+        UVar, VarID, VarInst,
+    },
     parser,
 };
 
@@ -54,7 +59,7 @@ impl PFunction {
         };
         let mut ctx = FnLowerCtx {
             instructions: Vec::new(),
-            program: p,
+            b: p,
             output,
             origin: self.body.origin,
             imports,
@@ -62,7 +67,7 @@ impl PFunction {
         if let Some(src) = self.body.lower(&mut ctx) {
             ctx.instructions.push(UInstrInst {
                 i: UInstruction::Ret { src },
-                span: src.span,
+                origin: src.origin,
             });
         }
         let instructions = ctx.instructions;
@@ -77,23 +82,24 @@ impl PFunction {
 }
 
 pub struct FnLowerCtx<'a> {
-    pub program: &'a mut UProgram,
+    pub b: &'a mut UModuleBuilder<'a>,
     pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
     pub origin: FileSpan,
     pub imports: &'a mut Imports,
+    pub var_stack: Vec<HashMap<String, VarID>>,
 }
 
 impl FnLowerCtx<'_> {
     pub fn get_idents(&mut self, node: &Node<parser::PIdent>) -> Option<Idents> {
         let name = node.inner.as_ref()?;
-        let res = self.program.get_idents(name);
+        let res = self.b.get_idents(name);
         if res.is_none() {
             self.err_at(node.origin, format!("Identifier '{}' not found", name));
         }
         res
     }
-    pub fn get_var(&mut self, node: &Node<parser::PIdent>) -> Option<VarInst> {
+    pub fn get_var(&mut self, node: &Node<parser::PIdent>) -> VarInst {
         let ids = self.get_idents(node)?;
         if ids.get::<UVar>().is_none() {
             self.err_at(
@@ -103,27 +109,42 @@ impl FnLowerCtx<'_> {
         }
         ids.get::<UVar>().map(|id| VarInst {
             id,
-            span: node.origin,
+            origin: node.origin,
         })
     }
     pub fn err(&mut self, msg: String) {
-        self.output.err(CompilerMsg::from_span(self.origin, msg))
+        self.output.err(CompilerMsg::new(self.origin, msg))
     }
     pub fn err_at(&mut self, span: FileSpan, msg: String) {
-        self.output.err(CompilerMsg::from_span(span, msg))
+        self.output.err(CompilerMsg::new(span, msg))
     }
-    pub fn temp(&mut self, ty: impl Into<Type>) -> VarInst {
-        self.program.temp_var(self.origin, ty)
+    pub fn temp<T: Typable>(&mut self, ty: Type) -> VarInst {
+        self.b.temp_var(self.origin, ty)
     }
     pub fn push(&mut self, i: UInstruction) {
         self.push_at(i, self.origin);
     }
     pub fn push_at(&mut self, i: UInstruction, span: FileSpan) {
-        self.instructions.push(UInstrInst { i, span });
+        match i {
+            UInstruction::Mv { dst: dest, src } => todo!(),
+            UInstruction::Ref { dst: dest, src } => todo!(),
+            UInstruction::LoadData { dst: dest, src } => todo!(),
+            UInstruction::LoadSlice { dst: dest, src } => todo!(),
+            UInstruction::LoadFn { dst: dest, src } => todo!(),
+            UInstruction::Call { dst: dest, f, args } => todo!(),
+            UInstruction::AsmBlock { instructions, args } => todo!(),
+            UInstruction::Ret { src } => todo!(),
+            UInstruction::Construct { dst: dest, fields } => todo!(),
+            UInstruction::If { cond, body } => todo!(),
+            UInstruction::Loop { body } => todo!(),
+            UInstruction::Break => todo!(),
+            UInstruction::Continue => todo!(),
+        }
+        self.instructions.push(UInstrInst { i, origin: span });
     }
     pub fn branch<'a>(&'a mut self) -> FnLowerCtx<'a> {
         FnLowerCtx {
-            program: self.program,
+            b: self.b,
             instructions: Vec::new(),
             output: self.output,
             origin: self.origin,

@@ -1,7 +1,7 @@
 use crate::{
     common::{CompilerOutput, FileSpan},
-    ir::{StructField, StructID, UInstruction, UProgram, UStruct, VarInst},
-    parser::{Node, PMap, PConstructFields, PStruct, PStructFields},
+    ir::{StructField, StructID, UInstruction, UModuleBuilder, UProgram, UStruct, VarInst},
+    parser::{Node, PMap, PStruct, PStructFields},
 };
 
 use super::{FnLowerCtx, FnLowerable};
@@ -9,7 +9,7 @@ use super::{FnLowerCtx, FnLowerable};
 impl FnLowerable for PMap {
     type Output = VarInst;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
-        let ty = self.name.lower(ctx.program, ctx.output);
+        let ty = self.name.lower(ctx.b, ctx.output);
         let fields = match &self.fields {
             PConstructFields::Named(nodes) => nodes
                 .iter()
@@ -32,7 +32,7 @@ impl FnLowerable for PMap {
             PConstructFields::None => Default::default(),
         };
         let id = ctx.temp(ty);
-        ctx.push(UInstruction::Construct { dest: id, fields });
+        ctx.push(UInstruction::Construct { dst: id, fields });
         Some(id)
     }
 }
@@ -41,7 +41,7 @@ impl PStruct {
     pub fn lower(
         &self,
         id: StructID,
-        p: &mut UProgram,
+        p: &mut UModuleBuilder,
         output: &mut CompilerOutput,
         span: FileSpan,
     ) -> Option<()> {
@@ -71,20 +71,23 @@ impl PStruct {
         .into_iter()
         .map(|(name, ty)| (name, StructField { ty }))
         .collect();
-        p.write(id, UStruct { generics, fields });
+        let name = self.name.as_ref()?.to_string();
+        p.def_data(UStruct {
+            name,
+            generics,
+            fields,
+            origin: span,
+        });
         p.pop();
         Some(())
     }
 }
 
 impl Node<PStruct> {
-    pub fn lower_name(&self, p: &mut UProgram) -> Option<StructID> {
+    pub fn lower(&self, id: StructID, p: &mut UProgram, output: &mut CompilerOutput) -> Option<()> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?;
-        let id = p.def_searchable(name, None, s.name.origin);
-        Some(id)
-    }
-    pub fn lower(&self, id: StructID, p: &mut UProgram, output: &mut CompilerOutput) {
-        self.as_ref().map(|i| i.lower(id, p, output, self.origin));
+        s.lower(id, p, output, self.origin);
+        Some(())
     }
 }

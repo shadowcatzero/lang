@@ -6,6 +6,7 @@ mod kind;
 mod program;
 mod ty;
 mod validate;
+mod resolve;
 
 use super::*;
 use assoc::*;

@@ -19,7 +19,7 @@ impl CompilerMsg {
             spans: Vec::new(),
         }
     }
-    pub fn from_span(span: FileSpan, msg: String) -> Self {
+    pub fn new(msg: String, span: FileSpan) -> Self {
         Self {
             msg,
             spans: vec![span],

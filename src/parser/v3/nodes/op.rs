@@ -78,7 +78,7 @@ impl PostfixOp {
         match self {
             Self::Not => "!",
             Self::Ref => "@",
-            Self::Deref => "*",
+            Self::Deref => "^",
         }
     }
     pub fn from_token(token: &Token) -> Option<Self> {
@@ -88,7 +88,7 @@ impl PostfixOp {
         Some(match symbol {
             Symbol::At => Self::Ref,
             Symbol::Bang => Self::Not,
-            Symbol::Asterisk => Self::Deref,
+            Symbol::Carrot => Self::Deref,
             _ => {
                 return None;
             }

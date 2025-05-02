@@ -128,7 +128,7 @@ impl<'a> LFunctionBuilder<'a> {
     }
     pub fn insert_instr(&mut self, i: &UInstrInst) -> Option<Option<String>> {
         match &i.i {
-            UInstruction::Mv { dest, src } => {
+            UInstruction::Mv { dst: dest, src } => {
                 self.alloc_stack(dest.id)?;
                 self.map_subvar(src.id);
                 self.instrs.push(LInstruction::Mv {
@@ -138,7 +138,7 @@ impl<'a> LFunctionBuilder<'a> {
                     src_offset: 0,
                 });
             }
-            UInstruction::Ref { dest, src } => {
+            UInstruction::Ref { dst: dest, src } => {
                 self.alloc_stack(dest.id)?;
                 self.map_subvar(src.id);
                 self.instrs.push(LInstruction::Ref {
@@ -146,7 +146,7 @@ impl<'a> LFunctionBuilder<'a> {
                     src: src.id,
                 });
             }
-            UInstruction::LoadData { dest, src } => {
+            UInstruction::LoadData { dst: dest, src } => {
                 self.alloc_stack(dest.id)?;
                 let data = self.program.expect(*src);
                 let sym = self.data.builder.ro_data(
@@ -161,7 +161,7 @@ impl<'a> LFunctionBuilder<'a> {
                     src: sym,
                 });
             }
-            UInstruction::LoadSlice { dest, src } => {
+            UInstruction::LoadSlice { dst: dest, src } => {
                 self.alloc_stack(dest.id)?;
                 let data = self.program.expect(*src);
                 let Type::Array(_, len) = &data.ty else {
@@ -191,7 +191,7 @@ impl<'a> LFunctionBuilder<'a> {
                     src: sym,
                 });
             }
-            UInstruction::LoadFn { dest, src } => {
+            UInstruction::LoadFn { dst: dest, src } => {
                 self.alloc_stack(dest.id)?;
                 let sym = self.builder.func(src);
                 self.instrs.push(LInstruction::LoadAddr {
@@ -200,7 +200,7 @@ impl<'a> LFunctionBuilder<'a> {
                     src: sym,
                 });
             }
-            UInstruction::Call { dest, f, args } => {
+            UInstruction::Call { dst: dest, f, args } => {
                 self.alloc_stack(dest.id);
                 self.makes_call = true;
                 let fid = &self.program.fn_var.fun(f.id).expect("a");
@@ -267,7 +267,7 @@ impl<'a> LFunctionBuilder<'a> {
                 };
                 self.data.instrs.push(LInstruction::Ret { src })
             }
-            UInstruction::Construct { dest, fields } => {
+            UInstruction::Construct { dst: dest, fields } => {
                 let sty = &self.program.expect_type(dest.id);
                 let Type::Struct(sty) = sty else {
                     panic!("bruh htis aint' a struct");

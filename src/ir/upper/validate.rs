@@ -13,26 +13,6 @@ impl UProgram {
                 false,
             );
         }
-        for (id, var) in self.iter_vars() {
-            if var.ty == Type::Error {
-                output.err(CompilerMsg {
-                    msg: format!("Var {:?} is error type!", id),
-                    spans: vec![self.origins.get(id)],
-                });
-            }
-            if var.ty == Type::Infer {
-                output.err(CompilerMsg {
-                    msg: format!("Var {:?} cannot be inferred!", id),
-                    spans: vec![self.origins.get(id)],
-                });
-            }
-            if var.ty == Type::Placeholder {
-                output.err(CompilerMsg {
-                    msg: format!("Var {:?} still placeholder!", id),
-                    spans: vec![self.origins.get(id)],
-                });
-            }
-        }
     }
 
     pub fn validate_fn(
@@ -47,50 +27,50 @@ impl UProgram {
         let mut no_ret = true;
         for i in instructions {
             match &i.i {
-                UInstruction::Mv { dest, src } => {
+                UInstruction::Mv { dst: dest, src } => {
                     let dest = self.expect(dest.id);
                     let src = self.expect(src.id);
-                    output.check_assign(self, &src.ty, &dest.ty, i.span);
+                    output.check_assign(self, &src.ty, &dest.ty, i.origin);
                 }
-                UInstruction::Ref { dest, src } => {
+                UInstruction::Ref { dst: dest, src } => {
                     let dest = self.expect(dest.id);
                     let src = self.expect(src.id);
-                    output.check_assign(self, &src.ty.clone().rf(), &dest.ty, i.span);
+                    output.check_assign(self, &src.ty.clone().rf(), &dest.ty, i.origin);
                 }
-                UInstruction::LoadData { dest, src } => {
+                UInstruction::LoadData { dst: dest, src } => {
                     let dest = self.expect(dest.id);
                     let src = self.expect(*src);
-                    output.check_assign(self, &src.ty, &dest.ty, i.span);
+                    output.check_assign(self, &src.ty, &dest.ty, i.origin);
                 }
-                UInstruction::LoadSlice { dest, src } => {
+                UInstruction::LoadSlice { dst: dest, src } => {
                     let dest = self.expect(dest.id);
                     let src = self.expect(*src);
                     let Type::Array(srcty, ..) = &src.ty else {
                         todo!()
                     };
-                    output.check_assign(self, &Type::Slice(srcty.clone()), &dest.ty, i.span);
+                    output.check_assign(self, &Type::Slice(srcty.clone()), &dest.ty, i.origin);
                 }
-                UInstruction::LoadFn { dest, src } => todo!(),
-                UInstruction::Call { dest, f, args } => {
+                UInstruction::LoadFn { dst: dest, src } => todo!(),
+                UInstruction::Call { dst: dest, f, args } => {
                     let destty = &self.expect(dest.id).ty;
                     let f = self.expect(f.id);
                     let Type::Fn { args: argtys, ret } = &f.ty else {
                         output.err(CompilerMsg {
                             msg: format!("Type {} is not callable", self.type_name(&f.ty)),
-                            spans: vec![dest.span],
+                            spans: vec![dest.origin],
                         });
                         continue;
                     };
-                    output.check_assign(self, ret, destty, dest.span);
+                    output.check_assign(self, ret, destty, dest.origin);
                     if args.len() != argtys.len() {
                         output.err(CompilerMsg {
                             msg: "Wrong number of arguments to function".to_string(),
-                            spans: vec![dest.span],
+                            spans: vec![dest.origin],
                         });
                     }
                     for (dst_ty, src) in argtys.iter().zip(args) {
                         let src_var = self.expect(src.id);
-                        output.check_assign(self, &src_var.ty, dst_ty, src.span);
+                        output.check_assign(self, &src_var.ty, dst_ty, src.origin);
                     }
                 }
                 UInstruction::AsmBlock { instructions, args } => {
@@ -109,10 +89,10 @@ impl UProgram {
                 }
                 UInstruction::Ret { src } => {
                     let srcty = &self.expect(src.id).ty;
-                    output.check_assign(self, srcty, ret, src.span);
+                    output.check_assign(self, srcty, ret, src.origin);
                     no_ret = false;
                 }
-                UInstruction::Construct { dest, fields } => {
+                UInstruction::Construct { dst: dest, fields } => {
                     let dest_def = self.expect(dest.id);
                     let sty = match &dest_def.ty {
                         Type::Struct(sty) => sty,
@@ -122,7 +102,7 @@ impl UProgram {
                                     "Type {} cannot be constructed",
                                     self.type_name(&dest_def.ty)
                                 ),
-                                spans: vec![dest.span],
+                                spans: vec![dest.origin],
                             });
                             continue;
                         }
@@ -139,18 +119,18 @@ impl UProgram {
                                 }
                             }
                             let ety = &self.expect(var.id).ty;
-                            output.check_assign(self, ety, fty, var.span);
+                            output.check_assign(self, ety, fty, var.origin);
                         } else {
                             output.err(CompilerMsg {
                                 msg: format!("field '{}' missing from struct", name),
-                                spans: vec![dest.span],
+                                spans: vec![dest.origin],
                             });
                         }
                     }
                 }
                 UInstruction::If { cond, body } => {
                     let cond = self.expect(cond.id);
-                    output.check_assign(self, &cond.ty, &Type::Bits(64), i.span);
+                    output.check_assign(self, &cond.ty, &Type::Bits(64), i.origin);
                     self.validate_fn(body, origin, ret, output, false, breakable);
                 }
                 UInstruction::Loop { body } => {
@@ -160,7 +140,7 @@ impl UProgram {
                     if !breakable {
                         output.err(CompilerMsg {
                             msg: "Can't break here (outside of loop)".to_string(),
-                            spans: vec![i.span],
+                            spans: vec![i.origin],
                         });
                     }
                     // TODO
@@ -169,7 +149,7 @@ impl UProgram {
                     if !breakable {
                         output.err(CompilerMsg {
                             msg: "Can't continue here (outside of loop)".to_string(),
-                            spans: vec![i.span],
+                            spans: vec![i.origin],
                         });
                     }
                     // TODO

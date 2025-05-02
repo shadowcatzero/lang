@@ -12,14 +12,15 @@ use super::{
 type BoxNode = Node<Box<PExpr>>;
 
 pub enum PExpr {
-    Lit(Node<PLiteral>),
+    Lit(PLiteral),
     Ident(Node<PIdent>),
     BinaryOp(InfixOp, BoxNode, BoxNode),
     PostfixOp(BoxNode, PostfixOp),
     Block(Node<PBlock>),
     Call(BoxNode, Vec<Node<PExpr>>),
     Group(BoxNode),
-    Access(BoxNode, Node<PIdent>),
+    Field(BoxNode, Node<PIdent>),
+    Member(BoxNode, Node<PIdent>),
     AsmBlock(Node<PAsmBlock>),
     Construct(BoxNode, Node<PMap>),
     If(BoxNode, BoxNode),
@@ -69,7 +70,11 @@ impl PExpr {
                 continue;
             } else if next.is_symbol(Symbol::Dot) {
                 let field = ctx.parse()?;
-                e1 = Self::Access(Node::new(e1, span).bx(), field);
+                e1 = Self::Field(Node::new(e1, span).bx(), field);
+                continue;
+            } else if next.is_symbol(Symbol::DoubleColon) {
+                let field = ctx.parse()?;
+                e1 = Self::Member(Node::new(e1, span).bx(), field);
                 continue;
             } else if let Some(op) = PostfixOp::from_token(next) {
                 ctx.next();
@@ -86,10 +91,7 @@ impl PExpr {
             ctx.next();
             if ctx.expect_peek()?.is_symbol(Symbol::CloseParen) {
                 ctx.next();
-                return ParseResult::Ok(PExpr::Lit(Node::new(
-                    PLiteral::Unit,
-                    ctx.next_start().char_span(),
-                )));
+                return ParseResult::Ok(PExpr::Lit(PLiteral::Unit));
             }
             let res = ctx.parse();
             if res.recover {
@@ -118,8 +120,8 @@ impl PExpr {
         } else if next.is_keyword(Keyword::Asm) {
             ctx.next();
             Self::AsmBlock(ctx.parse()?)
-        } else if let Some(val) = ctx.maybe_parse() {
-            Self::Lit(val)
+        } else if let Some(res) = ctx.maybe_parse::<PLiteral>() {
+            return ParseResult::Wrap(res.map(Self::Lit));
         } else {
             let res = ctx.parse();
             if res.node.is_some() {
@@ -188,7 +190,8 @@ impl Debug for PExpr {
             PExpr::Loop(res) => write!(f, "loop -> {res:?}")?,
             PExpr::Break => write!(f, "break")?,
             PExpr::Continue => write!(f, "continue")?,
-            PExpr::Access(e1, name) => write!(f, "{:?}.{:?}", e1, name)?,
+            PExpr::Field(e1, name) => write!(f, "{:?}.{:?}", e1, name)?,
+            PExpr::Member(e1, name) => write!(f, "{:?}::{:?}", e1, name)?,
         }
         Ok(())
     }

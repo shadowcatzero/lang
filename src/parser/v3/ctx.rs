@@ -3,8 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::common::FileID;
 
 use super::{
-    CompilerMsg, CompilerOutput, MaybeParsable, Node, NodeParseResult, Parsable, ParsableWith,
-    ParseResult, TokenCursor,
+    CompilerMsg, CompilerOutput, Node, NodeParseResult, Parsable, ParsableWith, TokenCursor,
 };
 
 pub struct ParserCtx<'a> {
@@ -36,11 +35,14 @@ impl<'a> ParserCtx<'a> {
     pub fn parse<T: Parsable>(&mut self) -> NodeParseResult<T> {
         Node::parse(self)
     }
+    pub fn maybe_parse<T>(&mut self) -> Option<NodeParseResult<T>>
+    where
+        Option<T>: Parsable,
+    {
+        Node::maybe_parse(self)
+    }
     pub fn parse_with<T: ParsableWith>(&mut self, data: T::Data) -> NodeParseResult<T> {
         Node::parse_with(self, data)
-    }
-    pub fn maybe_parse<T: MaybeParsable>(&mut self) -> Option<Node<T>> {
-        Node::maybe_parse(self)
     }
     pub fn new(file: FileID, string: &'a str, output: &'a mut CompilerOutput) -> Self {
         Self {

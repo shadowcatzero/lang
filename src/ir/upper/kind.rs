@@ -1,14 +1,19 @@
 use super::{Type, UInstrInst, UInstruction, UProgram};
 use crate::{
     common::FileSpan,
-    ir::{Len, Named, ID},
+    ir::{Len, ID},
 };
 use std::{collections::HashMap, fmt::Debug};
 
+pub type NamePath = Vec<String>;
+
 #[derive(Clone)]
 pub struct UFunc {
+    pub name: String,
+    pub origin: Origin,
     pub args: Vec<VarID>,
-    pub ret: Type,
+    pub argtys: Vec<TypeID>,
+    pub ret: TypeID,
     pub instructions: Vec<UInstrInst>,
 }
 
@@ -19,16 +24,61 @@ pub struct StructField {
 
 #[derive(Clone)]
 pub struct UStruct {
+    pub name: String,
+    pub origin: Origin,
     pub fields: HashMap<String, StructField>,
     pub generics: Vec<GenericID>,
 }
 
 #[derive(Clone)]
-pub struct UGeneric {}
+pub struct UGeneric {
+    pub name: String,
+    pub origin: Origin,
+}
 
 #[derive(Clone)]
 pub struct UVar {
+    pub name: String,
+    pub origin: Origin,
     pub ty: TypeID,
+    pub res: UVarTy,
+}
+
+#[derive(Clone)]
+pub struct VarParent {
+    id: VarID,
+    path: Vec<String>,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct MemberID {
+    pub name: String,
+    pub origin: Origin,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ModPath {
+    pub m: ModID,
+    pub path: Vec<MemberID>,
+}
+
+#[derive(Clone)]
+pub enum UVarTy {
+    Ptr(VarID),
+    /// fully resolved & typed
+    Res {
+        parent: Option<VarParent>,
+    },
+    /// module doesn't exist yet
+    Unres {
+        path: ModPath,
+        fields: Vec<MemberID>,
+    },
+    /// parent var exists but not typed enough for this field path
+    Partial {
+        v: VarID,
+        fields: Vec<MemberID>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -39,8 +89,29 @@ pub struct VarOffset {
 
 #[derive(Clone)]
 pub struct UData {
+    pub name: String,
     pub ty: Type,
     pub content: Vec<u8>,
+}
+
+#[derive(Clone)]
+pub struct UModule {
+    pub name: String,
+    pub members: HashMap<String, MemberID>,
+    pub children: HashMap<String, ModID>,
+    pub parent: Option<ModID>,
+}
+
+pub struct ModMissing {
+    pub import_all: Vec<ModID>,
+    pub vars: Vec<VarID>,
+}
+
+#[derive(Clone)]
+pub enum Member {
+    Fn(FnID),
+    Struct(StructID),
+    Var(VarID),
 }
 
 pub type Origin = FileSpan;
@@ -48,8 +119,8 @@ pub type Origin = FileSpan;
 impl UFunc {
     pub fn ty(&self, program: &UProgram) -> Type {
         Type::Fn {
-            args: self.args.iter().map(|a| program.expect(*a).ty).collect(),
-            ret: self.ret,
+            args: self.argtys.clone(),
+            ret: Box::new(self.ret.clone()),
         }
     }
     pub fn flat_iter(&self) -> impl Iterator<Item = &UInstrInst> {
@@ -85,62 +156,12 @@ impl<'a> Iterator for InstrIter<'a> {
     }
 }
 
-macro_rules! impl_kind {
-    // TRUST THIS IS SANE!!! KEEP THE CODE DRY AND SAFE!!!!!!
-    ($struc:ty, $idx:expr, $field:ident, $name:expr) => {
-        impl_kind!($struc, $idx, $field, $name, nofin);
-        impl Finish for $struc {
-            fn finish(_: &mut UProgram, _: ID<Self>, _: &str) {}
-        }
-    };
-    ($struc:ty, $idx:expr, $field:ident, $name:expr, nofin) => {
-        impl Kind for $struc {
-            const INDEX: usize = $idx;
-            fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>> {
-                &mut program.$field
-            }
-            fn from_program(program: &UProgram) -> &Vec<Option<Self>> {
-                &program.$field
-            }
-        }
-        impl Named for $struc {
-            const NAME: &str = $name;
-        }
-    };
-}
-
-impl_kind!(UFunc, 0, fns, "func", nofin);
-impl_kind!(UVar, 1, vars, "var");
-impl_kind!(UStruct, 2, structs, "struct");
-impl_kind!(Type, 3, types, "type");
-impl_kind!(UData, 4, data, "data");
 pub const NAMED_KINDS: usize = 5;
 
 pub type FnID = ID<UFunc>;
 pub type VarID = ID<UVar>;
+pub type TypeID = ID<Type>;
+pub type GenericID = ID<UGeneric>;
 pub type StructID = ID<UStruct>;
 pub type DataID = ID<UData>;
-pub type TypeID = ID<Type>;
-
-impl Finish for UFunc {
-    fn finish(p: &mut UProgram, id: ID<Self>, name: &str) {
-        let var = p.def_searchable(
-            name,
-            Some(UVar {
-                ty: Type::Placeholder,
-            }),
-            p.origins.get(id),
-        );
-        p.fn_var.insert(id, var);
-    }
-}
-
-pub trait Kind: Sized {
-    const INDEX: usize;
-    fn from_program_mut(program: &mut UProgram) -> &mut Vec<Option<Self>>;
-    fn from_program(program: &UProgram) -> &Vec<Option<Self>>;
-}
-
-pub trait Finish: Sized {
-    fn finish(program: &mut UProgram, id: ID<Self>, name: &str);
-}
+pub type ModID = ID<Option<UModule>>;
