@@ -1,4 +1,5 @@
-use super::{FnID, GenericID, Len, ModPath, StructID, TypeID, UVar, VarID, VarInst};
+use super::{GenericID, Len, ModPath, TypeID, UFunc, UProgram, UStruct, UVar, VarID, VarInst};
+use crate::ir::ID;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FieldRef {
@@ -7,16 +8,16 @@ pub struct FieldRef {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct StructTy {
-    pub id: StructID,
+pub struct GenericTy<T> {
+    pub id: ID<T>,
     pub args: Vec<TypeID>,
 }
 
 #[derive(Clone)]
 pub enum Type {
     Bits(u32),
-    Struct(StructTy),
-    Fn(FnID),
+    Struct(GenericTy<UStruct>),
+    Fn(GenericTy<UFunc>),
     Ref(TypeID),
     Deref(TypeID),
     Slice(TypeID),
@@ -27,7 +28,21 @@ pub enum Type {
     Generic(GenericID),
     Infer,
     Error,
-    Placeholder,
+}
+
+impl Type {
+    pub fn rf(self, p: &mut UProgram) -> Self {
+        p.def_ty(self).rf()
+    }
+    pub fn derf(self, p: &mut UProgram) -> Self {
+        p.def_ty(self).derf()
+    }
+    pub fn arr(self, p: &mut UProgram, len: Len) -> Self {
+        p.def_ty(self).arr(len)
+    }
+    pub fn slice(self, p: &mut UProgram) -> Self {
+        p.def_ty(self).slice()
+    }
 }
 
 impl TypeID {
@@ -46,9 +61,6 @@ impl TypeID {
 }
 
 impl Type {
-    pub fn is_resolved(&self) -> bool {
-        !matches!(self, Self::Error | Self::Placeholder | Self::Infer)
-    }
     pub fn bx(self) -> Box<Self> {
         Box::new(self)
     }

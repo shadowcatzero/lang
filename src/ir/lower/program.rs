@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, Size, StructTy, SymbolSpace, Type, UFunc, UInstrInst, VarOffset};
+use crate::ir::{
+    AsmBlockArgType, FnID, Size, GenericTy, SymbolSpace, Type, UFunc, UInstrInst, VarOffset,
+};
 
 use super::{
     IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, UInstruction, UProgram, VarID,
@@ -14,15 +16,11 @@ pub struct LProgram {
 // NOTE: there are THREE places here where I specify size (8)
 
 impl LProgram {
-    pub fn create(p: &UProgram) -> Result<Self, String> {
-        let start = p
-            .names
-            .id::<UFunc>(&[], "crate")
-            .ok_or("no start method found")?;
+    pub fn create(p: &UProgram, start: FnID) -> Result<Self, String> {
         let mut ssbuilder = SymbolSpaceBuilder::with_entries(&[start]);
         let entry = ssbuilder.func(&start);
         while let Some((sym, i)) = ssbuilder.pop_fn() {
-            let f = p.fns[i.0].as_ref().unwrap();
+            let f = &p.fns[i];
             let mut fbuilder = LFunctionBuilder::new(p, &mut ssbuilder);
             for i in &f.instructions {
                 fbuilder.insert_instr(i);
@@ -31,7 +29,7 @@ impl LProgram {
                 fbuilder.instrs.push(LInstruction::Ret { src: None });
             }
             let res = fbuilder.finish(f);
-            ssbuilder.write_fn(sym, res, Some(p.names.path(i).to_string()));
+            ssbuilder.write_fn(sym, res, Some(f.name.clone()));
         }
         let sym_space = ssbuilder.finish().expect("we failed the mission");
         Ok(Self { sym_space, entry })
@@ -376,7 +374,7 @@ impl LFunctionBuilderData<'_> {
     pub fn addr_size(&self) -> Size {
         64
     }
-    pub fn struct_inst(&mut self, p: &UProgram, ty: &StructTy) -> &StructInst {
+    pub fn struct_inst(&mut self, p: &UProgram, ty: &GenericTy) -> &StructInst {
         // normally I'd let Some(..) here and return, but polonius does not exist :grief:
         if self.struct_insts.get(ty).is_none() {
             let StructInst { id, args } = ty;

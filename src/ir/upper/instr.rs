@@ -73,7 +73,8 @@ impl std::fmt::Debug for UInstruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Mv { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::Ref { dst: dest, src } => write!(f, "{dest:?} <- &{src:?}")?,
+            Self::Ref { dst: dest, src } => write!(f, "{dest:?} <- {src:?}&")?,
+            Self::Deref { dst: dest, src } => write!(f, "{dest:?} <- {src:?}^")?,
             Self::LoadData { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
             Self::LoadFn { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
             Self::LoadSlice { dst: dest, src } => write!(f, "{dest:?} <- &[{src:?}]")?,

@@ -174,7 +174,7 @@ pub fn arg_to_var(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<VarInst>
         );
         return None;
     };
-    ctx.get_var(node)
+    ctx.var(node)
 }
 
 impl RegRef {
@@ -184,7 +184,7 @@ impl RegRef {
                 let reg = Reg::from_ident(node, ctx)?;
                 Self::Reg(reg)
             }
-            PAsmArg::Ref(node) => Self::Var(ctx.get_var(node)?),
+            PAsmArg::Ref(node) => Self::Var(ctx.var(node)?),
         })
     }
 }

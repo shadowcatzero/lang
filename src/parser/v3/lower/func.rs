@@ -3,120 +3,111 @@ use std::collections::HashMap;
 use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Imports, Node, PFunction};
 use crate::{
     ir::{
-        FnID, Idents, Typable, Type, UFunc, UInstrInst, UInstruction, UModuleBuilder, UProgram,
-        UVar, VarID, VarInst,
+        FnID, Origin, Typable, Type, UFunc, UInstrInst, UInstruction, UModuleBuilder, UVar, VarID,
+        VarInst, VarStatus,
     },
-    parser,
+    parser, util::NameStack,
 };
 
 impl Node<PFunction> {
-    pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
-        self.as_ref()?.lower_name(p)
-    }
     pub fn lower(
         &self,
-        id: FnID,
-        p: &mut UProgram,
+        b: &mut UModuleBuilder,
         imports: &mut Imports,
         output: &mut CompilerOutput,
-    ) {
-        if let Some(s) = self.as_ref() {
-            s.lower(id, p, imports, output)
-        }
+    ) -> Option<FnID> {
+        self.as_ref()
+            .map(|s| s.lower(b, imports, output, self.origin))
+            .flatten()
     }
 }
 
 impl PFunction {
-    pub fn lower_name(&self, p: &mut UProgram) -> Option<FnID> {
-        let header = self.header.as_ref()?;
-        let name = header.name.as_ref()?;
-        let id = p.def_searchable(name, None, self.header.origin);
-        Some(id)
-    }
     pub fn lower(
         &self,
-        id: FnID,
-        p: &mut UProgram,
+        b: &mut UModuleBuilder,
         imports: &mut Imports,
         output: &mut CompilerOutput,
-    ) {
-        let name = p.names.name(id).to_string();
-        p.push_name(&name);
-        let (args, ret) = if let Some(header) = self.header.as_ref() {
+        origin: Origin,
+    ) -> Option<FnID> {
+        let header = self.header.as_ref()?;
+        let name = header.name.as_ref()?.0.clone();
+        let (generic_args, args, ret) = if let Some(header) = self.header.as_ref() {
             (
+                header
+                    .gargs
+                    .iter()
+                    .map(|a| Some(a.lower(b, output)))
+                    .collect(),
                 header
                     .args
                     .iter()
-                    .flat_map(|a| Some(a.lower(p, output)?.id))
+                    .flat_map(|a| Some(a.lower(b, output)?))
                     .collect(),
                 match &header.ret {
-                    Some(ty) => ty.lower(p, output),
-                    None => Type::Unit,
+                    Some(ty) => ty.lower(b, output),
+                    None => b.def_ty(Type::Unit),
                 },
             )
         } else {
-            (Vec::new(), Type::Error)
+            (Vec::new(), Vec::new(), b.error)
         };
-        let mut ctx = FnLowerCtx {
-            instructions: Vec::new(),
-            b: p,
-            output,
-            origin: self.body.origin,
-            imports,
+        let instructions = {
+            let mut var_stack = Vec::new();
+            let mut ctx = FnLowerCtx {
+                instructions: Vec::new(),
+                var_stack: &mut var_stack,
+                b,
+                output,
+                origin: self.body.origin,
+                imports,
+            };
+            if let Some(src) = self.body.lower(&mut ctx) {
+                ctx.instructions.push(UInstrInst {
+                    origin: src.origin,
+                    i: UInstruction::Ret { src },
+                });
+            }
+            ctx.instructions
         };
-        if let Some(src) = self.body.lower(&mut ctx) {
-            ctx.instructions.push(UInstrInst {
-                i: UInstruction::Ret { src },
-                origin: src.origin,
-            });
-        }
-        let instructions = ctx.instructions;
+        let gargs = args.iter().map(|a| b.vars[a].ty).collect();
         let f = UFunc {
+            origin,
+            gargs,
+            name,
             args,
             ret,
             instructions,
         };
-        p.pop_name();
-        p.write(id, f)
+        Some(b.def_fn(f))
     }
 }
 
-pub struct FnLowerCtx<'a> {
-    pub b: &'a mut UModuleBuilder<'a>,
+pub struct FnLowerCtx<'a, 'b> {
+    pub b: &'a mut UModuleBuilder<'b>,
     pub instructions: Vec<UInstrInst>,
     pub output: &'a mut CompilerOutput,
     pub origin: FileSpan,
     pub imports: &'a mut Imports,
-    pub var_stack: Vec<HashMap<String, VarID>>,
+    pub var_stack: &'a mut NameStack<VarID>,
 }
 
-impl FnLowerCtx<'_> {
-    pub fn get_idents(&mut self, node: &Node<parser::PIdent>) -> Option<Idents> {
-        let name = node.inner.as_ref()?;
-        let res = self.b.get_idents(name);
-        if res.is_none() {
-            self.err_at(node.origin, format!("Identifier '{}' not found", name));
+impl<'a, 'b> FnLowerCtx<'a, 'b> {
+    pub fn var(&mut self, node: &Node<parser::PIdent>) -> VarInst {
+        if let Some(n) = node.as_ref() {
+            if let Some(&var) = self.var_stack.search(&n.0) {
+                return VarInst {
+                    status: VarStatus::Res(var),
+                    origin: node.origin,
+                }
+            }
         }
-        res
-    }
-    pub fn get_var(&mut self, node: &Node<parser::PIdent>) -> VarInst {
-        let ids = self.get_idents(node)?;
-        if ids.get::<UVar>().is_none() {
-            self.err_at(
-                node.origin,
-                format!("Variable '{}' not found", node.inner.as_ref()?),
-            );
-        }
-        ids.get::<UVar>().map(|id| VarInst {
-            id,
-            origin: node.origin,
-        })
     }
     pub fn err(&mut self, msg: String) {
-        self.output.err(CompilerMsg::new(self.origin, msg))
+        self.output.err(CompilerMsg::new(msg, self.origin))
     }
     pub fn err_at(&mut self, span: FileSpan, msg: String) {
-        self.output.err(CompilerMsg::new(span, msg))
+        self.output.err(CompilerMsg::new(msg, span))
     }
     pub fn temp<T: Typable>(&mut self, ty: Type) -> VarInst {
         self.b.temp_var(self.origin, ty)
@@ -125,27 +116,13 @@ impl FnLowerCtx<'_> {
         self.push_at(i, self.origin);
     }
     pub fn push_at(&mut self, i: UInstruction, span: FileSpan) {
-        match i {
-            UInstruction::Mv { dst: dest, src } => todo!(),
-            UInstruction::Ref { dst: dest, src } => todo!(),
-            UInstruction::LoadData { dst: dest, src } => todo!(),
-            UInstruction::LoadSlice { dst: dest, src } => todo!(),
-            UInstruction::LoadFn { dst: dest, src } => todo!(),
-            UInstruction::Call { dst: dest, f, args } => todo!(),
-            UInstruction::AsmBlock { instructions, args } => todo!(),
-            UInstruction::Ret { src } => todo!(),
-            UInstruction::Construct { dst: dest, fields } => todo!(),
-            UInstruction::If { cond, body } => todo!(),
-            UInstruction::Loop { body } => todo!(),
-            UInstruction::Break => todo!(),
-            UInstruction::Continue => todo!(),
-        }
         self.instructions.push(UInstrInst { i, origin: span });
     }
-    pub fn branch<'a>(&'a mut self) -> FnLowerCtx<'a> {
+    pub fn branch(&'a mut self) -> FnLowerCtx<'a, 'b> {
         FnLowerCtx {
             b: self.b,
             instructions: Vec::new(),
+            var_stack: self.var_stack,
             output: self.output,
             origin: self.origin,
             imports: self.imports,

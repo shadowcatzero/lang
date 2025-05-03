@@ -1,12 +1,13 @@
 use super::{
-    util::parse_list, PBlock, PIdent, Node, Parsable, ParseResult, ParserCtx,
-    Symbol, PType, PVarDef,
+    util::parse_list, Node, PBlock, PIdent, PType, PVarDef, Parsable, ParseResult, ParserCtx,
+    Symbol,
 };
 use std::fmt::Debug;
 
 pub struct PFunctionHeader {
     pub name: Node<PIdent>,
     pub args: Vec<Node<PVarDef>>,
+    pub gargs: Vec<Node<PType>>,
     pub ret: Option<Node<PType>>,
 }
 
@@ -18,6 +19,12 @@ pub struct PFunction {
 impl Parsable for PFunctionHeader {
     fn parse(ctx: &mut ParserCtx) -> ParseResult<Self> {
         let name = ctx.parse()?;
+        let generic_args = if ctx.expect_peek()?.is_symbol(Symbol::OpenAngle) {
+            ctx.next();
+            parse_list(ctx, Symbol::CloseAngle)?
+        } else {
+            Vec::new()
+        };
         ctx.expect_sym(Symbol::OpenParen)?;
         // let sel = ctx.maybe_parse();
         // if sel.is_some() {
@@ -39,6 +46,7 @@ impl Parsable for PFunctionHeader {
         ParseResult::Ok(Self {
             name,
             args,
+            gargs: generic_args,
             ret,
         })
     }

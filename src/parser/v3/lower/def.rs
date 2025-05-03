@@ -1,9 +1,9 @@
-use crate::ir::{UProgram, UVar, VarInst};
+use crate::ir::{UProgram, UVar, VarID, VarInst};
 
 use super::{CompilerOutput, Node, PVarDef};
 
 impl Node<PVarDef> {
-    pub fn lower(&self, program: &mut UProgram, output: &mut CompilerOutput) -> Option<VarInst> {
+    pub fn lower(&self, program: &mut UProgram, output: &mut CompilerOutput) -> Option<VarID> {
         let s = self.as_ref()?;
         let name = s.name.as_ref().map_or("{error}", |v| v);
         let ty = match &s.ty {

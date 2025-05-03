@@ -1,4 +1,4 @@
-use super::{Origin, StructTy, Type, TypeID, TypeIDed, UInstruction, UProgram, UStruct, UVar};
+use super::{Origin, GenericTy, Type, TypeID, TypeIDed, UInstruction, UProgram, UStruct, UVar};
 use crate::common::{CompilerMsg, CompilerOutput};
 use std::{collections::HashMap, ops::BitOrAssign};
 
@@ -65,10 +65,6 @@ impl UProgram {
                     format!("Type of {:?} cannot be inferred", var.name),
                     var.origin,
                 )),
-                Type::Placeholder => output.err(CompilerMsg::new(
-                    format!("Var {:?} still placeholder!", var.name),
-                    var.origin,
-                )),
                 Type::Unres(_) => output.err(CompilerMsg::new(
                     format!("Var {:?} type still unresolved!", var.name),
                     var.origin,
@@ -91,11 +87,12 @@ pub fn resolve_instr(data: &mut ResData, i: &UInstruction) -> InstrRes {
     let mut uf = InstrRes::Finished;
     match &i {
         UInstruction::Call { dst, f, args } => {
-            let fty = data.vars[f.id].ty;
-            let Type::Fn { args: fargs, ret } = &data.types[fty] else {
+            let ftyid = data.vars[f.id].ty;
+            let fty = &data.types[ftyid];
+            let Type::Fn { args: fargs, ret } = fty else {
                 data.errs.push(ResErr::NotCallable {
                     origin: f.origin,
-                    ty: fty,
+                    ty: ftyid,
                 });
                 return InstrRes::Finished;
             };
@@ -131,7 +128,7 @@ pub fn resolve_instr(data: &mut ResData, i: &UInstruction) -> InstrRes {
             let dest_ty = get(vars, dst.id)?;
             let Type::Struct(sty) = dest_ty else {};
             let id = sty.id;
-            let Some(struc) = self.get(id) else {};
+            let Some(struc) = get(id) else {};
             let mut new = HashMap::new();
             for (name, field) in &struc.fields {
                 let Some(src) = fields.get(name) else {
@@ -155,7 +152,7 @@ pub fn resolve_instr(data: &mut ResData, i: &UInstruction) -> InstrRes {
                     args[i] = ty;
                 }
             }
-            set(vars, dst.id, Type::Struct(StructTy { id, args }));
+            set(vars, dst.id, Type::Struct(GenericTy { id, args }));
         }
         UInstruction::If { cond, body } => {
             for i in body {

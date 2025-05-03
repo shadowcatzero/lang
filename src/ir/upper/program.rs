@@ -12,6 +12,11 @@ pub struct UProgram {
     pub generics: Vec<UGeneric>,
     pub vars: Vec<UVar>,
     pub types: Vec<Type>,
+
+    pub unres_vars: Vec<VarID>,
+    pub unres_tys: Vec<TypeID>,
+    pub unit: TypeID,
+    pub error: TypeID,
 }
 
 pub struct UModuleBuilder<'a> {
@@ -22,6 +27,9 @@ pub struct UModuleBuilder<'a> {
 
 impl UProgram {
     pub fn new() -> Self {
+        let mut types = Vec::new();
+        let unit = Self::push_id(&mut types, Type::Unit);
+        let error = Self::push_id(&mut types, Type::Error);
         Self {
             fns: Vec::new(),
             vars: Vec::new(),
@@ -30,24 +38,36 @@ impl UProgram {
             generics: Vec::new(),
             data: Vec::new(),
             modules: Vec::new(),
+            unres_vars: Vec::new(),
+            unres_tys: Vec::new(),
+            error,
+            unit,
         }
     }
 
-    pub fn instantiate_type(&mut self, ty: Type) {
-        self.def_ty(match ty {
-            Type::Ref(node) => Type::Ref(node.lower()),
-            Type::Generic(node, nodes) => todo!(),
-            Type::Ident(node) => todo!(),
-        });
+    pub fn inst_type(&mut self, ty: TypeID, gs: Vec<TypeID>) -> TypeID {
+        let ty = match &self.types[ty] {
+            Type::Ref(id) => Type::Ref(self.inst_type(*id, gs)),
+            Type::Generic(id) => return gs[id.0],
+            Type::Bits(b) => Type::Bits(*b),
+            Type::Struct(struct_ty) => Type::Struct(struct_ty.clone()),
+            Type::Fn() => todo!(),
+            Type::Deref(id) => todo!(),
+            Type::Slice(id) => todo!(),
+            Type::Array(id, _) => todo!(),
+            Type::Unit => todo!(),
+            Type::Unres(mod_path) => todo!(),
+            Type::Infer => todo!(),
+            Type::Error => todo!(),
+        };
+        self.def_ty(ty)
     }
 
     pub fn infer(&mut self) -> TypeID {
         self.def_ty(Type::Infer)
     }
 
-    pub fn error(&mut self) -> TypeID {
-        self.def_ty(Type::Error)
-    }
+    pub fn set_type(id: TypeID, ty: Type) {}
 
     pub fn def_var(&mut self, v: UVar) -> VarID {
         Self::push_id(&mut self.vars, v)

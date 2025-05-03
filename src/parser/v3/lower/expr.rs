@@ -20,11 +20,11 @@ impl FnLowerable for PExpr {
         Some(match e {
             PExpr::Lit(l) => match l {
                 super::PLiteral::String(s) => {
-                    let dest = ctx.b.temp_var(ctx.origin, Type::Bits(8).slice());
+                    let dest = ctx.b.temp_var(ctx.origin, Type::Bits(8).slice(ctx.b.p));
                     let data = s.as_bytes().to_vec();
                     let src = ctx.b.def_data(UData {
                         name: format!("string \"{}\"", s.replace("\n", "\\n")),
-                        ty: Type::Bits(8).arr(data.len() as u32),
+                        ty: Type::Bits(8).arr(ctx.b.p, data.len() as u32),
                         content: data,
                     });
                     ctx.push(UInstruction::LoadSlice { dst: dest, src });
@@ -55,7 +55,7 @@ impl FnLowerable for PExpr {
                 }
                 super::PLiteral::Unit => ctx.b.temp_var(ctx.origin, Type::Unit),
             },
-            PExpr::Ident(i) => ctx.get_var(i),
+            PExpr::Ident(i) => ctx.var(i),
             PExpr::BinaryOp(op, e1, e2) => match op {
                 InfixOp::Add => todo!(),
                 InfixOp::Sub => todo!(),
@@ -77,13 +77,13 @@ impl FnLowerable for PExpr {
                 let res = e.lower(ctx)?;
                 match op {
                     PostfixOp::Ref => {
-                        let ty = ctx.b.vars[res.id].ty.rf();
+                        let ty = Type::Ref(ctx.b.infer());
                         let dest = ctx.temp(ty);
                         ctx.push(UInstruction::Ref { dst: dest, src: res });
                         dest
                     }
                     PostfixOp::Deref => {
-                        let ty = ctx.b.vars[res.id].ty.derf();
+                        let ty = Type::Deref(ctx.b.infer());
                         let dest = ctx.temp(ty);
                         ctx.push(UInstruction::Deref { dst: dest, src: res });
                         dest
@@ -100,9 +100,9 @@ impl FnLowerable for PExpr {
                     let arg = arg.lower(ctx)?;
                     nargs.push(arg);
                 }
-                let dest = ctx.temp(Type::Placeholder);
+                let dest = ctx.temp(Type::Infer);
                 ctx.push(UInstruction::Call {
-                    dst: dest,
+                    dst: VarInst { status: , origin: () },
                     f: fe,
                     args: nargs,
                 });

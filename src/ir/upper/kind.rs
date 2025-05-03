@@ -1,4 +1,4 @@
-use super::{Type, UInstrInst, UInstruction, UProgram};
+use super::{Type, UInstrInst, UInstruction};
 use crate::{
     common::FileSpan,
     ir::{Len, ID},
@@ -12,7 +12,7 @@ pub struct UFunc {
     pub name: String,
     pub origin: Origin,
     pub args: Vec<VarID>,
-    pub argtys: Vec<TypeID>,
+    pub gargs: Vec<TypeID>,
     pub ret: TypeID,
     pub instructions: Vec<UInstrInst>,
 }
@@ -41,13 +41,8 @@ pub struct UVar {
     pub name: String,
     pub origin: Origin,
     pub ty: TypeID,
-    pub res: UVarTy,
-}
-
-#[derive(Clone)]
-pub struct VarParent {
-    id: VarID,
-    path: Vec<String>,
+    pub parent: Option<VarID>,
+    pub children: Vec<VarID>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -60,25 +55,6 @@ pub struct MemberID {
 pub struct ModPath {
     pub m: ModID,
     pub path: Vec<MemberID>,
-}
-
-#[derive(Clone)]
-pub enum UVarTy {
-    Ptr(VarID),
-    /// fully resolved & typed
-    Res {
-        parent: Option<VarParent>,
-    },
-    /// module doesn't exist yet
-    Unres {
-        path: ModPath,
-        fields: Vec<MemberID>,
-    },
-    /// parent var exists but not typed enough for this field path
-    Partial {
-        v: VarID,
-        fields: Vec<MemberID>,
-    },
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -117,12 +93,6 @@ pub enum Member {
 pub type Origin = FileSpan;
 
 impl UFunc {
-    pub fn ty(&self, program: &UProgram) -> Type {
-        Type::Fn {
-            args: self.argtys.clone(),
-            ret: Box::new(self.ret.clone()),
-        }
-    }
     pub fn flat_iter(&self) -> impl Iterator<Item = &UInstrInst> {
         InstrIter::new(self.instructions.iter())
     }

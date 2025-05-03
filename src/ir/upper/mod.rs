@@ -1,5 +1,4 @@
 mod assoc;
-mod error;
 mod inst;
 mod instr;
 mod kind;
@@ -11,7 +10,6 @@ mod resolve;
 use super::*;
 use assoc::*;
 
-pub use assoc::Idents;
 pub use inst::*;
 pub use instr::*;
 pub use kind::*;

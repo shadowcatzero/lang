@@ -1,24 +1,31 @@
 use crate::ir::VarID;
 use std::fmt::Debug;
 
-use super::{Origin, UInstruction};
+use super::{MemberID, ModPath, Origin, UInstruction};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct VarInst {
-    pub id: VarID,
+    pub status: VarStatus,
     pub origin: Origin,
+}
+
+#[derive(Clone)]
+pub enum VarStatus {
+    Res(VarID),
+    Unres { mid: ModPath, fields: Vec<MemberID> },
+    Partial { v: VarID, fields: Vec<MemberID> },
+}
+
+#[derive(Clone)]
+pub struct VarParent {
+    id: VarID,
+    path: Vec<String>,
 }
 
 #[derive(Clone)]
 pub struct UInstrInst {
     pub i: UInstruction,
     pub origin: Origin,
-}
-
-impl Debug for VarInst {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.id)
-    }
 }
 
 impl Debug for UInstrInst {

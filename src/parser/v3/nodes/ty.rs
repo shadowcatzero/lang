@@ -40,7 +40,7 @@ impl Parsable for PType {
             }
             break;
         }
-        ParseResult::Wrap(cur)
+        ParseResult::Node(cur)
     }
 }
 

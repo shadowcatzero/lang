@@ -8,13 +8,13 @@ mod struc;
 mod ty;
 
 use super::*;
-use crate::ir::{Type, UFunc, UProgram};
+use crate::ir::{Type, UFunc, UModuleBuilder};
 
 impl PModule {
     pub fn lower(
         &self,
         path: Vec<String>,
-        p: &mut UProgram,
+        p: &mut UModuleBuilder,
         imports: &mut Imports,
         output: &mut CompilerOutput,
     ) {
