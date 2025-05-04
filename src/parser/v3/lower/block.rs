@@ -1,13 +1,13 @@
 use crate::{
-    ir::{Type, UInstruction, UVar, VarInst, VarInstID},
+    ir::{Type, UInstruction, UVar, UIdent, IdentID},
     parser::{PConstStatement, PStatementLike},
 };
 
 use super::{FnLowerCtx, FnLowerable, Import, PBlock, PStatement};
 
 impl FnLowerable for PBlock {
-    type Output = VarInstID;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInstID> {
+    type Output = IdentID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<IdentID> {
         let mut last = None;
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();
@@ -74,8 +74,8 @@ impl FnLowerable for PBlock {
 }
 
 impl FnLowerable for PStatement {
-    type Output = VarInst;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
+    type Output = UIdent;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<UIdent> {
         match self {
             PStatement::Let(def, e) => {
                 let def = def.lower(ctx.b, ctx.output)?;

@@ -1,9 +1,11 @@
 use super::{
-    report_errs, ControlFlowOp, DataID, Kind, MemberTy, Origin, ResErr, Type, TypeID, TypeMismatch, UData, UFunc, UGeneric, UInstrInst, UInstruction, UModule, UProgram, UStruct, UVar, VarID, VarInst, VarInstID, VarStatus
+    inst_fn_ty, inst_struct_ty, report_errs, ControlFlowOp, DataID, FnInst, IdentID, IdentStatus,
+    MemberTy, Origin, ResErr, StructInst, Type, TypeID, TypeMismatch, UData, UFunc, UGeneric,
+    UIdent, UInstrInst, UInstruction, UModule, UProgram, UStruct, UVar, VarID,
 };
 use crate::{
     common::{CompilerMsg, CompilerOutput},
-    ir::{inst_fn_var, inst_struct_ty, KindTy, ID},
+    ir::{inst_fn_var, ID},
 };
 use std::{
     collections::HashSet,
@@ -21,7 +23,7 @@ impl UProgram {
             changed: false,
             types: &mut self.types,
             s: Sources {
-                insts: &mut self.vars_insts,
+                idents: &mut self.idents,
                 vars: &mut self.vars,
                 fns: &self.fns,
                 structs: &self.structs,
@@ -44,13 +46,12 @@ impl UProgram {
             }
             // this currently works bc expressions create temporary variables
             // although you can't do things like loop {return 3} (need to analyze control flow)
-            if !matches!(data.types[f.ret], Type::Unit) {
-                if f.instructions
+            if !matches!(data.types[f.ret], Type::Unit)
+                && f.instructions
                     .last()
                     .is_none_or(|i| !matches!(i.i, UInstruction::Ret { .. }))
-                {
-                    data.errs.push(ResErr::NoReturn { fid });
-                }
+            {
+                data.errs.push(ResErr::NoReturn { fid });
             }
         }
         while !data.unfinished.is_empty() && data.changed {
@@ -60,7 +61,23 @@ impl UProgram {
                 resolve_instr(&mut data, ctx);
             }
         }
-        let errs = data.errs;
+        let mut errs = data.errs;
+        for ident in &self.idents {
+            match &ident.status {
+                IdentStatus::Unres {
+                    path,
+                    mem,
+                    gargs,
+                    fields,
+                } => errs.push(ResErr::UnknownModule {
+                    origin: path.path[0].origin,
+                    name: path.path[0].name.clone(),
+                }),
+                IdentStatus::PartialVar { id, fields } => todo!(),
+                IdentStatus::Failed(err) => errs.push(err.clone()),
+                _ => (),
+            }
+        }
         report_errs(self, output, errs);
         for var in &self.vars {
             match &self.types[var.ty] {
@@ -93,13 +110,8 @@ pub fn resolve_instr<'a>(data: &mut ResData<'a>, ctx: ResolveCtx<'a>) -> Option<
     let mut res = InstrRes::Finished;
     match &ctx.i.i {
         UInstruction::Call { dst, f, args } => {
-            let fty = data.res_id(f, ctx)?;
-            let Type::FnRef(ftyy) = data.types[fty].clone() else {
-                let origin = f.origin(data);
-                data.errs.push(ResErr::NotCallable { origin, ty: fty });
-                return None;
-            };
-            let f = &data.s.fns[ftyy.id];
+            let fi = data.res_id::<UFunc>(f, ctx)?;
+            let f = &data.s.fns[fi.id];
             for (src, dest) in args.iter().zip(&f.args) {
                 res |= data.match_types(dest, src, src);
             }
@@ -109,14 +121,14 @@ pub fn resolve_instr<'a>(data: &mut ResData<'a>, ctx: ResolveCtx<'a>) -> Option<
             res |= data.match_types(dst, src, src);
         }
         UInstruction::Ref { dst, src } => {
-            let dstid = data.res_id(dst, ctx)?;
+            let dstid = data.res_ty_id::<UVar>(dst, ctx)?;
             let Type::Ref(dest_ty) = data.types[dstid] else {
                 compiler_error()
             };
             res |= data.match_types(dest_ty, src, src);
         }
         UInstruction::Deref { dst, src } => {
-            let srcid = data.res_id(src, ctx)?;
+            let srcid = data.res_ty_id::<UVar>(src, ctx)?;
             let Type::Ref(src_ty) = data.types[srcid] else {
                 let origin = src.origin(data);
                 data.errs.push(ResErr::CannotDeref { origin, ty: srcid });
@@ -148,11 +160,8 @@ pub fn resolve_instr<'a>(data: &mut ResData<'a>, ctx: ResolveCtx<'a>) -> Option<
             res |= data.match_types(ctx.ret, src, src);
         }
         UInstruction::Construct { dst, struc, fields } => {
-            let id = data.res_id(dst, ctx, KindTy::Struct)?;
-            let Type::Struct(sty) = &data.types[id] else {
-                return None;
-            };
-            let sid = sty.id;
+            let si = data.res_id::<UStruct>(dst, ctx)?;
+            let sid = si.id;
             let st = &data.s.structs[sid];
             let mut used = HashSet::new();
             for (name, field) in &st.fields {
@@ -180,7 +189,7 @@ pub fn resolve_instr<'a>(data: &mut ResData<'a>, ctx: ResolveCtx<'a>) -> Option<
             }
         }
         UInstruction::If { cond, body } => {
-            if let Some(id) = data.res_id(cond, ctx, KindTy::Var) {
+            if let Some(id) = data.res_ty_id::<UVar>(cond, ctx) {
                 if !matches!(data.types[id], Type::Bits(64)) {
                     let origin = cond.origin(data);
                     data.errs.push(ResErr::CondType { origin, ty: id });
@@ -262,7 +271,7 @@ pub fn match_types(data: &mut TypeResData, dst: impl TypeIDed, src: impl TypeIDe
             if dest.id != src.id {
                 return error();
             }
-            match_all(data, dest.args.iter().cloned(), src.args.iter().cloned())
+            match_all(data, dest.gargs.iter().cloned(), src.gargs.iter().cloned())
         }
         // (
         //     Type::Fn {
@@ -327,7 +336,7 @@ fn match_all(
 }
 
 struct Sources<'a> {
-    insts: &'a mut [VarInst],
+    idents: &'a mut [UIdent],
     vars: &'a mut Vec<UVar>,
     fns: &'a [UFunc],
     structs: &'a [UStruct],
@@ -353,12 +362,12 @@ struct TypeResData<'a> {
 impl<'a> ResData<'a> {
     pub fn match_types(
         &mut self,
-        dst: impl ResID<Type>,
-        src: impl ResID<Type>,
+        dst: impl Resolvable<Type>,
+        src: impl Resolvable<Type>,
         origin: impl HasOrigin,
     ) -> InstrRes {
-        let dst = dst.try_id(&mut self.s, self.types, &mut self.errs, KindTy::Type)?;
-        let src = src.try_id(&mut self.s, self.types, &mut self.errs, KindTy::Type)?;
+        let dst = dst.try_res(&mut self.s, self.types, &mut self.errs)?;
+        let src = src.try_res(&mut self.s, self.types, &mut self.errs)?;
         let res = match_types(
             &mut TypeResData {
                 changed: &mut self.changed,
@@ -382,15 +391,24 @@ impl<'a> ResData<'a> {
             }
         }
     }
-    pub fn try_res_id<K>(&mut self, x: impl ResID) -> Result<ID<K>, InstrRes> {
-        x.try_id(&mut self.s, &mut self.types, &mut self.errs)
-            .map(|id| resolve_refs(self.types, id))
+    pub fn try_res_id<K: ResKind>(&mut self, x: impl Resolvable<K>) -> Result<K::Res, InstrRes> {
+        x.try_res(&mut self.s, &mut self.types, &mut self.errs)
     }
-    pub fn res_id<'b: 'a, K>(
+    pub fn res_ty_id<'b: 'a, K: ResKind>(
         &mut self,
-        x: impl ResID<K>,
+        x: impl Resolvable<K>,
         ctx: ResolveCtx<'b>,
-    ) -> Option<ID<K>> {
+    ) -> Option<TypeID>
+    where
+        K::Res: TypeIDed,
+    {
+        self.res_id::<K>(x, ctx).map(|i| i.type_id(&self.s))
+    }
+    pub fn res_id<'b: 'a, K: ResKind>(
+        &mut self,
+        x: impl Resolvable<K>,
+        ctx: ResolveCtx<'b>,
+    ) -> Option<K::Res> {
         match self.try_res_id(x) {
             Ok(id) => return Some(id),
             Err(InstrRes::Unfinished) => self.unfinished.push(ctx),
@@ -433,166 +451,293 @@ impl FromResidual<Option<Infallible>> for InstrRes {
     }
 }
 
-trait ResID<K> {
-    fn try_id(
+trait Resolvable<K: ResKind> {
+    fn try_res(
         &self,
         s: &mut Sources,
         types: &mut Vec<Type>,
         errs: &mut Vec<ResErr>,
-    ) -> Result<ID<K>, InstrRes>;
+    ) -> Result<K::Res, InstrRes>;
 }
 
-impl<T: TypeIDed> ResID<Type> for T {
-    fn try_id(
+impl<T: TypeIDed> Resolvable<Type> for T {
+    fn try_res(
         &self,
         s: &mut Sources,
         _: &mut Vec<Type>,
         errs: &mut Vec<ResErr>,
-        kind: KindTy,
     ) -> Result<TypeID, InstrRes> {
         Ok(self.type_id(s))
     }
 }
 
-impl VarInst {
-    pub fn resolve(&mut self, s: &mut Sources) {
-        match &self.status {
-            VarStatus::Var(id) => self.status = VarStatus::Cooked,
-            VarStatus::Struct(id, ids) => todo!(),
-            VarStatus::Unres { path, name, gargs, fields } => todo!(),
-            VarStatus::Partial { v, fields } => todo!(),
-            VarStatus::Cooked => todo!(),
-        }
-    }
-}
-
-impl<K: Kind> ResID<K> for VarInstID {
-    fn try_id(
-        &self,
-        s: &mut Sources,
-        types: &mut Vec<Type>,
-        errs: &mut Vec<ResErr>,
-    ) -> Result<ID<K>, InstrRes> {
-        let kind = K::ty();
-        let inst = &mut s.insts[self];
-        let (id, fields) = match &mut inst.status {
-            VarStatus::Var(id) => {
-                return Ok(s.vars[id].ty)
-            },
-            VarStatus::Unres {
+impl IdentID {
+    pub fn resolve(self, s: &mut Sources) -> Result<Res, InstrRes> {
+        let ident = &mut s.idents[self];
+        Ok(match &mut ident.status {
+            IdentStatus::Var(id) => Res::Var(*id),
+            IdentStatus::Struct(sty) => Res::Struct(sty.clone()),
+            IdentStatus::Fn(fty) => Res::Fn(fty.clone()),
+            IdentStatus::Type(ty) => Res::Type(*ty),
+            IdentStatus::Unres {
                 path,
-                name,
+                mem,
                 gargs,
                 fields,
             } => {
                 let mut mid = path.id;
-                let mut depth = 0;
+                let mut count = 0;
                 for mem in &path.path {
                     let Some(&child) = s.modules[mid].children.get(&mem.name) else {
                         break;
                     };
-                    depth += 1;
+                    count += 1;
                     mid = child;
                 }
-                path.path.drain(0..depth);
+                path.path.drain(0..count);
                 path.id = mid;
                 if path.path.len() != 0 {
                     return Err(InstrRes::Unfinished);
                 }
-                let Some(mem) = s.modules[mid].members.get(name) else {
+                let Some(mem) = s.modules[mid].members.get(&mem.name) else {
                     return Err(InstrRes::Unfinished);
                 };
-                let vid = match mem.id {
+                match mem.id {
                     MemberTy::Fn(id) => {
-                        if kind == KindTy::Fn {
-                            return Ok(id.0.into());
-                        }
-                        if !matches!(kind, KindTy::Var | KindTy::Fn) {
-                            errs.push(ResErr::KindMismatch {
-                                origin: inst.origin,
-                                expected: kind,
-                                found: KindTy::Fn,
-                                id: id.0,
+                        if fields.len() > 0 {
+                            ident.status = IdentStatus::Failed(ResErr::UnexpectedField {
+                                origin: ident.origin,
                             });
                             return Err(InstrRes::Finished);
                         }
-                        inst_fn_var(
+                        let fty = FnInst {
                             id,
-                            s.fns,
-                            gargs,
-                            inst.origin,
-                            s.vars,
-                            types,
-                            s.generics,
-                            errs,
-                        )
+                            gargs: gargs.clone(),
+                        };
+                        ident.status = IdentStatus::Fn(fty.clone());
+                        Res::Fn(fty)
+                    }
+                    MemberTy::Struct(id) => {
+                        if fields.len() > 0 {
+                            ident.status = IdentStatus::Failed(ResErr::UnexpectedField {
+                                origin: ident.origin,
+                            });
+                            return Err(InstrRes::Finished);
+                        }
+                        let sty = StructInst {
+                            id,
+                            gargs: gargs.clone(),
+                        };
+                        ident.status = IdentStatus::Struct(sty.clone());
+                        Res::Struct(sty)
                     }
                     MemberTy::Var(id) => {
-                        if !matches!(kind, KindTy::Var | KindTy::Any) {
-                            errs.push(ResErr::KindMismatch {
-                                origin: inst.origin,
-                                expected: kind,
-                                found: KindTy::Var,
-                                id: id.0,
-                            });
-                            return Err(InstrRes::Finished);
-                        }
                         if !gargs.is_empty() {
-                            errs.push(ResErr::GenericCount {
-                                origin: inst.origin,
+                            ident.status = IdentStatus::Failed(ResErr::GenericCount {
+                                origin: ident.origin,
                                 expected: 0,
                                 found: gargs.len(),
                             });
-                        }
-                        id
-                    }
-                    MemberTy::Struct(id) => {
-                        if !matches!(kind, KindTy::Struct | KindTy::Type | KindTy::Any) {
-                            errs.push(ResErr::KindMismatch {
-                                origin: inst.origin,
-                                expected: kind,
-                                found: KindTy::Struct,
-                                id: id.0,
-                            });
                             return Err(InstrRes::Finished);
                         }
-                        if fields.len() > 0 {
-                            errs.push(ResErr::UnexpectedField {
-                                origin: inst.origin,
-                            });
-                            return Err(InstrRes::Finished);
-                        }
-                        return Ok(inst_struct_ty(
-                            id, s.structs, gargs, types, s.generics, errs,
-                        ));
+                        ident.status = IdentStatus::PartialVar {
+                            id,
+                            fields: fields.clone(),
+                        };
+                        return self.resolve(s);
                     }
-                };
-                if fields.len() > 0 {
-                    inst.status = VarStatus::Partial{v: vid, fields}
                 }
             }
-            VarStatus::Partial { v, fields } => (*v, fields),
-            VarStatus::Cooked => return Err(InstrRes::Finished),
-        };
-        // I feel like this clone is not necessary but idk how
-        inst.status = VarStatus::Partial {
-            v: id,
-            fields: fields.clone(),
-        };
-        // let VarStatus::Partial { v, fields } = inst.status
-        todo!()
+            IdentStatus::PartialVar { id, fields } => {
+                let mut fiter = fields.iter();
+                let mut next = fiter.next();
+                let mut count = 0;
+                while let Some(mem) = next
+                    && let Some(&cid) = s.vars[*id].children.get(&mem.name)
+                {
+                    *id = cid;
+                    next = fiter.next();
+                    count += 1;
+                }
+                fields.drain(0..count);
+                if fields.len() != 0 {
+                    return Err(InstrRes::Unfinished);
+                }
+                let id = *id;
+                ident.status = IdentStatus::Var(id);
+                Res::Var(id)
+            }
+            IdentStatus::Cooked => return Err(InstrRes::Finished),
+            IdentStatus::Failed(_) => return Err(InstrRes::Finished),
+        })
     }
 }
 
-impl<K> ResID<K> for &VarInstID {
-    fn try_id(
+impl<K: ResKind> Resolvable<K> for IdentID {
+    fn try_res(
         &self,
         s: &mut Sources,
         types: &mut Vec<Type>,
         errs: &mut Vec<ResErr>,
-        kind: KindTy,
-    ) -> Result<ID<K>, InstrRes> {
-        (*self).try_id(s, types, errs, kind)
+    ) -> Result<K::Res, InstrRes> {
+        let origin = s.idents[self].origin;
+        let res = self.resolve(s)?;
+        match K::from_res(res.clone(), types, s, origin, errs) {
+            Some(res) => Ok(res),
+            None => {
+                errs.push(ResErr::KindMismatch {
+                    origin,
+                    expected: K::ty(),
+                    found: res,
+                });
+                Err(InstrRes::Finished)
+            }
+        }
+    }
+}
+
+// "effective" (externally visible) kinds
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KindTy {
+    Type,
+    Var,
+    Struct,
+    Fn,
+}
+
+impl KindTy {
+    pub fn str(&self) -> &'static str {
+        match self {
+            KindTy::Type => "type",
+            KindTy::Var => "variable",
+            KindTy::Fn => "function",
+            KindTy::Struct => "struct",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Res {
+    Var(VarID),
+    Fn(FnInst),
+    Struct(StructInst),
+    Type(TypeID),
+}
+
+impl Res {
+    pub fn kind(&self) -> KindTy {
+        match self {
+            Res::Var(..) => KindTy::Var,
+            Res::Fn(..) => KindTy::Fn,
+            Res::Struct(..) => KindTy::Struct,
+            Res::Type(..) => KindTy::Type,
+        }
+    }
+    pub fn kind_str(&self) -> &'static str {
+        self.kind().str()
+    }
+}
+
+pub trait ResKind {
+    type Res;
+    fn ty() -> KindTy;
+    fn from_res(
+        res: Res,
+        types: &mut Vec<Type>,
+        s: &mut Sources,
+        origin: Origin,
+        errs: &mut Vec<ResErr>,
+    ) -> Option<Self::Res>;
+}
+
+impl ResKind for UFunc {
+    type Res = FnInst;
+    fn ty() -> KindTy {
+        KindTy::Fn
+    }
+    fn from_res(
+        res: Res,
+        _: &mut Vec<Type>,
+        _: &mut Sources,
+        _: Origin,
+        _: &mut Vec<ResErr>,
+    ) -> Option<Self::Res> {
+        match res {
+            Res::Fn(fi) => Some(fi),
+            _ => None,
+        }
+    }
+}
+
+impl ResKind for UVar {
+    type Res = VarID;
+    fn ty() -> KindTy {
+        KindTy::Var
+    }
+    fn from_res(
+        res: Res,
+        types: &mut Vec<Type>,
+        s: &mut Sources,
+        origin: Origin,
+        errs: &mut Vec<ResErr>,
+    ) -> Option<Self::Res> {
+        Some(match res {
+            Res::Fn(fty) => inst_fn_var(&fty, s.fns, origin, s.vars, types, s.generics, errs),
+            Res::Var(id) => id,
+            Res::Struct(_) => return None,
+            Res::Type(_) => return None,
+        })
+    }
+}
+
+impl ResKind for UStruct {
+    type Res = StructInst;
+    fn ty() -> KindTy {
+        KindTy::Struct
+    }
+    fn from_res(
+        res: Res,
+        _: &mut Vec<Type>,
+        _: &mut Sources,
+        _: Origin,
+        _: &mut Vec<ResErr>,
+    ) -> Option<Self::Res> {
+        match res {
+            Res::Struct(si) => Some(si),
+            _ => None,
+        }
+    }
+}
+
+impl ResKind for Type {
+    type Res = TypeID;
+    fn ty() -> KindTy {
+        KindTy::Type
+    }
+    fn from_res(
+        res: Res,
+        types: &mut Vec<Type>,
+        s: &mut Sources,
+        _: Origin,
+        errs: &mut Vec<ResErr>,
+    ) -> Option<Self::Res> {
+        Some(match res {
+            Res::Fn(fty) => inst_fn_ty(&fty, s.fns, types, s.generics, errs),
+            Res::Var(id) => id.type_id(s),
+            Res::Struct(si) => inst_struct_ty(&si, s.structs, types, s.generics, errs),
+            Res::Type(id) => id,
+        })
+    }
+}
+
+impl<K: ResKind> Resolvable<K> for &IdentID {
+    fn try_res(
+        &self,
+        s: &mut Sources,
+        types: &mut Vec<Type>,
+        errs: &mut Vec<ResErr>,
+    ) -> Result<K::Res, InstrRes> {
+        Resolvable::<K>::try_res(*self, s, types, errs)
     }
 }
 
@@ -637,8 +782,8 @@ trait HasOrigin {
     fn origin(&self, data: &ResData) -> Origin;
 }
 
-impl HasOrigin for &VarInstID {
+impl HasOrigin for &IdentID {
     fn origin(&self, data: &ResData) -> Origin {
-        data.s.insts[*self].origin
+        data.s.idents[*self].origin
     }
 }

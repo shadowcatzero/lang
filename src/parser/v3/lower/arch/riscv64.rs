@@ -3,7 +3,7 @@ use crate::{
     compiler::arch::riscv::*,
     ir::{
         arch::riscv64::{RV64Instruction, RegRef},
-        VarInst,
+        UIdent,
     },
 };
 
@@ -166,7 +166,7 @@ impl RV64Instruction {
     }
 }
 
-pub fn arg_to_var(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<VarInst> {
+pub fn arg_to_var(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<UIdent> {
     let PAsmArg::Ref(node) = node.inner.as_ref()? else {
         ctx.err_at(
             node.origin,

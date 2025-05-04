@@ -1,53 +1,53 @@
 use std::{collections::HashMap, fmt::Write};
 
-use super::{arch::riscv64::RV64Instruction, DataID, FnID, Origin, UFunc, VarInst, VarInstID};
+use super::{arch::riscv64::RV64Instruction, DataID, FnID, Origin, UFunc, UIdent, IdentID};
 use crate::{compiler::arch::riscv::Reg, util::Padder};
 
 #[derive(Clone)]
 pub enum UInstruction {
     Mv {
-        dst: VarInstID,
-        src: VarInstID,
+        dst: IdentID,
+        src: IdentID,
     },
     Ref {
-        dst: VarInstID,
-        src: VarInstID,
+        dst: IdentID,
+        src: IdentID,
     },
     Deref {
-        dst: VarInstID,
-        src: VarInstID,
+        dst: IdentID,
+        src: IdentID,
     },
     LoadData {
-        dst: VarInstID,
+        dst: IdentID,
         src: DataID,
     },
     LoadSlice {
-        dst: VarInstID,
+        dst: IdentID,
         src: DataID,
     },
     LoadFn {
-        dst: VarInstID,
+        dst: IdentID,
         src: FnID,
     },
     Call {
-        dst: VarInstID,
-        f: VarInstID,
-        args: Vec<VarInstID>,
+        dst: IdentID,
+        f: IdentID,
+        args: Vec<IdentID>,
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,
         args: Vec<AsmBlockArg>,
     },
     Ret {
-        src: VarInstID,
+        src: IdentID,
     },
     Construct {
-        dst: VarInstID,
-        struc: VarInstID,
-        fields: HashMap<String, VarInstID>,
+        dst: IdentID,
+        struc: IdentID,
+        fields: HashMap<String, IdentID>,
     },
     If {
-        cond: VarInstID,
+        cond: IdentID,
         body: Vec<UInstrInst>,
     },
     Loop {
@@ -71,7 +71,7 @@ impl std::fmt::Debug for UInstrInst {
 
 #[derive(Debug, Clone)]
 pub struct AsmBlockArg {
-    pub var: VarInstID,
+    pub var: IdentID,
     pub reg: Reg,
     pub ty: AsmBlockArgType,
 }

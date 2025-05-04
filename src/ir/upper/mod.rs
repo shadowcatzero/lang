@@ -12,3 +12,4 @@ pub use kind::*;
 pub use program::*;
 pub use ty::*;
 pub use error::*;
+pub use resolve::*;

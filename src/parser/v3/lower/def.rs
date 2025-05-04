@@ -1,4 +1,4 @@
-use crate::ir::{UProgram, UVar, VarID, VarInst};
+use crate::ir::{UProgram, UVar, VarID, UIdent};
 
 use super::{CompilerOutput, Node, PVarDef};
 
@@ -10,7 +10,7 @@ impl Node<PVarDef> {
             Some(ty) => ty.lower(program, output),
             None => program.infer(self.origin),
         };
-        Some(VarInst {
+        Some(UIdent {
             id: program.def_searchable(name, Some(UVar { ty }), self.origin),
             origin: self.origin,
         })

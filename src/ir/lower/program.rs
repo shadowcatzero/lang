@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::ir::{AsmBlockArgType, Size, StructTy, SymbolSpace, Type, UFunc, UInstrInst, VarOffset};
-StructTy
+use crate::ir::{AsmBlockArgType, Size, LStructInst, SymbolSpace, Type, UFunc, UInstrInst, VarOffset};
+LStructInst
 use super::{
     IRLFunction, LInstruction, Len, Symbol, SymbolSpaceBuilder, UInstruction, UProgram, VarID,
 };
@@ -42,14 +42,14 @@ impl LProgram {
     }
 }
 
-pub struct StructInst {
+pub struct LStructInst {
     offsets: Vec<Len>,
     types: Vec<Type>,
     order: HashMap<String, usize>,
     size: Size,
 }
 
-impl StructInst {
+impl LStructInst {
     pub fn offset(&self, name: &str) -> Option<Len> {
         Some(self.offsets[*self.order.get(name)?])
     }
@@ -82,7 +82,7 @@ pub struct LFunctionBuilderData<'a> {
     instrs: Vec<LInstruction>,
     stack: HashMap<VarID, Size>,
     subvar_map: HashMap<VarID, VarOffset>,
-    struct_insts: HashMap<StructInst, StructInst>,
+    struct_insts: HashMap<LStructInst, LStructInst>,
     makes_call: bool,
     loopp: Option<LoopCtx>,
 }
@@ -376,10 +376,10 @@ impl LFunctionBuilderData<'_> {
     pub fn addr_size(&self) -> Size {
         64StructTy
     }
-    pub fn struct_inst(&mut self, p: &UProgram, ty: &StructTy) -> &StructInst {
+    pub fn struct_inst(&mut self, p: &UProgram, ty: &LStructInst) -> &LStructInst {
         // normally I'd let Some(..) here and return, but polonius does not exist :grief:
         if self.struct_insts.get(ty).is_none() {
-            let StructInst { id, args } = ty;
+            let LStructInst { id, args } = ty;
             let struc = p.expect(*id);
             let mut types = Vec::new();
             let mut sizes = struc
@@ -412,7 +412,7 @@ impl LFunctionBuilderData<'_> {
             }
             self.struct_insts.insert(
                 ty.clone(),
-                StructInst {
+                LStructInst {
                     offsets,
                     order,
                     types,
@@ -423,7 +423,7 @@ impl LFunctionBuilderData<'_> {
         self.struct_insts.get(ty).unwrap()
     }
 
-    pub fn field_offset(&mut self, p: &UProgram, sty: &StructInst, field: &str) -> Option<Len> {
+    pub fn field_offset(&mut self, p: &UProgram, sty: &LStructInst, field: &str) -> Option<Len> {
         let inst = self.struct_inst(p, sty);
         Some(inst.offset(field)?)
     }

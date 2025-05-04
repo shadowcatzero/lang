@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{ir::VarInstID, parser::PMap};
+use crate::{ir::IdentID, parser::PMap};
 
 use super::{FnLowerCtx, FnLowerable};
 
 impl FnLowerable for PMap {
-    type Output = HashMap<String, VarInstID>;
+    type Output = HashMap<String, IdentID>;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<Self::Output> {
         Some(
             self.0

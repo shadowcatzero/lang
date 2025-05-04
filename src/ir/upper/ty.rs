@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use super::{
-    push_id, FnID, GenericID, Len, ModPath, Origin, ResErr, StructID, TypeCache, TypeID, UFunc,
-    UGeneric, UProgram, UStruct, UVar, VarID,
+    push_id, FnID, GenericID, Len, ModPath, Origin, ResErr, StructID, TypeID, UFunc, UGeneric,
+    UProgram, UStruct, UVar, VarID,
 };
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -11,23 +11,23 @@ pub struct FieldRef {
     pub name: String,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct StructTy {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct StructInst {
     pub id: StructID,
-    pub args: Vec<TypeID>,
+    pub gargs: Vec<TypeID>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct FnTy {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct FnInst {
     pub id: FnID,
-    pub args: Vec<TypeID>,
+    pub gargs: Vec<TypeID>,
 }
 
 #[derive(Clone)]
 pub enum Type {
     Bits(u32),
-    Struct(StructTy),
-    FnRef(FnTy),
+    Struct(StructInst),
+    FnRef(FnInst),
     // this can be added for constraints later (F: fn(...) -> ...)
     // Fn { args: Vec<TypeID>, ret: TypeID },
     Ref(TypeID),
@@ -79,17 +79,16 @@ impl Type {
 }
 
 pub fn inst_fn_var(
-    id: FnID,
+    fi: &FnInst,
     fns: &[UFunc],
-    gargs: &[TypeID],
     origin: Origin,
     vars: &mut Vec<UVar>,
     types: &mut Vec<Type>,
     generics: &[UGeneric],
     errs: &mut Vec<ResErr>,
 ) -> VarID {
-    let ty = inst_fn_ty(id, fns, gargs, types, generics, errs);
-    let name = fns[id].name.clone();
+    let ty = inst_fn_ty(fi, fns, types, generics, errs);
+    let name = fns[fi.id].name.clone();
     push_id(
         vars,
         UVar {
@@ -97,39 +96,37 @@ pub fn inst_fn_var(
             origin,
             ty,
             parent: None,
-            children: Vec::new(),
+            children: HashMap::new(),
         },
     )
 }
 
 pub fn inst_fn_ty(
-    id: FnID,
+    fi: &FnInst,
     fns: &[UFunc],
-    gargs: &[TypeID],
     types: &mut Vec<Type>,
     generics: &[UGeneric],
     errs: &mut Vec<ResErr>,
 ) -> TypeID {
-    let f = &fns[id];
-    let ty = Type::FnRef(FnTy {
-        id,
-        args: inst_generics(&f.gargs, gargs, types, generics, errs),
+    let f = &fns[fi.id];
+    let ty = Type::FnRef(FnInst {
+        id: fi.id,
+        gargs: inst_generics(&f.gargs, &fi.gargs, types, generics, errs),
     });
     push_id(types, ty)
 }
 
 pub fn inst_struct_var(
-    id: StructID,
+    si: &StructInst,
     structs: &[UStruct],
-    gargs: &[TypeID],
     origin: Origin,
     vars: &mut Vec<UVar>,
     types: &mut Vec<Type>,
     generics: &[UGeneric],
     errs: &mut Vec<ResErr>,
 ) -> VarID {
-    let ty = inst_struct_ty(id, structs, gargs, types, generics, errs);
-    let name = structs[id].name.clone();
+    let ty = inst_struct_ty(si, structs, types, generics, errs);
+    let name = structs[si.id].name.clone();
     push_id(
         vars,
         UVar {
@@ -137,23 +134,22 @@ pub fn inst_struct_var(
             origin,
             ty,
             parent: None,
-            children: Vec::new(),
+            children: HashMap::new(),
         },
     )
 }
 
 pub fn inst_struct_ty(
-    id: StructID,
+    si: &StructInst,
     structs: &[UStruct],
-    gargs: &[TypeID],
     types: &mut Vec<Type>,
     generics: &[UGeneric],
     errs: &mut Vec<ResErr>,
 ) -> TypeID {
-    let s = &structs[id];
-    let ty = Type::Struct(StructTy {
-        id,
-        args: inst_generics(&s.gargs, gargs, types, generics, errs),
+    let s = &structs[si.id];
+    let ty = Type::Struct(StructInst {
+        id: si.id,
+        gargs: inst_generics(&s.gargs, &si.gargs, types, generics, errs),
     });
     push_id(types, ty)
 }
@@ -204,18 +200,18 @@ pub fn inst_type_ins(
 ) -> TypeID {
     let ty = match types[id].clone() {
         Type::Bits(_) => return id,
-        Type::Struct(struct_ty) => Type::Struct(StructTy {
+        Type::Struct(struct_ty) => Type::Struct(StructInst {
             id: struct_ty.id,
-            args: struct_ty
-                .args
+            gargs: struct_ty
+                .gargs
                 .iter()
                 .map(|id| inst_type(*id, types, gmap))
                 .collect(),
         }),
-        Type::FnRef(fn_ty) => Type::FnRef(FnTy {
+        Type::FnRef(fn_ty) => Type::FnRef(FnInst {
             id: fn_ty.id,
-            args: fn_ty
-                .args
+            gargs: fn_ty
+                .gargs
                 .iter()
                 .map(|id| inst_type(*id, types, gmap))
                 .collect(),

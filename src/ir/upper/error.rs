@@ -3,7 +3,7 @@ use crate::{
     ir::ID,
 };
 
-use super::{KindTy, Origin, StructID, TypeID, UProgram};
+use super::{KindTy, Origin, Res, StructID, TypeID, UProgram};
 
 pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>) {
     for err in errs {
@@ -82,18 +82,18 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>)
                 origin,
                 found,
                 expected,
-                id,
             } => output.err(CompilerMsg::new(
                 {
-                    let name = match found {
-                        KindTy::Type => &p.type_name(ID::new(id)),
-                        KindTy::Var => &p.vars[id].name,
-                        KindTy::Struct => &p.structs[id].name,
+                    let name = match &found {
+                        Res::Fn(fty) => &p.fns[fty.id].name,
+                        Res::Type(id) => &p.type_name(id),
+                        Res::Var(id) => &p.vars[id].name,
+                        Res::Struct(sty) => &p.structs[sty.id].name,
                     };
                     format!(
                         "Expected {}, found {} '{}'",
                         expected.str(),
-                        found.str(),
+                        found.kind_str(),
                         name
                     )
                 },
@@ -106,12 +106,20 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>)
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum ResErr {
+    UnknownModule {
+        origin: Origin,
+        name: String,
+    },
+    UnknownMember {
+        origin: Origin,
+        name: String,
+    },
     KindMismatch {
         origin: Origin,
         expected: KindTy,
-        found: KindTy,
-        id: usize,
+        found: Res,
     },
     UnexpectedField {
         origin: Origin,
@@ -158,6 +166,7 @@ pub enum ResErr {
     },
 }
 
+#[derive(Debug, Clone)]
 pub enum ControlFlowOp {
     Break,
     Continue,
@@ -172,6 +181,7 @@ impl ControlFlowOp {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct TypeMismatch {
     pub dst: TypeID,
     pub src: TypeID,

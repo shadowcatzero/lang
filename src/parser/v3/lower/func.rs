@@ -7,7 +7,7 @@ use super::{CompilerMsg, CompilerOutput, FileSpan, FnLowerable, Imports, Node, P
 use crate::{
     ir::{
         FnID, GenericID, ModPath, Origin, Typable, Type, UFunc, UInstrInst, UInstruction,
-        UModuleBuilder, VarID, VarInst, VarInstID, VarStatus,
+        UModuleBuilder, VarID, UIdent, IdentID, IdentStatus,
     },
     parser,
     util::NameStack,
@@ -68,7 +68,7 @@ impl PFunction {
             let res = self.body.lower(&mut ctx);
             let mut instructions = ctx.instructions;
             if let Some(src) = res {
-                let origin = b.vars_insts[src].origin;
+                let origin = b.idents[src].origin;
                 instructions.push(UInstrInst {
                     origin,
                     i: UInstruction::Ret { src },
@@ -99,13 +99,13 @@ pub struct FnLowerCtx<'a, 'b> {
 }
 
 impl<'a, 'b> FnLowerCtx<'a, 'b> {
-    pub fn var(&mut self, node: &Node<parser::PIdent>) -> VarInstID {
-        let inst = VarInst {
+    pub fn var(&mut self, node: &Node<parser::PIdent>) -> IdentID {
+        let inst = UIdent {
             status: if let Some(n) = node.as_ref() {
                 if let Some(&var) = self.var_stack.search(&n.0) {
-                    VarStatus::Var(var)
+                    IdentStatus::Var(var)
                 } else {
-                    VarStatus::Unres {
+                    IdentStatus::Unres {
                         path: ModPath {
                             id: self.b.module,
                             path: Vec::new(),
@@ -116,7 +116,7 @@ impl<'a, 'b> FnLowerCtx<'a, 'b> {
                     }
                 }
             } else {
-                VarStatus::Cooked
+                IdentStatus::Cooked
             },
             origin: node.origin,
         };
@@ -128,7 +128,7 @@ impl<'a, 'b> FnLowerCtx<'a, 'b> {
     pub fn err_at(&mut self, span: FileSpan, msg: String) {
         self.output.err(CompilerMsg::new(msg, span))
     }
-    pub fn temp<T: Typable>(&mut self, ty: T) -> VarInstID {
+    pub fn temp<T: Typable>(&mut self, ty: T) -> IdentID {
         self.b.temp_var(self.origin, ty)
     }
     pub fn push(&mut self, i: UInstruction) {

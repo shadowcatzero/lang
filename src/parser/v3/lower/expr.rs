@@ -1,12 +1,12 @@
 use super::{func::FnLowerCtx, FnLowerable, PExpr, PostfixOp};
 use crate::{
-    ir::{Type, UData, UInstruction, VarInst, VarInstID},
+    ir::{Type, UData, UInstruction, UIdent, IdentID},
     parser::InfixOp,
 };
 
 impl FnLowerable for PExpr {
-    type Output = VarInstID;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInstID> {
+    type Output = IdentID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<IdentID> {
         let mut e = self;
         let mut path = Vec::new();
         while let PExpr::Member(node, ident) = e {

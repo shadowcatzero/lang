@@ -1,10 +1,10 @@
-use crate::{compiler::arch::riscv::*, ir::VarInst};
+use crate::{compiler::arch::riscv::*, ir::UIdent};
 
-pub type RV64Instruction = LinkerInstruction<RegRef, VarInst>;
+pub type RV64Instruction = LinkerInstruction<RegRef, UIdent>;
 
 #[derive(Copy, Clone)]
 pub enum RegRef {
-    Var(VarInst),
+    Var(UIdent),
     Reg(Reg),
 }
 

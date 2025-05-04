@@ -11,7 +11,7 @@ pub struct UProgram {
     pub data: Vec<UData>,
     pub generics: Vec<UGeneric>,
     pub vars: Vec<UVar>,
-    pub vars_insts: Vec<VarInst>,
+    pub idents: Vec<UIdent>,
     pub types: Vec<Type>,
 
     pub vfmap: HashMap<VarID, FnID>,
@@ -39,7 +39,7 @@ impl UProgram {
         Self {
             fns: Vec::new(),
             vars: Vec::new(),
-            vars_insts: Vec::new(),
+            idents: Vec::new(),
             structs: Vec::new(),
             types: Vec::new(),
             generics: Vec::new(),
@@ -66,8 +66,8 @@ impl UProgram {
         push_id(&mut self.types, t)
     }
 
-    pub fn def_var_inst(&mut self, i: VarInst) -> VarInstID {
-        push_id(&mut self.vars_insts, i)
+    pub fn def_var_inst(&mut self, i: UIdent) -> IdentID {
+        push_id(&mut self.idents, i)
     }
 
     pub fn def_generic(&mut self, g: UGeneric) -> GenericID {
@@ -85,12 +85,12 @@ impl UProgram {
     pub fn type_name(&self, ty: impl Typed) -> String {
         match ty.ty(self) {
             Type::Struct(ty) => {
-                format!("{}{}", self.structs[ty.id].name, self.gparams_str(&ty.args))
+                format!("{}{}", self.structs[ty.id].name, self.gparams_str(&ty.gargs))
             }
             Type::FnRef(ty) => {
                 format!(
                     "fn{}({}) -> {}",
-                    &self.gparams_str(&ty.args),
+                    &self.gparams_str(&ty.gargs),
                     &self.type_list_str(self.fns[ty.id].args.iter().map(|v| self.vars[v].ty)),
                     &self.type_name(self.fns[ty.id].ret)
                 )
@@ -146,21 +146,21 @@ impl<'a> UModuleBuilder<'a> {
             temp: 0,
         }
     }
-    pub fn temp_var(&mut self, origin: Origin, ty: impl Typable) -> VarInstID {
+    pub fn temp_var(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
         self.temp_var_inner(origin, ty)
     }
-    fn temp_var_inner(&mut self, origin: Origin, ty: impl Typable) -> VarInstID {
+    fn temp_var_inner(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
         let var = UVar {
             name: format!("temp{}", self.temp),
             ty: ty.ty(self),
             origin,
             parent: None,
-            children: Vec::new(),
+            children: HashMap::new(),
         };
         let id = self.p.def_var(var);
         self.temp += 1;
-        self.def_var_inst(VarInst {
-            status: VarStatus::Var(id),
+        self.def_var_inst(UIdent {
+            status: IdentStatus::Var(id),
             origin,
         })
     }
