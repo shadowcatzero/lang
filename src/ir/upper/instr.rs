@@ -1,52 +1,53 @@
 use std::{collections::HashMap, fmt::Write};
 
-use super::{arch::riscv64::RV64Instruction, inst::VarInst, DataID, FnID, UFunc, UInstrInst};
+use super::{arch::riscv64::RV64Instruction, DataID, FnID, Origin, UFunc, VarInst, VarInstID};
 use crate::{compiler::arch::riscv::Reg, util::Padder};
 
 #[derive(Clone)]
 pub enum UInstruction {
     Mv {
-        dst: VarInst,
-        src: VarInst,
+        dst: VarInstID,
+        src: VarInstID,
     },
     Ref {
-        dst: VarInst,
-        src: VarInst,
+        dst: VarInstID,
+        src: VarInstID,
     },
     Deref {
-        dst: VarInst,
-        src: VarInst,
+        dst: VarInstID,
+        src: VarInstID,
     },
     LoadData {
-        dst: VarInst,
+        dst: VarInstID,
         src: DataID,
     },
     LoadSlice {
-        dst: VarInst,
+        dst: VarInstID,
         src: DataID,
     },
     LoadFn {
-        dst: VarInst,
+        dst: VarInstID,
         src: FnID,
     },
     Call {
-        dst: VarInst,
-        f: VarInst,
-        args: Vec<VarInst>,
+        dst: VarInstID,
+        f: VarInstID,
+        args: Vec<VarInstID>,
     },
     AsmBlock {
         instructions: Vec<RV64Instruction>,
         args: Vec<AsmBlockArg>,
     },
     Ret {
-        src: VarInst,
+        src: VarInstID,
     },
     Construct {
-        dst: VarInst,
-        fields: HashMap<String, VarInst>,
+        dst: VarInstID,
+        struc: VarInstID,
+        fields: HashMap<String, VarInstID>,
     },
     If {
-        cond: VarInst,
+        cond: VarInstID,
         body: Vec<UInstrInst>,
     },
     Loop {
@@ -56,9 +57,21 @@ pub enum UInstruction {
     Continue,
 }
 
+#[derive(Clone)]
+pub struct UInstrInst {
+    pub i: UInstruction,
+    pub origin: Origin,
+}
+
+impl std::fmt::Debug for UInstrInst {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.i)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AsmBlockArg {
-    pub var: VarInst,
+    pub var: VarInstID,
     pub reg: Reg,
     pub ty: AsmBlockArgType,
 }
@@ -85,7 +98,7 @@ impl std::fmt::Debug for UInstruction {
             } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
             Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
             Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
-            Self::Construct { dst: dest, fields } => write!(f, "{dest:?} <- {fields:?}")?,
+            Self::Construct { dst: dest, struc, fields } => write!(f, "{dest:?} <- {struc:?}{fields:?}")?,
             Self::If { cond, body } => {
                 write!(f, "if {cond:?}:")?;
                 if !body.is_empty() {

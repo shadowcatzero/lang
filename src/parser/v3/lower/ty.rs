@@ -54,7 +54,7 @@ impl PType {
                 name: id.0.clone(),
                 origin,
             });
-            let ty = Type::Unres(ModPath { m: p.module, path });
+            let ty = Type::Unres(ModPath { id: p.module, path });
             return p.def_ty(ty);
         }
         let ty = match ty {
@@ -65,7 +65,7 @@ impl PType {
                     origin,
                 });
                 path.reverse();
-                Type::Unres(ModPath { m: p.module, path })
+                Type::Unres(ModPath { id: p.module, path })
             }
             PType::Ref(node) => node.lower(p, output).rf(),
             PType::Generic(node, nodes) => todo!(),
@@ -75,12 +75,15 @@ impl PType {
 }
 
 impl Node<PGenericDef> {
-    pub fn lower(&self, p: &mut UProgram) -> Option<GenericID> {
+    pub fn lower(&self, p: &mut UProgram) -> Option<(String, GenericID)> {
         let s = self.as_ref()?;
         let name = s.name.as_ref()?.to_string();
-        Some(p.def_generic(UGeneric {
-            name,
-            origin: self.origin,
-        }))
+        Some((
+            name.clone(),
+            p.def_generic(UGeneric {
+                name,
+                origin: self.origin,
+            }),
+        ))
     }
 }

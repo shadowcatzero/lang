@@ -1,14 +1,15 @@
 use crate::{
     compiler::arch::riscv::Reg,
     ir::{
-        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, Type, UInstruction, VarInst
+        arch::riscv64::RV64Instruction, AsmBlockArg, AsmBlockArgType, Type, UInstruction, VarInst,
+        VarInstID,
     },
     parser::PAsmBlockArg,
 };
 
 use super::{FnLowerCtx, FnLowerable, PAsmBlock, PInstruction, PUAsmBlockArg};
 
-type PLAsmBlockArg = PAsmBlockArg<Reg, VarInst>;
+type PLAsmBlockArg = PAsmBlockArg<Reg, VarInstID>;
 
 impl FnLowerable for PInstruction {
     type Output = RV64Instruction;
@@ -19,7 +20,7 @@ impl FnLowerable for PInstruction {
 }
 
 impl FnLowerable for PAsmBlock {
-    type Output = VarInst;
+    type Output = VarInstID;
 
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<Self::Output> {
         let mut args = Vec::new();

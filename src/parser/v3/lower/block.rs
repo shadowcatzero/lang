@@ -1,13 +1,13 @@
 use crate::{
-    ir::{Type, UInstruction, UVar, VarInst},
+    ir::{Type, UInstruction, UVar, VarInst, VarInstID},
     parser::{PConstStatement, PStatementLike},
 };
 
 use super::{FnLowerCtx, FnLowerable, Import, PBlock, PStatement};
 
 impl FnLowerable for PBlock {
-    type Output = VarInst;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInst> {
+    type Output = VarInstID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<VarInstID> {
         let mut last = None;
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();

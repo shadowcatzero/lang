@@ -6,6 +6,7 @@ mod expr;
 mod func;
 mod struc;
 mod ty;
+mod map;
 
 use super::*;
 use crate::ir::{Type, UFunc, UModuleBuilder};

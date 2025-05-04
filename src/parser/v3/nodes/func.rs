@@ -1,13 +1,13 @@
 use super::{
-    util::parse_list, Node, PBlock, PIdent, PType, PVarDef, Parsable, ParseResult, ParserCtx,
-    Symbol,
+    util::parse_list, Node, PBlock, PGenericDef, PIdent, PType, PVarDef, Parsable, ParseResult,
+    ParserCtx, Symbol,
 };
 use std::fmt::Debug;
 
 pub struct PFunctionHeader {
     pub name: Node<PIdent>,
     pub args: Vec<Node<PVarDef>>,
-    pub gargs: Vec<Node<PType>>,
+    pub gargs: Vec<Node<PGenericDef>>,
     pub ret: Option<Node<PType>>,
 }
 

@@ -1,5 +1,9 @@
-use super::{GenericID, Len, ModPath, TypeID, UFunc, UProgram, UStruct, UVar, VarID, VarInst};
-use crate::ir::ID;
+use std::collections::HashMap;
+
+use super::{
+    push_id, FnID, GenericID, Len, ModPath, Origin, ResErr, StructID, TypeCache, TypeID, UFunc,
+    UGeneric, UProgram, UStruct, UVar, VarID,
+};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FieldRef {
@@ -8,16 +12,24 @@ pub struct FieldRef {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct GenericTy<T> {
-    pub id: ID<T>,
+pub struct StructTy {
+    pub id: StructID,
+    pub args: Vec<TypeID>,
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct FnTy {
+    pub id: FnID,
     pub args: Vec<TypeID>,
 }
 
 #[derive(Clone)]
 pub enum Type {
     Bits(u32),
-    Struct(GenericTy<UStruct>),
-    Fn(GenericTy<UFunc>),
+    Struct(StructTy),
+    FnRef(FnTy),
+    // this can be added for constraints later (F: fn(...) -> ...)
+    // Fn { args: Vec<TypeID>, ret: TypeID },
     Ref(TypeID),
     Deref(TypeID),
     Slice(TypeID),
@@ -66,36 +78,157 @@ impl Type {
     }
 }
 
-pub trait TypeIDed {
-    fn type_id(&self, vars: &[UVar]) -> TypeID;
+pub fn inst_fn_var(
+    id: FnID,
+    fns: &[UFunc],
+    gargs: &[TypeID],
+    origin: Origin,
+    vars: &mut Vec<UVar>,
+    types: &mut Vec<Type>,
+    generics: &[UGeneric],
+    errs: &mut Vec<ResErr>,
+) -> VarID {
+    let ty = inst_fn_ty(id, fns, gargs, types, generics, errs);
+    let name = fns[id].name.clone();
+    push_id(
+        vars,
+        UVar {
+            name,
+            origin,
+            ty,
+            parent: None,
+            children: Vec::new(),
+        },
+    )
 }
 
-impl TypeIDed for TypeID {
-    fn type_id(&self, _: &[UVar]) -> TypeID {
-        *self
-    }
+pub fn inst_fn_ty(
+    id: FnID,
+    fns: &[UFunc],
+    gargs: &[TypeID],
+    types: &mut Vec<Type>,
+    generics: &[UGeneric],
+    errs: &mut Vec<ResErr>,
+) -> TypeID {
+    let f = &fns[id];
+    let ty = Type::FnRef(FnTy {
+        id,
+        args: inst_generics(&f.gargs, gargs, types, generics, errs),
+    });
+    push_id(types, ty)
 }
 
-impl TypeIDed for &TypeID {
-    fn type_id(&self, _: &[UVar]) -> TypeID {
-        **self
-    }
+pub fn inst_struct_var(
+    id: StructID,
+    structs: &[UStruct],
+    gargs: &[TypeID],
+    origin: Origin,
+    vars: &mut Vec<UVar>,
+    types: &mut Vec<Type>,
+    generics: &[UGeneric],
+    errs: &mut Vec<ResErr>,
+) -> VarID {
+    let ty = inst_struct_ty(id, structs, gargs, types, generics, errs);
+    let name = structs[id].name.clone();
+    push_id(
+        vars,
+        UVar {
+            name,
+            origin,
+            ty,
+            parent: None,
+            children: Vec::new(),
+        },
+    )
 }
 
-impl TypeIDed for VarID {
-    fn type_id(&self, vars: &[UVar]) -> TypeID {
-        vars[self].ty
-    }
+pub fn inst_struct_ty(
+    id: StructID,
+    structs: &[UStruct],
+    gargs: &[TypeID],
+    types: &mut Vec<Type>,
+    generics: &[UGeneric],
+    errs: &mut Vec<ResErr>,
+) -> TypeID {
+    let s = &structs[id];
+    let ty = Type::Struct(StructTy {
+        id,
+        args: inst_generics(&s.gargs, gargs, types, generics, errs),
+    });
+    push_id(types, ty)
 }
 
-impl TypeIDed for VarInst {
-    fn type_id(&self, vars: &[UVar]) -> TypeID {
-        self.id.type_id(vars)
+pub fn inst_generics(
+    source: &[GenericID],
+    args: &[TypeID],
+    types: &mut Vec<Type>,
+    // will be needed when constraints are added
+    _generics: &[UGeneric],
+    errs: &mut Vec<ResErr>,
+) -> Vec<TypeID> {
+    if source.len() != args.len() {
+        // don't want unequal lengths to be inferred further
+        return source.iter().map(|_| push_id(types, Type::Error)).collect();
     }
+    let mut gargs = Vec::new();
+    let mut gmap = HashMap::new();
+    for &gid in source {
+        let id = push_id(types, Type::Error);
+        gmap.insert(gid, id);
+        gargs.push(id);
+    }
+    for (gid, &ty) in source.iter().zip(args) {
+        inst_type_ins(
+            |types, ty| {
+                let id = gmap[gid];
+                types[id] = ty;
+                id
+            },
+            ty,
+            types,
+            &gmap,
+        );
+    }
+    gargs
 }
 
-impl TypeIDed for &VarInst {
-    fn type_id(&self, vars: &[UVar]) -> TypeID {
-        self.id.type_id(vars)
-    }
+pub fn inst_type(id: TypeID, types: &mut Vec<Type>, gmap: &HashMap<GenericID, TypeID>) -> TypeID {
+    inst_type_ins(push_id, id, types, gmap)
+}
+
+pub fn inst_type_ins(
+    insert: impl Fn(&mut Vec<Type>, Type) -> TypeID,
+    id: TypeID,
+    types: &mut Vec<Type>,
+    gmap: &HashMap<GenericID, TypeID>,
+) -> TypeID {
+    let ty = match types[id].clone() {
+        Type::Bits(_) => return id,
+        Type::Struct(struct_ty) => Type::Struct(StructTy {
+            id: struct_ty.id,
+            args: struct_ty
+                .args
+                .iter()
+                .map(|id| inst_type(*id, types, gmap))
+                .collect(),
+        }),
+        Type::FnRef(fn_ty) => Type::FnRef(FnTy {
+            id: fn_ty.id,
+            args: fn_ty
+                .args
+                .iter()
+                .map(|id| inst_type(*id, types, gmap))
+                .collect(),
+        }),
+        Type::Ref(id) => Type::Ref(inst_type(id, types, gmap)),
+        Type::Deref(id) => Type::Deref(inst_type(id, types, gmap)),
+        Type::Slice(id) => Type::Slice(inst_type(id, types, gmap)),
+        Type::Array(id, len) => Type::Array(inst_type(id, types, gmap), len),
+        Type::Unit => Type::Unit,
+        Type::Unres(mod_path) => Type::Unres(mod_path.clone()),
+        Type::Generic(gid) => return gmap.get(&gid).cloned().unwrap_or_else(|| id),
+        Type::Infer => Type::Infer,
+        Type::Error => Type::Error,
+    };
+    insert(types, ty)
 }

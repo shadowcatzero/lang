@@ -79,6 +79,20 @@ impl<T> IndexMut<&ID<T>> for Vec<T> {
     }
 }
 
+impl<T> Index<&mut ID<T>> for Vec<T> {
+    type Output = T;
+
+    fn index(&self, i: &mut ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<&mut ID<T>> for Vec<T> {
+    fn index_mut(&mut self, i: &mut ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}
+
 impl<T> Index<ID<T>> for [T] {
     type Output = T;
 
@@ -103,6 +117,20 @@ impl<T> Index<&ID<T>> for [T] {
 
 impl<T> IndexMut<&ID<T>> for [T] {
     fn index_mut(&mut self, i: &ID<T>) -> &mut Self::Output {
+        &mut self[i.0]
+    }
+}
+
+impl<T> Index<&mut ID<T>> for [T] {
+    type Output = T;
+
+    fn index(&self, i: &mut ID<T>) -> &Self::Output {
+        &self[i.0]
+    }
+}
+
+impl<T> IndexMut<&mut ID<T>> for [T] {
+    fn index_mut(&mut self, i: &mut ID<T>) -> &mut Self::Output {
         &mut self[i.0]
     }
 }

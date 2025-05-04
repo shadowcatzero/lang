@@ -14,7 +14,7 @@ pub struct PStruct {
     pub fields: PStructFields,
 }
 
-pub struct PMap(Vec<Node<PFieldDef>>);
+pub struct PMap(pub Vec<Node<PFieldDef>>);
 
 #[derive(Debug)]
 pub enum PStructFields {
