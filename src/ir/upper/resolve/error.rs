@@ -1,7 +1,10 @@
-use crate::common::{CompilerMsg, CompilerOutput};
+use crate::{
+    common::{CompilerMsg, CompilerOutput},
+    ir::RType,
+};
 
 use super::{
-    IdentStatus, KindTy, MemRes, MemberTy, Origin, Res, ResBase, StructID, Type, TypeID, UProgram
+    IdentStatus, KindTy, MemberTy, Origin, Res, ResBase, StructID, Type, TypeID, UProgram,
 };
 
 pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, mut errs: Vec<ResErr>) {
@@ -16,7 +19,11 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, mut errs: Vec<ResE
                     parent: base.clone(),
                 })
             }
-            IdentStatus::Failed(err) => errs.push(err.clone()),
+            IdentStatus::Failed(err) => {
+                if let Some(err) = err {
+                    errs.push(err.clone())
+                }
+            }
             _ => (),
         }
     }
@@ -113,11 +120,7 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, mut errs: Vec<ResE
     }
     for var in &p.vars {
         match &p.types[var.ty] {
-            Type::Error => output.err(CompilerMsg::new(
-                format!("Var {:?} is error type!", var.name),
-                var.origin,
-            )),
-            Type::Infer => output.err(CompilerMsg::new(
+            Type::Real(RType::Infer) => output.err(CompilerMsg::new(
                 format!("Type of {:?} cannot be inferred", var.name),
                 var.origin,
             )),

@@ -1,7 +1,30 @@
 use std::collections::HashMap;
 
-use super::{arch::riscv64::RV64Instruction, DataID, IdentID, Origin, ResStage, Unresolved};
+use super::{arch::riscv64::RV64Instruction, *};
 use crate::compiler::arch::riscv::Reg;
+
+pub trait ResStage {
+    type Var;
+    type Func;
+    type Struct;
+    type Type;
+}
+
+pub struct Unresolved;
+impl ResStage for Unresolved {
+    type Var = IdentID;
+    type Func = IdentID;
+    type Struct = IdentID;
+    type Type = IdentID;
+}
+
+pub struct Resolved;
+impl ResStage for Resolved {
+    type Var = VarID;
+    type Func = FnInst;
+    type Struct = StructInst;
+    type Type = TypeID;
+}
 
 pub enum UInstruction<S: ResStage = Unresolved> {
     Mv {

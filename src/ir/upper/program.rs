@@ -24,7 +24,7 @@ impl UProgram {
     pub fn new() -> Self {
         let mut types = Vec::new();
         let tc = TypeCache {
-            unit: push_id(&mut types, Type::Unit),
+            unit: push_id(&mut types, Type::Real(RType::Unit)),
             error: push_id(&mut types, Type::Error),
         };
         Self {
@@ -42,7 +42,7 @@ impl UProgram {
     }
 
     pub fn infer(&mut self) -> TypeID {
-        self.def_ty(Type::Infer)
+        self.def_ty(RType::Infer.ty())
     }
 
     pub fn def_var(&mut self, v: UVar) -> VarID {
@@ -79,31 +79,34 @@ impl UProgram {
 
     pub fn type_name(&self, ty: impl Typed) -> String {
         match ty.ty(self) {
-            Type::Struct(ty) => {
-                format!(
-                    "{}{}",
-                    self.structs[ty.id].name,
-                    self.gparams_str(&ty.gargs)
-                )
-            }
-            Type::FnRef(ty) => {
-                format!(
-                    "fn{}({}) -> {}",
-                    &self.gparams_str(&ty.gargs),
-                    &self.type_list_str(self.fns[ty.id].args.iter().map(|v| self.vars[v].ty)),
-                    &self.type_name(self.fns[ty.id].ret)
-                )
-            }
-            Type::Ref(t) => format!("{}&", self.type_name(t)),
-            Type::Deref(t) => format!("{}^", self.type_name(t)),
-            Type::Bits(size) => format!("b{}", size),
-            Type::Array(t, len) => format!("[{}; {len}]", self.type_name(t)),
-            Type::Unit => "()".to_string(),
-            Type::Slice(t) => format!("&[{}]", self.type_name(t)),
+            Type::Real(rty) => match rty {
+                RType::Struct(ty) => {
+                    format!(
+                        "{}{}",
+                        self.structs[ty.id].name,
+                        self.gparams_str(&ty.gargs)
+                    )
+                }
+                RType::FnRef(ty) => {
+                    format!(
+                        "fn{}({}) -> {}",
+                        &self.gparams_str(&ty.gargs),
+                        &self.type_list_str(self.fns[ty.id].args.iter().map(|v| self.vars[v].ty)),
+                        &self.type_name(self.fns[ty.id].ret)
+                    )
+                }
+                RType::Ref(t) => format!("{}&", self.type_name(t)),
+                RType::Deref(t) => format!("{}^", self.type_name(t)),
+                RType::Bits(size) => format!("b{}", size),
+                RType::Array(t, len) => format!("[{}; {len}]", self.type_name(t)),
+                RType::Unit => "()".to_string(),
+                RType::Slice(t) => format!("&[{}]", self.type_name(t)),
+                RType::Infer => "{inferred}".to_string(),
+            },
             Type::Error => "{error}".to_string(),
-            Type::Infer => "{inferred}".to_string(),
             Type::Unres(_) => "{unresolved}".to_string(),
             Type::Generic(id) => self.generics[id].name.clone(),
+            Type::Ptr(id) => self.type_name(id),
         }
     }
 
