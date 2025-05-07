@@ -1,16 +1,7 @@
-use crate::compiler::arch::riscv::Reg;
-
-use super::VarID;
+use super::{arch::riscv64::RegRef, IdentID};
 
 #[derive(Clone)]
 pub struct IRAsmInstruction {
     op: String,
-    args: Vec<RegRef>,
+    args: Vec<RegRef<IdentID, String>>,
 }
-
-#[derive(Clone)]
-pub enum RegRef {
-    Var(VarID),
-    Reg(String),
-}
-

@@ -4,65 +4,131 @@ mod block;
 mod def;
 mod expr;
 mod func;
+mod map;
 mod struc;
 mod ty;
-mod map;
+
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 use super::*;
-use crate::ir::{Type, UFunc, UModuleBuilder};
+use crate::{
+    ir::{
+        IdentID, IdentStatus, ModID, Origin, Res, Type, TypeID, UFunc, UIdent, UModule, UProgram,
+        UVar,
+    },
+    util::NameStack,
+};
+pub use func::{FnLowerCtx, FnLowerable};
 
 impl PModule {
     pub fn lower(
         &self,
         path: Vec<String>,
-        p: &mut UModuleBuilder,
+        p: &mut UProgram,
         imports: &mut Imports,
         output: &mut CompilerOutput,
-    ) {
+    ) -> ModID {
         let name = path.last().unwrap().clone();
-        p.set_module(path);
-        let fid = p.def_searchable(&name, None, self.block.origin);
-        p.push_name(&name);
-        let mut fctx = FnLowerCtx {
-            b: p,
+        let f = UFunc {
+            name: name.clone(),
+            args: Vec::new(),
             instructions: Vec::new(),
-            output,
+            gargs: Vec::new(),
+            ret: p.def_ty(Type::Unit),
             origin: self.block.origin,
-            imports,
+        };
+        let fid = p.def_fn(f);
+        let mid = p.def_module(UModule {
+            name,
+            members: HashMap::new(),
+            parent: None,
+            func: fid,
+        });
+        let mut ctx = ModuleLowerCtx {
+            p,
+            output,
+            module: mid,
+            temp: 0,
+            ident_stack: NameStack::new(),
+        };
+        let mut fctx = FnLowerCtx {
+            ctx: &mut ctx,
+            instructions: Vec::new(),
+            origin: self.block.origin,
         };
         self.block.lower(&mut fctx);
-        let f = UFunc {
-            args: Vec::new(),
-            instructions: fctx.instructions,
-            ret: Type::Unit,
+        p.fns[fid].instructions = fctx.instructions;
+        mid
+    }
+}
+
+pub struct ModuleLowerCtx<'a> {
+    pub p: &'a mut UProgram,
+    pub output: &'a mut CompilerOutput,
+    pub module: ModID,
+    pub temp: usize,
+    pub ident_stack: NameStack<IdentID>,
+}
+
+impl<'a> ModuleLowerCtx<'a> {
+    pub fn new(program: &'a mut UProgram, output: &'a mut CompilerOutput, id: ModID) -> Self {
+        Self {
+            p: program,
+            output,
+            module: id,
+            temp: 0,
+            ident_stack: NameStack::new(),
+        }
+    }
+    pub fn temp_var(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
+        self.temp_var_inner(origin, ty)
+    }
+    fn temp_var_inner(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
+        let var = UVar {
+            name: format!("temp{}", self.temp),
+            ty: ty.ty(self),
+            origin,
+            parent: None,
+            children: HashMap::new(),
         };
-        p.write(fid, f);
-        p.pop_name();
+        let id = self.p.def_var(var);
+        self.temp += 1;
+        self.def_ident(UIdent {
+            status: IdentStatus::Res(Res::Var(id)),
+            origin,
+        })
     }
 }
 
-pub use func::FnLowerCtx;
-use import::Imports;
-
-pub trait FnLowerable {
-    type Output;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<Self::Output>;
+pub trait Typable {
+    fn ty(self, p: &mut UProgram) -> TypeID;
 }
 
-impl<T: FnLowerable> FnLowerable for Node<T> {
-    type Output = T::Output;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<T::Output> {
-        let old_span = ctx.origin;
-        ctx.origin = self.origin;
-        let res = self.as_ref()?.lower(ctx);
-        ctx.origin = old_span;
-        res
+impl Typable for Type {
+    fn ty(self, p: &mut UProgram) -> TypeID {
+        p.def_ty(self)
     }
 }
 
-impl<T: FnLowerable> FnLowerable for Box<T> {
-    type Output = T::Output;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<T::Output> {
-        self.as_ref().lower(ctx)
+impl Typable for TypeID {
+    fn ty(self, p: &mut UProgram) -> TypeID {
+        self
+    }
+}
+
+impl Deref for ModuleLowerCtx<'_> {
+    type Target = UProgram;
+
+    fn deref(&self) -> &Self::Target {
+        self.p
+    }
+}
+
+impl DerefMut for ModuleLowerCtx<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.p
     }
 }

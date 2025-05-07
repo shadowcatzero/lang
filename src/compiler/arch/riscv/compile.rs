@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     compiler::{arch::riscv::Reg, debug::DebugInfo, UnlinkedFunction, UnlinkedProgram},
-    ir::{
-        arch::riscv64::{RV64Instruction as AI, RegRef},
-        LInstruction as IRI, LProgram, Len, Size,
-    },
+    ir::{arch::riscv64::RegRef, LInstruction as IRI, LProgram, Len, Size, VarID},
 };
 
 use super::{LinkerInstruction as LI, *};
@@ -103,8 +100,8 @@ pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
             irli.push((v.len(), format!("{i:?}")));
             match i {
                 IRI::Mv {
-                    dest,
-                    dest_offset,
+                    dst: dest,
+                    dst_offset: dest_offset,
                     src,
                     src_offset,
                 } => {
@@ -119,11 +116,15 @@ pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
                         s,
                     );
                 }
-                IRI::Ref { dest, src } => {
+                IRI::Ref { dst: dest, src } => {
                     v.push(LI::addi(t0, sp, stack[src]));
                     v.push(LI::sd(t0, stack[dest], sp));
                 }
-                IRI::LoadAddr { dest, offset, src } => {
+                IRI::LoadAddr {
+                    dst: dest,
+                    offset,
+                    src,
+                } => {
                     v.extend([
                         LI::La {
                             dest: t0,
@@ -133,7 +134,7 @@ pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
                     ]);
                 }
                 IRI::LoadData {
-                    dest,
+                    dst: dest,
                     offset,
                     src,
                     len,
@@ -144,7 +145,7 @@ pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
                     });
                     mov_mem(&mut v, t0, 0, sp, stack[dest] + *offset as i32, t1, *len);
                 }
-                IRI::Call { dest, f, args } => {
+                IRI::Call { dst: dest, f, args } => {
                     let mut offset = 0;
                     if let Some((dest, s)) = dest {
                         offset -= align(s);
@@ -166,82 +167,14 @@ pub fn compile(program: &LProgram) -> UnlinkedProgram<LI> {
                     for (reg, var) in inputs {
                         v.push(LI::ld(*reg, stack[var], sp));
                     }
-                    fn r(rr: RegRef) -> Reg {
+                    fn r(rr: &RegRef<VarID>) -> Reg {
                         match rr {
                             RegRef::Var(..) => todo!(),
-                            RegRef::Reg(reg) => reg,
+                            RegRef::Reg(reg) => *reg,
                         }
                     }
                     for i in instructions {
-                        match *i {
-                            AI::ECall => v.push(LI::ECall),
-                            AI::EBreak => v.push(LI::EBreak),
-                            AI::Li { dest, imm } => v.push(LI::Li { dest: r(dest), imm }),
-                            AI::Mv { dest, src } => v.push(LI::Mv {
-                                dest: r(dest),
-                                src: r(src),
-                            }),
-                            AI::La { .. } => todo!(),
-                            AI::Load {
-                                width,
-                                dest,
-                                base,
-                                offset,
-                            } => v.push(LI::Load {
-                                width,
-                                dest: r(dest),
-                                offset,
-                                base: r(base),
-                            }),
-                            AI::Store {
-                                width,
-                                src,
-                                base,
-                                offset,
-                            } => v.push(LI::Store {
-                                width,
-                                src: r(src),
-                                offset,
-                                base: r(base),
-                            }),
-                            AI::Op {
-                                op,
-                                funct,
-                                dest,
-                                src1,
-                                src2,
-                            } => v.push(LI::Op {
-                                op,
-                                funct,
-                                dest: r(dest),
-                                src1: r(src1),
-                                src2: r(src2),
-                            }),
-                            AI::OpImm { op, dest, src, imm } => v.push(LI::OpImm {
-                                op,
-                                dest: r(dest),
-                                src: r(src),
-                                imm,
-                            }),
-                            AI::OpImmF7 {
-                                op,
-                                funct,
-                                dest,
-                                src,
-                                imm,
-                            } => v.push(LI::OpImmF7 {
-                                op,
-                                funct,
-                                dest: r(dest),
-                                src: r(src),
-                                imm,
-                            }),
-                            AI::Ret => v.push(LI::Ret),
-                            AI::Call(..) => todo!(),
-                            AI::Jal { .. } => todo!(),
-                            AI::J(..) => todo!(),
-                            AI::Branch { .. } => todo!(),
-                        }
+                        v.push(i.map(|v| r(v)));
                     }
                     for (reg, var) in outputs {
                         v.push(LI::sd(*reg, stack[var], sp));

@@ -1,11 +1,25 @@
-use crate::{
-    common::{CompilerMsg, CompilerOutput},
-    ir::ID,
+use crate::common::{CompilerMsg, CompilerOutput};
+
+use super::{
+    IdentStatus, KindTy, MemRes, MemberTy, Origin, Res, ResBase, StructID, Type, TypeID, UProgram
 };
 
-use super::{KindTy, Origin, Res, StructID, TypeID, UProgram};
-
-pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>) {
+pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, mut errs: Vec<ResErr>) {
+    for ident in &p.idents {
+        match &ident.status {
+            IdentStatus::Unres { path, base } => {
+                let mem = path.last().unwrap();
+                errs.push(ResErr::UnknownMember {
+                    ty: mem.ty,
+                    name: mem.name.clone(),
+                    origin: mem.origin,
+                    parent: base.clone(),
+                })
+            }
+            IdentStatus::Failed(err) => errs.push(err.clone()),
+            _ => (),
+        }
+    }
     for err in errs {
         match err {
             ResErr::Type {
@@ -56,7 +70,7 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>)
                     origin,
                 ));
             }
-            ResErr::UnknownField { origin, id, name } => {
+            ResErr::UnknownStructField { origin, id, name } => {
                 output.err(CompilerMsg::new(
                     format!("Unknown field '{name}' in struct '{}'", p.structs[id].name),
                     origin,
@@ -83,46 +97,47 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, errs: Vec<ResErr>)
                 found,
                 expected,
             } => output.err(CompilerMsg::new(
-                {
-                    let name = match &found {
-                        Res::Fn(fty) => &p.fns[fty.id].name,
-                        Res::Type(id) => &p.type_name(id),
-                        Res::Var(id) => &p.vars[id].name,
-                        Res::Struct(sty) => &p.structs[sty.id].name,
-                    };
-                    format!(
-                        "Expected {}, found {} '{}'",
-                        expected.str(),
-                        found.kind_str(),
-                        name
-                    )
-                },
+                format!("Expected {expected}, found {}", found.display_str(p)),
                 origin,
             )),
-            ResErr::UnexpectedField { origin } => {
-                output.err(CompilerMsg::new(format!("Unexpected fields here"), origin))
-            }
+            ResErr::UnknownMember {
+                origin,
+                ty,
+                name,
+                parent,
+            } => output.err(CompilerMsg::new(
+                format!("Unknown {ty} {name} of {}", parent.display_str(p)),
+                origin,
+            )),
+        }
+    }
+    for var in &p.vars {
+        match &p.types[var.ty] {
+            Type::Error => output.err(CompilerMsg::new(
+                format!("Var {:?} is error type!", var.name),
+                var.origin,
+            )),
+            Type::Infer => output.err(CompilerMsg::new(
+                format!("Type of {:?} cannot be inferred", var.name),
+                var.origin,
+            )),
+            _ => (),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ResErr {
-    UnknownModule {
-        origin: Origin,
-        name: String,
-    },
     UnknownMember {
         origin: Origin,
+        ty: MemberTy,
         name: String,
+        parent: ResBase,
     },
     KindMismatch {
         origin: Origin,
         expected: KindTy,
         found: Res,
-    },
-    UnexpectedField {
-        origin: Origin,
     },
     GenericCount {
         origin: Origin,
@@ -153,7 +168,7 @@ pub enum ResErr {
         id: StructID,
         name: String,
     },
-    UnknownField {
+    UnknownStructField {
         origin: Origin,
         id: StructID,
         name: String,

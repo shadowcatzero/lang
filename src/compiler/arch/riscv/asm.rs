@@ -68,6 +68,83 @@ pub enum LinkerInstruction<R = Reg, S = Symbol> {
         imm: i32,
     },
 }
+impl<R, S> LinkerInstruction<R, S> {
+    pub fn map<R2, S2>(&self, r: impl Fn(&R) -> R2) -> LinkerInstruction<R2, S2> {
+        self.try_map(|v| Some(r(v))).unwrap()
+    }
+    pub fn try_map<R2, S2>(&self, r: impl Fn(&R) -> Option<R2>) -> Option<LinkerInstruction<R2, S2>> {
+        use LinkerInstruction as I;
+        Some(match self {
+            Self::ECall => I::ECall,
+            Self::EBreak => I::EBreak,
+            &Self::Li { ref dest, imm } => I::Li { dest: r(dest)?, imm },
+            Self::Mv { ref dest, src } => I::Mv {
+                dest: r(dest)?,
+                src: r(src)?,
+            },
+            Self::La { .. } => todo!(),
+            &Self::Load {
+                width,
+                ref dest,
+                ref base,
+                offset,
+            } => I::Load {
+                width,
+                dest: r(dest)?,
+                offset,
+                base: r(base)?,
+            },
+            &Self::Store {
+                width,
+                ref src,
+                ref base,
+                offset,
+            } => I::Store {
+                width,
+                src: r(src)?,
+                offset,
+                base: r(base)?,
+            },
+            &Self::Op {
+                op,
+                funct,
+                ref dest,
+                ref src1,
+                ref src2,
+            } => I::Op {
+                op,
+                funct,
+                dest: r(dest)?,
+                src1: r(src1)?,
+                src2: r(src2)?,
+            },
+            &Self::OpImm { op, ref dest, ref src, imm } => I::OpImm {
+                op,
+                dest: r(dest)?,
+                src: r(src)?,
+                imm,
+            },
+            &Self::OpImmF7 {
+                op,
+                funct,
+                ref dest,
+                ref src,
+                imm,
+            } => I::OpImmF7 {
+                op,
+                funct,
+                dest: r(dest)?,
+                src: r(src)?,
+                imm,
+            },
+            Self::Ret => I::Ret,
+            Self::Call(..) => todo!(),
+            Self::Jal { .. } => todo!(),
+            Self::J(..) => todo!(),
+            Self::Branch { .. } => todo!(),
+        })
+    }
+}
 
 pub fn addi(dest: Reg, src: Reg, imm: BitsI32<11, 0>) -> RawInstruction {
     opi(op32i::ADD, dest, src, imm.to_u())

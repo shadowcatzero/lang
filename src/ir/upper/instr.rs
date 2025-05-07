@@ -1,153 +1,71 @@
-use std::{collections::HashMap, fmt::Write};
+use std::collections::HashMap;
 
-use super::{arch::riscv64::RV64Instruction, DataID, FnID, Origin, UFunc, UIdent, IdentID};
-use crate::{compiler::arch::riscv::Reg, util::Padder};
+use super::{arch::riscv64::RV64Instruction, DataID, IdentID, Origin, ResStage, Unresolved};
+use crate::compiler::arch::riscv::Reg;
 
-#[derive(Clone)]
-pub enum UInstruction {
+pub enum UInstruction<S: ResStage = Unresolved> {
     Mv {
-        dst: IdentID,
-        src: IdentID,
+        dst: S::Var,
+        src: S::Var,
     },
     Ref {
-        dst: IdentID,
-        src: IdentID,
+        dst: S::Var,
+        src: S::Var,
     },
     Deref {
-        dst: IdentID,
-        src: IdentID,
+        dst: S::Var,
+        src: S::Var,
     },
     LoadData {
-        dst: IdentID,
+        dst: S::Var,
         src: DataID,
     },
     LoadSlice {
-        dst: IdentID,
+        dst: S::Var,
         src: DataID,
     },
-    LoadFn {
-        dst: IdentID,
-        src: FnID,
-    },
     Call {
-        dst: IdentID,
-        f: IdentID,
-        args: Vec<IdentID>,
+        dst: S::Var,
+        f: S::Func,
+        args: Vec<S::Var>,
     },
     AsmBlock {
-        instructions: Vec<RV64Instruction>,
-        args: Vec<AsmBlockArg>,
+        instructions: Vec<RV64Instruction<S::Var>>,
+        args: Vec<AsmBlockArg<S::Var>>,
     },
     Ret {
-        src: IdentID,
+        src: S::Var,
     },
     Construct {
-        dst: IdentID,
-        struc: IdentID,
-        fields: HashMap<String, IdentID>,
+        dst: S::Var,
+        struc: S::Struct,
+        fields: HashMap<String, S::Var>,
     },
     If {
-        cond: IdentID,
-        body: Vec<UInstrInst>,
+        cond: S::Var,
+        body: Vec<UInstrInst<S>>,
     },
     Loop {
-        body: Vec<UInstrInst>,
+        body: Vec<UInstrInst<S>>,
     },
     Break,
     Continue,
 }
 
-#[derive(Clone)]
-pub struct UInstrInst {
-    pub i: UInstruction,
+pub struct UInstrInst<S: ResStage = Unresolved> {
+    pub i: UInstruction<S>,
     pub origin: Origin,
 }
 
-impl std::fmt::Debug for UInstrInst {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.i)
-    }
-}
-
 #[derive(Debug, Clone)]
-pub struct AsmBlockArg {
-    pub var: IdentID,
+pub struct AsmBlockArg<V = IdentID> {
+    pub var: V,
     pub reg: Reg,
     pub ty: AsmBlockArgType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum AsmBlockArgType {
     In,
     Out,
-}
-
-impl std::fmt::Debug for UInstruction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Mv { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::Ref { dst: dest, src } => write!(f, "{dest:?} <- {src:?}&")?,
-            Self::Deref { dst: dest, src } => write!(f, "{dest:?} <- {src:?}^")?,
-            Self::LoadData { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::LoadFn { dst: dest, src } => write!(f, "{dest:?} <- {src:?}")?,
-            Self::LoadSlice { dst: dest, src } => write!(f, "{dest:?} <- &[{src:?}]")?,
-            Self::Call {
-                dst: dest,
-                f: func,
-                args,
-            } => write!(f, "{dest:?} <- {func:?}({args:?})")?,
-            Self::AsmBlock { args, instructions } => write!(f, "asm {args:?} {instructions:#?}")?,
-            Self::Ret { src } => f.debug_struct("Ret").field("src", src).finish()?,
-            Self::Construct { dst: dest, struc, fields } => write!(f, "{dest:?} <- {struc:?}{fields:?}")?,
-            Self::If { cond, body } => {
-                write!(f, "if {cond:?}:")?;
-                if !body.is_empty() {
-                    f.write_str("{\n    ")?;
-                    let mut padder = Padder::new(f);
-                    for i in body {
-                        // they don't expose wrap_buf :grief:
-                        padder.write_str(&format!("{i:?};\n"))?;
-                    }
-                    f.write_char('}')?;
-                } else {
-                    f.write_str("{}")?;
-                }
-            }
-            Self::Loop { body } => {
-                write!(f, "loop:")?;
-                if !body.is_empty() {
-                    f.write_str("{\n    ")?;
-                    let mut padder = Padder::new(f);
-                    for i in body {
-                        // they don't expose wrap_buf :grief:
-                        padder.write_str(&format!("{i:?};\n"))?;
-                    }
-                    f.write_char('}')?;
-                } else {
-                    f.write_str("{}")?;
-                }
-            }
-            Self::Break => write!(f, "break")?,
-            Self::Continue => write!(f, "continue")?,
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Debug for UFunc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.args)?;
-        if !self.instructions.is_empty() {
-            f.write_str("{\n    ")?;
-            let mut padder = Padder::new(f);
-            for i in &self.instructions {
-                // they don't expose wrap_buf :grief:
-                padder.write_str(&format!("{i:?};\n"))?;
-            }
-            f.write_char('}')?;
-        } else {
-            f.write_str("{}")?;
-        }
-        Ok(())
-    }
 }

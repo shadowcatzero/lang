@@ -1,21 +1,27 @@
-struct
+move names into separate vec with origins
+make struct fields a vec, resolve into index
 
-Type
-    structinst
-    bits
-
-but type is already typeinst?
-
-for each var, create list of constraints on type
-    then just need to iterate through constraints to determine type
-    keep doing passes for vars that depend on the type of other vars
-    really need to make subvar for each field of struct var so 2 different "a.b" refer to same thing
-        makes borrow checking easier
-    do dependency cycles exist?
-        for global vars yes, in functions no
-        but if function returns are inferrable (even if just "impl Trait"), then needed in functions?
-every kind has an origin, should make separate like names?
+inner values that auto generate map function:
+    enum Thing<inner T> {
+        A(T),
+        B(T, T),
+        C
+    }
+or
+    #[derive(Map(T))]
+    enum Thing<T> { ... }
 
 
+{([<
+std::Option:(u32)::Some(3)
+func:(u32)("hello", test, 3);
+std::Option:[u32]::Some(3)
+func:[T]("hello", test, 3);
+std::Option::<u32>::Some(3)
+func::<u32>(3)
+std.Option.[u32].Some(3)
+func.[T]("hello", test, 3);
+std::Option:<u32>::Some(3)
+func:<u32>(3)
 
-TYPE IDS!!!!! MY SAVIOR!!! MY GOAT!!!
+

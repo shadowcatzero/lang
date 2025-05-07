@@ -1,8 +1,5 @@
 use super::*;
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
 
 pub struct UProgram {
     pub fns: Vec<UFunc>,
@@ -21,12 +18,6 @@ pub struct UProgram {
 pub struct TypeCache {
     pub unit: TypeID,
     pub error: TypeID,
-}
-
-pub struct UModuleBuilder<'a> {
-    pub p: &'a mut UProgram,
-    pub module: ModID,
-    pub temp: usize,
 }
 
 impl UProgram {
@@ -66,7 +57,7 @@ impl UProgram {
         push_id(&mut self.types, t)
     }
 
-    pub fn def_var_inst(&mut self, i: UIdent) -> IdentID {
+    pub fn def_ident(&mut self, i: UIdent) -> IdentID {
         push_id(&mut self.idents, i)
     }
 
@@ -82,10 +73,18 @@ impl UProgram {
         push_id(&mut self.structs, s)
     }
 
+    pub fn def_module(&mut self, m: UModule) -> ModID {
+        push_id(&mut self.modules, m)
+    }
+
     pub fn type_name(&self, ty: impl Typed) -> String {
         match ty.ty(self) {
             Type::Struct(ty) => {
-                format!("{}{}", self.structs[ty.id].name, self.gparams_str(&ty.gargs))
+                format!(
+                    "{}{}",
+                    self.structs[ty.id].name,
+                    self.gparams_str(&ty.gargs)
+                )
             }
             Type::FnRef(ty) => {
                 format!(
@@ -97,13 +96,13 @@ impl UProgram {
             }
             Type::Ref(t) => format!("{}&", self.type_name(t)),
             Type::Deref(t) => format!("{}^", self.type_name(t)),
-            Type::Unres(_) => "{unresolved}".to_string(),
             Type::Bits(size) => format!("b{}", size),
             Type::Array(t, len) => format!("[{}; {len}]", self.type_name(t)),
             Type::Unit => "()".to_string(),
             Type::Slice(t) => format!("&[{}]", self.type_name(t)),
             Type::Error => "{error}".to_string(),
             Type::Infer => "{inferred}".to_string(),
+            Type::Unres(_) => "{unresolved}".to_string(),
             Type::Generic(id) => self.generics[id].name.clone(),
         }
     }
@@ -138,34 +137,6 @@ pub fn push_id<T>(v: &mut Vec<T>, t: T) -> ID<T> {
     id
 }
 
-impl<'a> UModuleBuilder<'a> {
-    pub fn new(program: &'a mut UProgram, id: ModID) -> Self {
-        Self {
-            p: program,
-            module: id,
-            temp: 0,
-        }
-    }
-    pub fn temp_var(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
-        self.temp_var_inner(origin, ty)
-    }
-    fn temp_var_inner(&mut self, origin: Origin, ty: impl Typable) -> IdentID {
-        let var = UVar {
-            name: format!("temp{}", self.temp),
-            ty: ty.ty(self),
-            origin,
-            parent: None,
-            children: HashMap::new(),
-        };
-        let id = self.p.def_var(var);
-        self.temp += 1;
-        self.def_var_inst(UIdent {
-            status: IdentStatus::Var(id),
-            origin,
-        })
-    }
-}
-
 // I'm done with names...
 pub trait Typed {
     fn ty<'a>(&'a self, p: &'a UProgram) -> &'a Type;
@@ -192,35 +163,5 @@ impl Typed for &TypeID {
 impl Typed for &Box<Type> {
     fn ty<'a>(&'a self, _: &'a UProgram) -> &'a Type {
         &**self
-    }
-}
-
-pub trait Typable {
-    fn ty(self, p: &mut UProgram) -> TypeID;
-}
-
-impl Typable for Type {
-    fn ty(self, p: &mut UProgram) -> TypeID {
-        p.def_ty(self)
-    }
-}
-
-impl Typable for TypeID {
-    fn ty(self, p: &mut UProgram) -> TypeID {
-        self
-    }
-}
-
-impl Deref for UModuleBuilder<'_> {
-    type Target = UProgram;
-
-    fn deref(&self) -> &Self::Target {
-        self.p
-    }
-}
-
-impl DerefMut for UModuleBuilder<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.p
     }
 }

@@ -12,7 +12,7 @@ impl RV64Instruction {
         let args = &inst.args[..];
         let opstr = &**inst.op.inner.as_ref()?;
         // TODO: surely this can be abstracted...
-        let opi = |ctx: &mut FnLowerCtx<'_>, op: Funct3| -> Option<Self> {
+        let opi = |ctx: &mut FnLowerCtx<'_, '_, '_>, op: Funct3| -> Option<Self> {
             let [dest, src, imm] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -22,7 +22,7 @@ impl RV64Instruction {
             let imm = i32_from_arg(imm, ctx)?;
             Some(Self::OpImm { op, dest, src, imm })
         };
-        let op = |ctx: &mut FnLowerCtx<'_>, op: Funct3, funct: Funct7| -> Option<Self> {
+        let op = |ctx: &mut FnLowerCtx<'_, '_, '_>, op: Funct3, funct: Funct7| -> Option<Self> {
             let [dest, src1, src2] = args else {
                 ctx.err(format!("{opstr} requires 3 arguments"));
                 return None;
@@ -174,7 +174,7 @@ pub fn arg_to_var(node: &Node<PAsmArg>, ctx: &mut FnLowerCtx) -> Option<UIdent> 
         );
         return None;
     };
-    ctx.var(node)
+    ctx.ident(node)
 }
 
 impl RegRef {
@@ -184,7 +184,7 @@ impl RegRef {
                 let reg = Reg::from_ident(node, ctx)?;
                 Self::Reg(reg)
             }
-            PAsmArg::Ref(node) => Self::Var(ctx.var(node)?),
+            PAsmArg::Ref(node) => Self::Var(ctx.ident(node)?),
         })
     }
 }

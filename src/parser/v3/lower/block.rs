@@ -1,5 +1,5 @@
 use crate::{
-    ir::{Type, UInstruction, UVar, UIdent, IdentID},
+    ir::{IdentID, Type, UIdent, UInstruction, UVar},
     parser::{PConstStatement, PStatementLike},
 };
 
@@ -8,6 +8,7 @@ use super::{FnLowerCtx, FnLowerable, Import, PBlock, PStatement};
 impl FnLowerable for PBlock {
     type Output = IdentID;
     fn lower(&self, ctx: &mut FnLowerCtx) -> Option<IdentID> {
+        ctx.ident_stack.push();
         let mut last = None;
         let mut statements = Vec::new();
         let mut fn_nodes = Vec::new();
@@ -27,64 +28,58 @@ impl FnLowerable for PBlock {
                 },
             }
         }
-        ctx.b.push();
         // then lower imports
         for i_n in &import_nodes {
             if let Some(i) = i_n.as_ref() {
                 let name = &i.0;
-                let path = ctx.b.path_for(name);
+                let path = ctx.path_for(name);
                 let import = Import(path.clone());
                 if ctx.imports.insert(import) {
-                    ctx.b.def_searchable::<UVar>(
-                        name,
-                        Some(UVar {
-                            ty: Type::Module(path),
-                        }),
-                        i_n.origin,
-                    );
+                    ctx.def_var(UVar {
+                        name: name.clone(),
+                        ty: Type::Module(path),
+                        origin: i_n.origin,
+                    });
                 }
             }
         }
         // then lower const things
         let mut structs = Vec::new();
         for s in &struct_nodes {
-            structs.push(s.lower_name(ctx.b));
+            structs.push(s.lower(ctx.ctx));
         }
         for (s, id) in struct_nodes.iter().zip(structs) {
             if let Some(id) = id {
-                s.lower(id, ctx.b, ctx.output);
+                s.lower(ctx.ctx);
             }
         }
         let mut fns = Vec::new();
         for f in &fn_nodes {
-            fns.push(f.lower_name(ctx.b));
+            fns.push(f.lower(ctx.ctx));
         }
         for (f, id) in fn_nodes.iter().zip(fns) {
             if let Some(id) = id {
-                f.lower(id, ctx.b, ctx.imports, ctx.output)
+                f.lower(ctx.ctx);
             }
         }
         // then lower statements
         for s in statements {
             last = s.lower(ctx);
         }
-        ctx.b.pop();
+        ctx.ident_stack.pop();
         last
     }
 }
 
 impl FnLowerable for PStatement {
-    type Output = UIdent;
-    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<UIdent> {
+    type Output = IdentID;
+    fn lower(&self, ctx: &mut FnLowerCtx) -> Option<IdentID> {
         match self {
             PStatement::Let(def, e) => {
-                let def = def.lower(ctx.b, ctx.output)?;
+                let def = def.lower(ctx.ctx)?;
                 let res = e.lower(ctx);
                 if let Some(res) = res {
-                    ctx.push(UInstruction::Mv {
-                        dst: def,
-                        src: res,
-                    });
+                    ctx.push(UInstruction::Mv { dst: def, src: res });
                 }
                 None
             }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::compiler::arch::riscv::Reg;
+use crate::{compiler::arch::riscv::Reg, ir::arch::riscv64::RegRef};
 use arch::riscv64::RV64Instruction;
 use std::collections::HashMap;
 
@@ -16,33 +16,33 @@ pub struct IRLFunction {
 #[derive(Debug)]
 pub enum LInstruction {
     Mv {
-        dest: VarID,
-        dest_offset: Size,
+        dst: VarID,
+        dst_offset: Size,
         src: VarID,
         src_offset: Size,
     },
     Ref {
-        dest: VarID,
+        dst: VarID,
         src: VarID,
     },
     LoadAddr {
-        dest: VarID,
+        dst: VarID,
         offset: Size,
         src: Symbol,
     },
     LoadData {
-        dest: VarID,
+        dst: VarID,
         offset: Size,
         src: Symbol,
         len: Len,
     },
     Call {
-        dest: Option<(VarID, Size)>,
+        dst: Option<(VarID, Size)>,
         f: Symbol,
         args: Vec<(VarID, Size)>,
     },
     AsmBlock {
-        instructions: Vec<RV64Instruction>,
+        instructions: Vec<RV64Instruction<VarID>>,
         inputs: Vec<(Reg, VarID)>,
         outputs: Vec<(Reg, VarID)>,
     },

@@ -2,6 +2,7 @@
 #![feature(try_trait_v2)]
 #![feature(trait_alias)]
 #![feature(let_chains)]
+#![feature(iterator_try_collect)]
 // dawg what
 #![feature(str_as_str)]
 

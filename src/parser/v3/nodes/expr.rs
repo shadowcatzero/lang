@@ -1,12 +1,12 @@
 use std::fmt::{Debug, Write};
 
-use crate::{common::FilePos, parser::NodeParsableWith};
+use crate::{common::FilePos, ir::MemberTy, parser::NodeParsableWith};
 
 use super::{
     op::{InfixOp, PostfixOp},
     util::parse_list,
-    CompilerMsg, Keyword, Node, PAsmBlock, PBlock, PIdent, PLiteral, PMap, Parsable, ParseResult,
-    ParserCtx, Symbol,
+    CompilerMsg, Keyword, Node, PAsmBlock, PBlock, PIdent, PLiteral, PMap, PType, Parsable,
+    ParseResult, ParserCtx, Symbol,
 };
 
 type BoxNode = Node<Box<PExpr>>;
@@ -19,8 +19,8 @@ pub enum PExpr {
     Block(Node<PBlock>),
     Call(BoxNode, Vec<Node<PExpr>>),
     Group(BoxNode),
-    Field(BoxNode, Node<PIdent>),
-    Member(BoxNode, Node<PIdent>),
+    Member(BoxNode, MemberTy, Node<PIdent>),
+    Generic(BoxNode, Vec<Node<PType>>),
     AsmBlock(Node<PAsmBlock>),
     Construct(BoxNode, Node<PMap>),
     If(BoxNode, BoxNode),
@@ -65,16 +65,25 @@ impl PExpr {
                 e1 = Self::Call(Node::new(e1, span).bx(), args);
                 continue;
             } else if next.is_symbol(Symbol::OpenCurly) {
+                ctx.next();
                 let map = ctx.parse()?;
                 e1 = Self::Construct(Node::new(e1, span).bx(), map);
                 continue;
             } else if next.is_symbol(Symbol::Dot) {
+                ctx.next();
                 let field = ctx.parse()?;
-                e1 = Self::Field(Node::new(e1, span).bx(), field);
+                e1 = Self::Member(Node::new(e1, span).bx(), MemberTy::Field, field);
                 continue;
             } else if next.is_symbol(Symbol::DoubleColon) {
-                let field = ctx.parse()?;
-                e1 = Self::Member(Node::new(e1, span).bx(), field);
+                ctx.next();
+                if ctx.peek().is_some_and(|i| i.is_symbol(Symbol::OpenAngle)) {
+                    ctx.next();
+                    let gargs = parse_list(ctx, Symbol::CloseAngle)?;
+                    e1 = Self::Generic(Node::new(e1, span).bx(), gargs);
+                } else {
+                    let field = ctx.parse()?;
+                    e1 = Self::Member(Node::new(e1, span).bx(), MemberTy::Member, field);
+                }
                 continue;
             } else if let Some(op) = PostfixOp::from_token(next) {
                 ctx.next();
@@ -185,13 +194,13 @@ impl Debug for PExpr {
             PExpr::PostfixOp(e, op) => write!(f, "({:?}{})", e, op.str())?,
             PExpr::Group(inner) => inner.fmt(f)?,
             PExpr::AsmBlock(inner) => inner.fmt(f)?,
-            PExpr::Construct(node, inner) => inner.fmt(f)?,
+            PExpr::Construct(node, inner) => write!(f, "{:?}{:?}", node, inner)?,
             PExpr::If(cond, res) => write!(f, "if {cond:?} then {res:?}")?,
             PExpr::Loop(res) => write!(f, "loop -> {res:?}")?,
             PExpr::Break => write!(f, "break")?,
             PExpr::Continue => write!(f, "continue")?,
-            PExpr::Field(e1, name) => write!(f, "{:?}.{:?}", e1, name)?,
-            PExpr::Member(e1, name) => write!(f, "{:?}::{:?}", e1, name)?,
+            PExpr::Member(e1, ty, name) => write!(f, "{:?}{}{:?}", e1, ty.sep(), name)?,
+            PExpr::Generic(e1, gargs) => write!(f, "{:?}<{:?}>", e1, gargs)?,
         }
         Ok(())
     }

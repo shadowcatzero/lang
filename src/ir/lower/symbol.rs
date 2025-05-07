@@ -62,7 +62,7 @@ impl SymbolSpaceBuilder {
     pub fn with_entries(entries: &[FnID]) -> SymbolSpaceBuilder {
         let mut s = Self::new();
         for e in entries {
-            s.func(e);
+            s.func(*e);
         }
         s
     }
@@ -73,24 +73,24 @@ impl SymbolSpaceBuilder {
         let sym = self.reserve();
         self.write_ro_data(sym, data.to_vec(), label)
     }
-    pub fn ro_data(&mut self, id: &DataID, data: &[u8], label: Option<String>) -> Symbol {
-        match self.data_map.get(id) {
+    pub fn ro_data(&mut self, id: DataID, data: &[u8], label: Option<&str>) -> Symbol {
+        match self.data_map.get(&id) {
             Some(s) => *s,
             None => {
                 let sym = self.reserve();
-                self.data_map.insert(*id, *sym);
-                self.write_ro_data(sym, data.to_vec(), label)
+                self.data_map.insert(id, *sym);
+                self.write_ro_data(sym, data.to_vec(), label.map(|l| l.to_string()))
             }
         }
     }
-    pub fn func(&mut self, id: &FnID) -> Symbol {
-        match self.fn_map.get(id) {
+    pub fn func(&mut self, id: FnID) -> Symbol {
+        match self.fn_map.get(&id) {
             Some(s) => *s,
             None => {
                 let wsym = self.reserve();
                 let sym = *wsym;
-                self.unwritten_fns.push((wsym, *id));
-                self.fn_map.insert(*id, sym);
+                self.unwritten_fns.push((wsym, id));
+                self.fn_map.insert(id, sym);
                 sym
             }
         }

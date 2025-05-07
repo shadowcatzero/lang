@@ -1,18 +1,23 @@
-use crate::ir::{UProgram, UVar, VarID, UIdent};
+use std::collections::HashMap;
 
-use super::{CompilerOutput, Node, PVarDef};
+use crate::ir::{UVar, VarID};
+
+use super::{ModuleLowerCtx, Node, PVarDef};
 
 impl Node<PVarDef> {
-    pub fn lower(&self, program: &mut UProgram, output: &mut CompilerOutput) -> Option<VarID> {
+    pub fn lower(&self, ctx: &mut ModuleLowerCtx) -> Option<VarID> {
         let s = self.as_ref()?;
-        let name = s.name.as_ref().map_or("{error}", |v| v);
+        let name = s.name.as_ref().map_or("{error}", |v| v).to_string();
         let ty = match &s.ty {
-            Some(ty) => ty.lower(program, output),
-            None => program.infer(self.origin),
+            Some(ty) => ty.lower(ctx),
+            None => ctx.infer(),
         };
-        Some(UIdent {
-            id: program.def_searchable(name, Some(UVar { ty }), self.origin),
+        Some(ctx.def_var(UVar {
+            name,
+            ty,
             origin: self.origin,
-        })
+            parent: None,
+            children: HashMap::new(),
+        }))
     }
 }
