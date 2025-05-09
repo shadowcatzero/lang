@@ -1,5 +1,110 @@
 use super::*;
 
+impl UProgram {
+    pub fn resolve_idents(&mut self, errs: &mut Vec<ResErr>) -> ResolveRes {
+        let mut resolve_res = ResolveRes::Finished;
+        'main: for i in std::mem::take(&mut self.unres_idents) {
+            let mut j = i;
+            // take from ref if possible
+            while let IdentStatus::Ref(other) = &self.idents[j].status {
+                match &self.idents[other].status {
+                    IdentStatus::Res(res) => self.idents[i].status = IdentStatus::Res(res.clone()),
+                    &IdentStatus::Ref(id) => j = id,
+                    IdentStatus::Unres { .. } => {
+                        self.unres_idents.push(i);
+                        continue 'main;
+                    }
+                    IdentStatus::Failed(..) => self.idents[i].status = IdentStatus::Cooked,
+                    IdentStatus::Cooked => self.idents[i].status = IdentStatus::Cooked,
+                }
+            }
+            let status = &mut self.idents[i].status;
+            // TOOD: there are some clones here that shouldn't be needed
+            let IdentStatus::Unres { path, base } = status else {
+                continue;
+            };
+
+            while let Some(mem) = path.pop() {
+                let res = match base {
+                    ResBase::Unvalidated(u) => {
+                        match u.validate(
+                            &self.fns,
+                            &self.structs,
+                            &self.generics,
+                            &mut self.types,
+                            errs,
+                        ) {
+                            Ok(res) => res,
+                            Err(err) => {
+                                *status = IdentStatus::Failed(err);
+                                continue 'main;
+                            }
+                        }
+                    }
+                    ResBase::Validated(res) => res.clone(),
+                };
+                *base = match (res, mem.ty) {
+                    (Res::Module(id), MemberTy::Member) => {
+                        let Some(m) = self.modules[id].members.get(&mem.name) else {
+                            self.unres_idents.push(i);
+                            continue 'main;
+                        };
+                        ResBase::Unvalidated(MemRes {
+                            mem: m.clone(),
+                            origin: mem.origin,
+                            gargs: mem.gargs,
+                        })
+                    }
+                    (Res::Var(id), MemberTy::Field) => {
+                        // trait resolution here
+                        let Some(&child) = self.vars[id].children.get(&mem.name) else {
+                            self.unres_idents.push(i);
+                            continue 'main;
+                        };
+                        ResBase::Unvalidated(MemRes {
+                            mem: Member {
+                                id: MemberID::Var(child),
+                            },
+                            origin: mem.origin,
+                            gargs: mem.gargs,
+                        })
+                    }
+                    _ => {
+                        *status = IdentStatus::Failed(Some(ResErr::UnknownMember {
+                            origin: mem.origin,
+                            ty: mem.ty,
+                            name: mem.name.clone(),
+                            parent: base.clone(),
+                        }));
+                        continue 'main;
+                    }
+                };
+            }
+            let res = match base {
+                ResBase::Unvalidated(u) => {
+                    match u.validate(
+                        &self.fns,
+                        &self.structs,
+                        &self.generics,
+                        &mut self.types,
+                        errs,
+                    ) {
+                        Ok(res) => res,
+                        Err(err) => {
+                            *status = IdentStatus::Failed(err);
+                            continue 'main;
+                        }
+                    }
+                }
+                ResBase::Validated(res) => res.clone(),
+            };
+            *status = IdentStatus::Res(res);
+            resolve_res = ResolveRes::Unfinished;
+        }
+        resolve_res
+    }
+}
+
 impl MemRes {
     pub fn validate(
         &self,
@@ -66,89 +171,6 @@ impl MemRes {
     }
 }
 
-impl IdentID {
-    pub fn resolve(
-        self,
-        s: &mut Sources,
-        types: &mut Vec<Type>,
-        changed: &mut bool,
-        errs: &mut Vec<ResErr>,
-    ) -> Result<Res, ResolveRes> {
-        let status = &mut s.idents[self].status;
-        // TOOD: there are some clones here that shouldn't be needed
-        Ok(match status {
-            IdentStatus::Res(r) => r.clone(),
-            IdentStatus::Unres { path, base } => {
-                while let Some(mem) = path.pop() {
-                    let res = match base {
-                        ResBase::Unvalidated(u) => {
-                            match u.validate(s.fns, s.structs, s.generics, types, errs) {
-                                Ok(res) => res,
-                                Err(err) => {
-                                    *status = IdentStatus::Failed(err);
-                                    return Err(ResolveRes::Finished);
-                                }
-                            }
-                        }
-                        ResBase::Validated(res) => res.clone(),
-                    };
-                    *base = match (res, mem.ty) {
-                        (Res::Module(id), MemberTy::Member) => {
-                            let Some(m) = s.modules[id].members.get(&mem.name) else {
-                                return Err(ResolveRes::Unfinished);
-                            };
-                            ResBase::Unvalidated(MemRes {
-                                mem: m.clone(),
-                                origin: mem.origin,
-                                gargs: mem.gargs,
-                            })
-                        }
-                        (Res::Var(id), MemberTy::Field) => {
-                            // trait resolution here
-                            let Some(&child) = s.vars[id].children.get(&mem.name) else {
-                                return Err(ResolveRes::Unfinished);
-                            };
-                            ResBase::Unvalidated(MemRes {
-                                mem: Member {
-                                    id: MemberID::Var(child),
-                                },
-                                origin: mem.origin,
-                                gargs: mem.gargs,
-                            })
-                        }
-                        _ => {
-                            *status = IdentStatus::Failed(Some(ResErr::UnknownMember {
-                                origin: mem.origin,
-                                ty: mem.ty,
-                                name: mem.name.clone(),
-                                parent: base.clone(),
-                            }));
-                            return Err(ResolveRes::Finished);
-                        }
-                    };
-                }
-                let res = match base {
-                    ResBase::Unvalidated(u) => {
-                        match u.validate(s.fns, s.structs, s.generics, types, errs) {
-                            Ok(res) => res,
-                            Err(err) => {
-                                *status = IdentStatus::Failed(err);
-                                return Err(ResolveRes::Finished);
-                            }
-                        }
-                    }
-                    ResBase::Validated(res) => res.clone(),
-                };
-                *status = IdentStatus::Res(res.clone());
-                *changed = true;
-                res
-            }
-            IdentStatus::Cooked => return Err(ResolveRes::Finished),
-            IdentStatus::Failed(_) => return Err(ResolveRes::Finished),
-        })
-    }
-}
-
 pub fn validate_gargs(
     dst: &[GenericID],
     src: &[TypeID],
@@ -171,4 +193,3 @@ pub fn validate_gargs(
     }
     Ok(())
 }
-

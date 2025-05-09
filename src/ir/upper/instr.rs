@@ -12,10 +12,10 @@ pub trait ResStage {
 
 pub struct Unresolved;
 impl ResStage for Unresolved {
-    type Var = IdentID;
+    type Var = VarRes;
     type Func = IdentID;
     type Struct = IdentID;
-    type Type = IdentID;
+    type Type = TypeRes;
 }
 
 pub struct Resolved;
@@ -66,10 +66,10 @@ pub enum UInstruction<S: ResStage = Unresolved> {
     },
     If {
         cond: S::Var,
-        body: Vec<UInstrInst<S>>,
+        body: Vec<InstrID>,
     },
     Loop {
-        body: Vec<UInstrInst<S>>,
+        body: Vec<InstrID>,
     },
     Break,
     Continue,

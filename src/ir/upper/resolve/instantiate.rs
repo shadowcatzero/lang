@@ -10,13 +10,13 @@ pub fn inst_fn_var(
     types: &mut Vec<Type>,
 ) -> VarID {
     let name = fns[fi.id].name.clone();
-    let ty = push_id(types, RType::FnRef(fi).ty());
+    let ty = push_id(types, Type::FnInst(fi));
     push_id(
         vars,
         UVar {
             name,
             origin,
-            ty,
+            ty: VarTy::Res(ty),
             parent: None,
             children: HashMap::new(),
         },
@@ -31,51 +31,18 @@ pub fn inst_struct_var(
     types: &mut Vec<Type>,
 ) -> VarID {
     let name = structs[si.id].name.clone();
-    let ty = push_id(types, RType::Struct(si).ty());
+    let ty = push_id(types, Type::Struct(si));
     let id = push_id(
         vars,
         UVar {
             name,
             origin,
-            ty,
+            ty: VarTy::Res(ty),
             parent: None,
             children: HashMap::new(),
         },
     );
-    inst_var(vars, structs, id, types);
     id
-}
-
-pub fn inst_var(vars: &mut Vec<UVar>, structs: &[UStruct], id: VarID, types: &mut Vec<Type>) {
-    match real_type(types, vars[id].ty) {
-        RType::Struct(si) => {
-            let fields = &structs[si.id].fields;
-            let s_gargs = &structs[si.id].gargs;
-            let gmap = inst_gmap(s_gargs, &si.gargs);
-            let children = fields
-                .iter()
-                .map(|(name, f)| {
-                    (name.clone(), {
-                        let ty = inst_type(f.ty, types, &gmap);
-                        let fid = push_id(
-                            vars,
-                            UVar {
-                                name: name.clone(),
-                                origin: f.origin,
-                                ty,
-                                parent: Some(id),
-                                children: HashMap::new(),
-                            },
-                        );
-                        inst_var(vars, structs, fid, types);
-                        fid
-                    })
-                })
-                .collect();
-            vars[id].children = children;
-        }
-        _ => (),
-    }
 }
 
 /// gargs assumed to be valid
@@ -108,32 +75,23 @@ fn inst_type_(
     gmap: &HashMap<GenericID, TypeID>,
 ) -> Option<TypeID> {
     let ty = match types[id].clone() {
-        Type::Real(rty) => match rty {
-            RType::Bits(_) => return None,
-            RType::Struct(struct_ty) => RType::Struct(StructInst {
-                id: struct_ty.id,
-                gargs: inst_all(&struct_ty.gargs, types, gmap)?,
-            }),
-            RType::FnRef(fn_ty) => RType::FnRef(FnInst {
-                id: fn_ty.id,
-                gargs: inst_all(&fn_ty.gargs, types, gmap)?,
-            }),
-            RType::Ref(id) => RType::Ref(inst_type_(id, types, gmap)?),
-            RType::Slice(id) => RType::Slice(inst_type_(id, types, gmap)?),
-            RType::Array(id, len) => RType::Array(inst_type_(id, types, gmap)?, len),
-            RType::Unit => return None,
-            RType::Generic(gid) => {
-                return gmap
-                    .get(&gid)
-                    .map(|id| Some(*id))
-                    .unwrap_or_else(|| None)
-            }
-            RType::Infer => RType::Infer,
-        }
-        .ty(),
+        Type::Bits(_) => return None,
+        Type::Struct(struct_ty) => Type::Struct(StructInst {
+            id: struct_ty.id,
+            gargs: inst_all(&struct_ty.gargs, types, gmap)?,
+        }),
+        Type::FnInst(fn_ty) => Type::FnInst(FnInst {
+            id: fn_ty.id,
+            gargs: inst_all(&fn_ty.gargs, types, gmap)?,
+        }),
+        Type::Ref(id) => Type::Ref(inst_type_(id, types, gmap)?),
+        Type::Slice(id) => Type::Slice(inst_type_(id, types, gmap)?),
+        Type::Array(id, len) => Type::Array(inst_type_(id, types, gmap)?, len),
+        Type::Unit => return None,
+        Type::Generic(gid) => return gmap.get(&gid).map(|id| Some(*id)).unwrap_or_else(|| None),
+        Type::Infer => Type::Infer,
         Type::Deref(id) => Type::Deref(inst_type_(id, types, gmap)?),
         Type::Ptr(id) => Type::Ptr(inst_type_(id, types, gmap)?),
-        Type::Unres(mod_path) => Type::Unres(mod_path.clone()),
         Type::Error => return None,
     };
     Some(push_id(types, ty))
@@ -155,4 +113,3 @@ fn inst_all(
     }
     vec
 }
-

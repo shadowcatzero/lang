@@ -1,4 +1,4 @@
-use super::{FnID, GenericID, IdentID, Len, ResolveRes, StructID, TypeID, UProgram, VarID};
+use super::{FnID, GenericID, Len, ResolveRes, StructID, TypeID, UProgram, VarID};
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct FieldRef {
@@ -22,34 +22,21 @@ pub struct FnInst {
 
 #[derive(Clone, PartialEq)]
 pub enum Type {
-    Real(RType),
-    Deref(TypeID),
-    Ptr(TypeID),
-    Unres(IdentID),
-    Error,
-}
-
-/// "real" types
-#[derive(Clone, PartialEq)]
-pub enum RType {
     Bits(u32),
     Struct(StructInst),
     // this can be added for constraints later (F: fn(...) -> ...)
     // Fn { args: Vec<TypeID>, ret: TypeID },
     // "fake" types
-    FnRef(FnInst),
+    FnInst(FnInst),
     Ref(TypeID),
     Slice(TypeID),
     Array(TypeID, Len),
     Unit,
     Infer,
     Generic(GenericID),
-}
-
-impl RType {
-    pub const fn ty(self) -> Type {
-        Type::Real(self)
-    }
+    Deref(TypeID),
+    Ptr(TypeID),
+    Error,
 }
 
 impl Type {
@@ -69,16 +56,16 @@ impl Type {
 
 impl TypeID {
     pub fn rf(self) -> Type {
-        RType::Ref(self).ty()
+        Type::Ref(self)
     }
     pub fn derf(self) -> Type {
         Type::Deref(self)
     }
     pub fn arr(self, len: Len) -> Type {
-        RType::Array(self, len).ty()
+        Type::Array(self, len)
     }
     pub fn slice(self) -> Type {
-        RType::Slice(self).ty()
+        Type::Slice(self)
     }
 }
 
@@ -88,15 +75,27 @@ impl Type {
     }
 }
 
-pub fn real_type(types: &[Type], id: TypeID) -> Result<&RType, ResolveRes> {
+pub fn clean_type(types: &[Type], id: TypeID) -> Option<TypeID> {
     match &types[id] {
-        Type::Real(rtype) => Ok(rtype),
-        &Type::Ptr(id) => real_type(types, id),
-        &Type::Deref(id) => match real_type(types, id)? {
-            &RType::Ref(id) => real_type(types, id),
+        &Type::Ptr(id) => clean_type(types, id),
+        &Type::Deref(did) => match &types[clean_type(types, did)?] {
+            &Type::Ref(id) => clean_type(types, id),
+            _ => Some(id),
+        },
+        Type::Error => None,
+        _ => Some(id),
+    }
+}
+
+pub fn resolved_type(types: &[Type], id: TypeID) -> Result<TypeID, ResolveRes> {
+    match &types[id] {
+        &Type::Ptr(id) => resolved_type(types, id),
+        &Type::Deref(id) => match &types[resolved_type(types, id)?] {
+            &Type::Ref(id) => resolved_type(types, id),
+            Type::Infer => Err(ResolveRes::Unfinished),
             _ => Err(ResolveRes::Finished),
         },
-        Type::Unres(_) => Err(ResolveRes::Unfinished),
         Type::Error => Err(ResolveRes::Finished),
+        _ => Ok(id),
     }
 }

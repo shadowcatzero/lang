@@ -12,6 +12,10 @@ pub struct UIdent {
 
 pub enum IdentStatus {
     Res(Res),
+    // lets you do things like import and then specialize in multiple places
+    // eg. import SomeStruct ...... f() -> SomeStruct // type ....... SomeStruct {} // struct
+    // and then have correct errors like "expected struct, found type Bla"
+    Ref(IdentID),
     Unres {
         base: ResBase,
         path: Vec<MemberIdent>,

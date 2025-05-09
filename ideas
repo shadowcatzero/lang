@@ -1,5 +1,28 @@
-move names into separate vec with origins
-make struct fields a vec, resolve into index
+resolution overview
+    loop {
+        resolve idents
+        resolve + type check / match instructions
+            URes.resolve(errs) can return: failed, ok(id), waiting
+            each instruction keeps track of progress
+                eg. fns: match each arg
+            updates to whether it's waiting or finished: ok or err
+                only finish if no sub tasks are waiting
+            finished = "macro ready"
+        run macros / code modification on "macro ready" (fns, structs)
+            eg. insert instructions
+            hygienic; only take in from scope
+            add inserted instructions to unresolved list
+            finished = "analysis ready"
+        analysis on "analysis ready" fns
+            eg. does this return in all code paths
+            finished + all correct = "ready to lower"
+        lower "ready to lower" fns
+        run lowered const fns / var expressions
+    }
+
+
+move names into separate vec with origins?
+make struct fields a vec, resolve to index?
 
 inner values that auto generate map function:
     enum Thing<inner T> {
@@ -10,6 +33,7 @@ inner values that auto generate map function:
 or
     #[derive(Map(T))]
     enum Thing<T> { ... }
+    // scoping here is bad :woozy:
 
 
 {([<

@@ -20,18 +20,22 @@ pub type GenericID = ID<UGeneric>;
 pub type StructID = ID<UStruct>;
 pub type DataID = ID<UData>;
 pub type ModID = ID<UModule>;
+pub type InstrID = ID<UInstrInst>;
+
+pub type VarRes = URes<VarID>;
+pub type TypeRes = URes<VarID>;
 
 pub struct UFunc {
     pub name: String,
     pub origin: Origin,
     pub args: Vec<VarID>,
     pub gargs: Vec<GenericID>,
-    pub ret: TypeID,
-    pub instructions: Vec<UInstrInst>,
+    pub ret: TypeRes,
+    pub instructions: Vec<InstrID>,
 }
 
 pub struct StructField {
-    pub ty: TypeID,
+    pub ty: TypeRes,
     pub origin: Origin,
     // pub vis: Visibility
 }
@@ -51,9 +55,14 @@ pub struct UGeneric {
 pub struct UVar {
     pub name: String,
     pub origin: Origin,
-    pub ty: TypeID,
+    pub ty: TypeRes,
     pub parent: Option<VarID>,
     pub children: HashMap<String, VarID>,
+}
+
+pub enum VarTy {
+    Ident(IdentID),
+    Res(TypeID),
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -120,6 +129,11 @@ impl MemberID {
     }
 }
 
+pub enum URes<T> {
+    Res(T),
+    Unres(IdentID),
+}
+
 pub type Origin = FileSpan;
 
 // "effective" (externally visible) kinds
@@ -143,39 +157,5 @@ impl Display for KindTy {
             KindTy::Module => "module",
             KindTy::Generic => "generic",
         })
-    }
-}
-
-impl UFunc {
-    pub fn flat_iter(&self) -> impl Iterator<Item = &UInstrInst> {
-        InstrIter::new(self.instructions.iter())
-    }
-}
-
-pub struct InstrIter<'a> {
-    iters: Vec<core::slice::Iter<'a, UInstrInst>>,
-}
-
-impl<'a> InstrIter<'a> {
-    pub fn new(iter: core::slice::Iter<'a, UInstrInst>) -> Self {
-        Self { iters: vec![iter] }
-    }
-}
-
-impl<'a> Iterator for InstrIter<'a> {
-    type Item = &'a UInstrInst;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let iter = self.iters.last_mut()?;
-        let Some(next) = iter.next() else {
-            self.iters.pop();
-            return self.next();
-        };
-        match &next.i {
-            UInstruction::Loop { body } => self.iters.push(body.iter()),
-            UInstruction::If { cond: _, body } => self.iters.push(body.iter()),
-            _ => (),
-        }
-        Some(next)
     }
 }

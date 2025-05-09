@@ -1,5 +1,4 @@
 use super::*;
-use std::collections::HashMap;
 
 pub struct UProgram {
     pub fns: Vec<UFunc>,
@@ -10,8 +9,10 @@ pub struct UProgram {
     pub vars: Vec<UVar>,
     pub idents: Vec<UIdent>,
     pub types: Vec<Type>,
+    pub instrs: Vec<UInstrInst>,
 
-    pub vfmap: HashMap<VarID, FnID>,
+    pub unres_idents: Vec<IdentID>,
+    pub unres_instrs: Vec<(FnID, InstrID)>,
     pub tc: TypeCache,
 }
 
@@ -24,7 +25,7 @@ impl UProgram {
     pub fn new() -> Self {
         let mut types = Vec::new();
         let tc = TypeCache {
-            unit: push_id(&mut types, Type::Real(RType::Unit)),
+            unit: push_id(&mut types, Type::Unit),
             error: push_id(&mut types, Type::Error),
         };
         Self {
@@ -36,13 +37,15 @@ impl UProgram {
             generics: Vec::new(),
             data: Vec::new(),
             modules: Vec::new(),
-            vfmap: HashMap::new(),
+            instrs: Vec::new(),
+            unres_idents: Vec::new(),
+            unres_instrs: Vec::new(),
             tc,
         }
     }
 
     pub fn infer(&mut self) -> TypeID {
-        self.def_ty(RType::Infer.ty())
+        self.def_ty(Type::Infer)
     }
 
     pub fn def_var(&mut self, v: UVar) -> VarID {
@@ -58,7 +61,11 @@ impl UProgram {
     }
 
     pub fn def_ident(&mut self, i: UIdent) -> IdentID {
-        push_id(&mut self.idents, i)
+        let id = push_id(&mut self.idents, i);
+        if let IdentStatus::Unres { .. } = self.idents[id].status {
+            self.unres_idents.push(id);
+        }
+        id
     }
 
     pub fn def_generic(&mut self, g: UGeneric) -> GenericID {
@@ -77,35 +84,36 @@ impl UProgram {
         push_id(&mut self.modules, m)
     }
 
+    pub fn res_ty(&self, i: IdentID) -> Option<TypeID> {
+        self.idents[i].status;
+    }
+
     pub fn type_name(&self, ty: impl Typed) -> String {
         match ty.ty(self) {
-            Type::Real(rty) => match rty {
-                RType::Struct(ty) => {
-                    format!(
-                        "{}{}",
-                        self.structs[ty.id].name,
-                        self.gparams_str(&ty.gargs)
-                    )
-                }
-                RType::FnRef(ty) => {
-                    format!(
-                        "fn{}({}) -> {}",
-                        &self.gparams_str(&ty.gargs),
-                        &self.type_list_str(self.fns[ty.id].args.iter().map(|v| self.vars[v].ty)),
-                        &self.type_name(self.fns[ty.id].ret)
-                    )
-                }
-                RType::Ref(t) => format!("{}&", self.type_name(t)),
-                RType::Deref(t) => format!("{}^", self.type_name(t)),
-                RType::Bits(size) => format!("b{}", size),
-                RType::Array(t, len) => format!("[{}; {len}]", self.type_name(t)),
-                RType::Unit => "()".to_string(),
-                RType::Slice(t) => format!("&[{}]", self.type_name(t)),
-                RType::Infer => "{inferred}".to_string(),
-            },
-            Type::Error => "{error}".to_string(),
-            Type::Unres(_) => "{unresolved}".to_string(),
+            Type::Struct(ty) => {
+                format!(
+                    "{}{}",
+                    self.structs[ty.id].name,
+                    self.gparams_str(&ty.gargs)
+                )
+            }
+            Type::FnInst(ty) => {
+                format!(
+                    "fn{}({}) -> {}",
+                    &self.gparams_str(&ty.gargs),
+                    &self.type_list_str(self.fns[ty.id].args.iter().map(|v| self.vars[v].ty)),
+                    &self.type_name(self.fns[ty.id].ret)
+                )
+            }
+            Type::Ref(t) => format!("{}&", self.type_name(t)),
+            Type::Bits(size) => format!("b{}", size),
+            Type::Array(t, len) => format!("[{}; {len}]", self.type_name(t)),
+            Type::Unit => "()".to_string(),
+            Type::Slice(t) => format!("&[{}]", self.type_name(t)),
+            Type::Infer => "{inferred}".to_string(),
             Type::Generic(id) => self.generics[id].name.clone(),
+            Type::Deref(t) => format!("{}^", self.type_name(t)),
+            Type::Error => "{error}".to_string(),
             Type::Ptr(id) => self.type_name(id),
         }
     }

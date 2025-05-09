@@ -1,7 +1,4 @@
-use crate::{
-    common::{CompilerMsg, CompilerOutput},
-    ir::RType,
-};
+use crate::common::{CompilerMsg, CompilerOutput};
 
 use super::{
     IdentStatus, KindTy, MemberTy, Origin, Res, ResBase, StructID, Type, TypeID, UProgram,
@@ -119,12 +116,14 @@ pub fn report_errs(p: &UProgram, output: &mut CompilerOutput, mut errs: Vec<ResE
         }
     }
     for var in &p.vars {
-        match &p.types[var.ty] {
-            Type::Real(RType::Infer) => output.err(CompilerMsg::new(
-                format!("Type of {:?} cannot be inferred", var.name),
-                var.origin,
-            )),
-            _ => (),
+        if let Some(ty) = var.ty() {
+            match &p.types[ty] {
+                Type::Infer => output.err(CompilerMsg::new(
+                    format!("Type of {:?} cannot be inferred", var.name),
+                    var.origin,
+                )),
+                _ => (),
+            }
         }
     }
 }

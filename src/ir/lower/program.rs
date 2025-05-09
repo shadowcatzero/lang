@@ -428,7 +428,7 @@ impl LFunctionBuilderData<'_> {
             Type::Generic(id) => return None,
             // function references are resolved at compile time into direct calls,
             // so they don't have any size as arguments
-            Type::FnRef(fi) => 0,
+            Type::FnInst(fi) => 0,
             Type::Ref(_) => self.addr_size(),
             Type::Array(ty, len) => self.size_of_type(p, ty)? * len,
             Type::Slice(_) => self.addr_size() * 2,

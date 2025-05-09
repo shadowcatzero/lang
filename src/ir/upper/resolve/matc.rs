@@ -1,31 +1,33 @@
 use super::*;
 
-pub fn match_types(data: &mut ResData, dst: impl TypeIDed, src: impl TypeIDed) -> MatchRes {
-    let dstid = dst.type_id(&data.s);
-    let srcid = src.type_id(&data.s);
-    let dstty = data.real_ty(&dst)?.clone();
-    let srcty = data.real_ty(&src)?.clone();
-    let error = || {
-        MatchRes::Error(vec![TypeMismatch {
-            dst: dstid,
-            src: srcid,
-        }])
+pub fn match_types(data: &mut ResData, dst: TypeID, src: TypeID) -> MatchRes {
+    let Some(dst) = clean_type(data.types, dst) else {
+        return MatchRes::Finished;
     };
-    match (dstty, srcty) {
+    let Some(src) = clean_type(data.types, src) else {
+        return MatchRes::Finished;
+    };
+    // prevents this from blowing up I think:
+    // let mut x, y;
+    // x = y;
+    // y = x;
+    if dst == src {
+        return MatchRes::Finished;
+    }
+    let error = || MatchRes::Error(vec![TypeMismatch { dst, src }]);
+    match (data.types[dst].clone(), data.types[src].clone()) {
         // prefer changing dst over src
-        (RType::Infer, _) => {
+        (Type::Infer, _) => {
             data.changed = true;
-            data.types[dstid] = Type::Ptr(srcid);
-            dst.finish(&mut data.s, data.types);
+            data.types[dst] = Type::Ptr(src);
             MatchRes::Finished
         }
-        (_, RType::Infer) => {
+        (_, Type::Infer) => {
             data.changed = true;
-            data.types[srcid] = Type::Ptr(dstid);
-            src.finish(&mut data.s, data.types);
+            data.types[src] = Type::Ptr(dst);
             MatchRes::Finished
         }
-        (RType::Struct(dest), RType::Struct(src)) => {
+        (Type::Struct(dest), Type::Struct(src)) => {
             if dest.id != src.id {
                 return error();
             }
@@ -45,9 +47,9 @@ pub fn match_types(data: &mut ResData, dst: impl TypeIDed, src: impl TypeIDed) -
         //     let src = src_args.into_iter().chain(once(src_ret));
         //     match_all(data, dst, src)
         // }
-        (RType::Ref(dest), RType::Ref(src)) => match_types(data, dest, src),
-        (RType::Slice(dest), RType::Slice(src)) => match_types(data, dest, src),
-        (RType::Array(dest, dlen), RType::Array(src, slen)) => {
+        (Type::Ref(dest), Type::Ref(src)) => match_types(data, dest, src),
+        (Type::Slice(dest), Type::Slice(src)) => match_types(data, dest, src),
+        (Type::Array(dest, dlen), Type::Array(src, slen)) => {
             if dlen == slen {
                 match_types(data, dest, src)
             } else {
@@ -84,22 +86,14 @@ fn match_all(
 }
 
 impl<'a> ResData<'a> {
-    pub fn match_types<Dst: ResKind, Src: ResKind>(
+    pub fn match_types(
         &mut self,
-        dst: impl Resolvable<Dst>,
-        src: impl Resolvable<Src>,
+        dst: impl MaybeTypeID,
+        src: impl MaybeTypeID,
         origin: impl HasOrigin,
-    ) -> ResolveRes
-    where
-        Dst::Res: TypeIDed,
-        Src::Res: TypeIDed,
-    {
-        let dst = dst
-            .try_res(&mut self.s, self.types, &mut self.errs, &mut self.changed)?
-            .type_id(&self.s);
-        let src = src
-            .try_res(&mut self.s, self.types, &mut self.errs, &mut self.changed)?
-            .type_id(&self.s);
+    ) -> ResolveRes {
+        let dst = dst.type_id(&self.s)?;
+        let src = src.type_id(&self.s)?;
         let res = match_types(self, dst, src);
         match res {
             MatchRes::Unfinished => ResolveRes::Unfinished,
@@ -115,12 +109,6 @@ impl<'a> ResData<'a> {
             }
         }
     }
-    pub fn real_ty(&mut self, x: &impl TypeIDed) -> Result<&RType, MatchRes> {
-        real_type(self.types, x.type_id(&self.s)).map_err(|res| match res {
-            ResolveRes::Finished => MatchRes::Finished,
-            ResolveRes::Unfinished => MatchRes::Unfinished,
-        })
-    }
 }
 
 pub enum MatchRes {
@@ -134,6 +122,25 @@ impl FromResidual<Result<Infallible, MatchRes>> for MatchRes {
         match residual {
             Ok(_) => unreachable!(),
             Err(r) => r,
+        }
+    }
+}
+
+pub trait MaybeTypeID {
+    fn type_id(&self, s: &Sources) -> Result<TypeID, ResolveRes>;
+}
+
+impl<T: TypeIDed> MaybeTypeID for T {
+    fn type_id(&self, s: &Sources) -> Result<TypeID, ResolveRes> {
+        Ok(self.type_id(s))
+    }
+}
+
+impl MaybeTypeID for VarID {
+    fn type_id(&self, s: &Sources) -> Result<TypeID, ResolveRes> {
+        match s.vars[self].ty {
+            VarTy::Ident(id) => todo!(),
+            VarTy::Res(id) => Ok(id),
         }
     }
 }
